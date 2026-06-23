@@ -41,6 +41,11 @@
             </div>
             <p id="textFontStatus" class="text-font-status">フォント読込中…</p>
           </section>
+          <section class="stamp-quick-add" aria-labelledby="stampAddTitle">
+            <h2 id="stampAddTitle">スタンプ</h2>
+            <button id="openStampLibrary" class="secondary wide stamp-open-button">＋ スタンプを追加</button>
+            <p id="stampLibraryStatus" class="stamp-library-status">素材一覧を読み込み中…</p>
+          </section>
           <h2 class="drawing-tools-title">作図ツール</h2>
           <div class="drawing-tools" role="toolbar" aria-label="作図ツール">
             <button class="draw-tool active" data-draw-tool="pen" title="自由線">✎<span>ペン</span></button>
@@ -67,7 +72,7 @@
         </article>
 
         <article class="card drawing-canvas-card">
-          <div class="card-title"><h2>キャンバス</h2><div class="drawing-canvas-actions"><button id="drawingProperties" class="secondary" hidden>文字プロパティ</button><span id="drawingObjectCount" class="muted">0オブジェクト</span></div></div>
+          <div class="card-title"><h2>キャンバス</h2><div class="drawing-canvas-actions"><button id="drawingProperties" class="secondary" hidden>プロパティ</button><span id="drawingObjectCount" class="muted">0オブジェクト</span></div></div>
           <div id="drawingCanvasWrap" class="drawing-canvas-wrap">
             <svg id="drawingCanvas" viewBox="0 0 30 30" aria-label="お絵描きキャンバス"></svg>
           </div>
@@ -99,6 +104,20 @@
         <label>回転角度 (°)<input id="textRotation" type="number" min="-360" max="360" step="1"></label>
         <p class="muted">アウトライン描画。将来のシングルライン方式に拡張可能な形式で保存します。</p>
         <div class="actions"><button id="textPropertiesApply" class="primary">適用</button><button id="textPropertiesCancel">キャンセル</button></div>
+      </dialog>
+      <dialog id="stampLibraryDialog" class="stamp-dialog stamp-library-dialog">
+        <div class="dialog-title"><h2>スタンプを追加</h2><button id="stampLibraryClose" aria-label="閉じる">×</button></div>
+        <label>カテゴリ<select id="stampCategory"><option value="all">すべて</option><option value="character">キャラクター</option><option value="bubble">吹き出し</option><option value="effect">効果</option><option value="preset_line">定型線画</option></select></label>
+        <div id="stampGrid" class="stamp-grid" aria-live="polite"></div>
+      </dialog>
+      <dialog id="stampPropertiesDialog" class="stamp-dialog stamp-properties-dialog">
+        <div class="dialog-title"><h2>スタンププロパティ</h2><button id="stampPropertiesClose" aria-label="閉じる">×</button></div>
+        <p id="stampPropertiesName" class="stamp-properties-name"></p>
+        <label>サイズ（倍率）<input id="stampScale" type="number" min="0.05" max="50" step="0.05"></label>
+        <label>回転角度（°）<input id="stampRotation" type="number" min="-360" max="360" step="1"></label>
+        <div class="stamp-flip-row"><label class="check"><input id="stampFlipX" type="checkbox">左右反転</label><label class="check"><input id="stampFlipY" type="checkbox">上下反転</label></div>
+        <div class="stamp-layer-actions"><button id="stampToFront">最前面へ</button><button id="stampToBack">最背面へ</button></div>
+        <div class="actions"><button id="stampPropertiesApply" class="primary">適用</button><button id="stampPropertiesDelete" class="danger">削除</button><button id="stampPropertiesCancel">キャンセル</button></div>
       </dialog>
     </section>
 

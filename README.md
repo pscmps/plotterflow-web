@@ -50,6 +50,12 @@ SerialタブにはXYジョグパッドがあります。移動量を `0.1 / 1 / 
 
 部分消去された図形は、残った線ごとに自由線オブジェクトへ分割されます。G-codeでは分割区間の間にペンアップと空走が入るため、消した範囲には線を描きません。
 
+### スタンプ
+
+お絵描きタブの「スタンプを追加」から、キャラクター・吹き出し・効果・定型線画を配置できます。スタンプはSVG本体ではなく、`stampId`、位置、倍率、回転、左右・上下反転とオブジェクト配列内のレイヤ順を `.plotter.json` に保存します。ドラッグ移動、ピンチ拡大縮小、選択枠上の回転つまみ、右クリック／長押し／プロパティボタンからの変形・削除・最前面／最背面移動に対応しています。
+
+素材一覧は [`assets/stamps/catalog.json`](assets/stamps/catalog.json) で管理します。SVGファイルを `assets/stamps/` 以下へ追加し、ID・カテゴリ・パス・初期mmサイズをカタログへ登録すると一覧に表示されます。素材は `path`、`line`、`polyline`、`polygon`、`rect`、`circle`、`ellipse` の線画で作成し、文字は事前にパス化してください。素材はローカル配信され、表示・SVG出力・G-code生成時に読み込まれます。
+
 テキストは入力後にキャンバス中央へ追加されます。選択すると「文字プロパティ」ボタンが表示され、PCでは右クリック、スマホでは長押しでも編集画面を開けます。フォントサイズ、文字間隔、行間、方向、回転角度を変更できます。保存データには文字列と設定を保持し、表示・SVG・G-code生成時に輪郭パスを再生成します。`renderMode: "outline"` を持つため、将来シングルライン方式を追加できます。
 
 JSONは次の形式です。
@@ -61,7 +67,8 @@ JSONは次の形式です。
   "objects": [
     { "type": "freehand", "points": [[10, 10], [15, 12], [20, 20]] },
     { "type": "rect", "x": 30, "y": 30, "width": 20, "height": 10 },
-    { "type": "text", "text": "展示会", "x": 50, "y": 50, "fontSize": 8, "letterSpacing": 0, "lineHeight": 1.2, "writingMode": "horizontal", "rotation": 0, "renderMode": "outline" }
+    { "type": "text", "text": "展示会", "x": 50, "y": 50, "fontSize": 8, "letterSpacing": 0, "lineHeight": 1.2, "writingMode": "horizontal", "rotation": 0, "renderMode": "outline" },
+    { "type": "stamp", "stampId": "mekatororo_face", "x": 70, "y": 65, "scale": 1.2, "rotation": 15, "flipX": false, "flipY": false }
   ]
 }
 ```

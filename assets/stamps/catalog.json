@@ -1,0 +1,34 @@
+[
+  {
+    "id": "mekatororo_face",
+    "name": "めかとろろ・フェイス",
+    "category": "character",
+    "src": "assets/stamps/characters/mekatororo_face.svg",
+    "defaultWidthMm": 30,
+    "defaultHeightMm": 30
+  },
+  {
+    "id": "speech_round",
+    "name": "丸い吹き出し",
+    "category": "bubble",
+    "src": "assets/stamps/bubbles/speech_round.svg",
+    "defaultWidthMm": 38,
+    "defaultHeightMm": 25
+  },
+  {
+    "id": "spark_burst",
+    "name": "キラキラ効果",
+    "category": "effect",
+    "src": "assets/stamps/effects/spark_burst.svg",
+    "defaultWidthMm": 24,
+    "defaultHeightMm": 24
+  },
+  {
+    "id": "motion_wave",
+    "name": "ウェーブ線",
+    "category": "preset_line",
+    "src": "assets/stamps/preset_lines/motion_wave.svg",
+    "defaultWidthMm": 42,
+    "defaultHeightMm": 16
+  }
+]

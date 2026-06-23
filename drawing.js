@@ -8,11 +8,14 @@
   const $d = selector => document.querySelector(selector);
   const $$d = selector => [...document.querySelectorAll(selector)];
   const textContourCache = new Map();
+  const stampAssets = new Map();
+  const stampCategoryNames = { character: "キャラクター", bubble: "吹き出し", effect: "効果", preset_line: "定型線画" };
 
   const editor = {
     document: { version: 1, canvas: { widthMm: 30, heightMm: 30 }, objects: [] },
     tool: "pen", selected: -1, history: [], future: [], gesture: null, eraserPoint: null, currentId: null,
     font: null, fontReady: false, textWriting: "horizontal", activePointers: new Map(), longPressTimer: null,
+    stampCatalog: [], stampsReady: false,
     name: "drawing.plotter.json", library: readStorage(STORAGE_LIBRARY, [])
   };
 
@@ -25,7 +28,7 @@
     editor.history = [snapshot()];
     bindDrawingEvents(); populateDrawingControls(); refreshDrawingLibrary(); renderDrawing();
     new ResizeObserver(updateCanvasFit).observe($d("#drawingCanvasWrap"));
-    loadTextFont();
+    loadTextFont(); loadStampCatalog();
   }
 
   function bindDrawingEvents() {
@@ -53,11 +56,59 @@
     $d("#drawingGenerateGcode").addEventListener("click", generateDrawingGcode);
     $d("#drawingAddText").addEventListener("click", addTextObject);
     $$d("[data-text-writing]").forEach(button => button.addEventListener("click", () => setTextWriting(button.dataset.textWriting)));
-    $d("#drawingProperties").addEventListener("click", openTextProperties);
+    $d("#drawingProperties").addEventListener("click", openSelectedProperties);
     $d("#textPropertiesApply").addEventListener("click", applyTextProperties);
     $d("#textPropertiesClose").addEventListener("click", closeTextProperties);
     $d("#textPropertiesCancel").addEventListener("click", closeTextProperties);
+    $d("#openStampLibrary").addEventListener("click", openStampLibrary);
+    $d("#stampLibraryClose").addEventListener("click", closeStampLibrary);
+    $d("#stampCategory").addEventListener("change", renderStampLibrary);
+    $d("#stampGrid").addEventListener("click", event => { const button=event.target.closest("[data-stamp-id]");if(button)addStampObject(button.dataset.stampId); });
+    $d("#stampPropertiesApply").addEventListener("click", applyStampProperties);
+    $d("#stampPropertiesClose").addEventListener("click", closeStampProperties);
+    $d("#stampPropertiesCancel").addEventListener("click", closeStampProperties);
+    $d("#stampPropertiesDelete").addEventListener("click", () => { closeStampProperties(); deleteSelected(); });
+    $d("#stampToFront").addEventListener("click", bringStampToFront);
+    $d("#stampToBack").addEventListener("click", sendStampToBack);
     document.addEventListener("keydown", drawingKeydown);
+  }
+
+  async function loadStampCatalog() {
+    const status=$d("#stampLibraryStatus"),openButton=$d("#openStampLibrary");openButton.disabled=true;
+    try {
+      const response=await fetch("assets/stamps/catalog.json");if(!response.ok)throw new Error(`HTTP ${response.status}`);
+      const catalog=await response.json();if(!Array.isArray(catalog))throw new Error("catalog.jsonの形式が不正です");
+      const loaded=await Promise.all(catalog.map(async item=>{
+        const svgResponse=await fetch(item.src);if(!svgResponse.ok)throw new Error(`${item.src}: HTTP ${svgResponse.status}`);
+        const parsed=parseStampSvg(await svgResponse.text());
+        const meta={id:String(item.id),name:String(item.name||item.id),category:String(item.category||"effect"),src:String(item.src),defaultWidthMm:Math.max(.1,+item.defaultWidthMm||30),defaultHeightMm:Math.max(.1,+item.defaultHeightMm||30)};
+        stampAssets.set(meta.id,{...meta,...parsed});return meta;
+      }));
+      editor.stampCatalog=loaded;editor.stampsReady=true;openButton.disabled=false;status.textContent=`${loaded.length}種類の素材`;status.className="stamp-library-status ready";renderStampLibrary();renderDrawing();
+    } catch(error) { status.textContent=`素材読込エラー: ${error.message}`;status.className="stamp-library-status error";setStatus(status.textContent,true); }
+  }
+  function parseStampSvg(text) {
+    const doc=new DOMParser().parseFromString(text,"image/svg+xml"),root=doc.documentElement;
+    if(root.localName!=="svg"||doc.querySelector("parsererror"))throw new Error("SVG形式が不正です");
+    root.querySelectorAll("script,foreignObject,image,text,style").forEach(node=>node.remove());
+    root.querySelectorAll("*").forEach(node=>[...node.attributes].forEach(attribute=>{if(attribute.name.toLowerCase().startsWith("on")||/^(href|xlink:href)$/i.test(attribute.name))node.removeAttribute(attribute.name);}));
+    const vb=(root.getAttribute("viewBox")||"0 0 100 100").trim().split(/[ ,]+/).map(Number);
+    if(vb.length!==4||vb.some(value=>!Number.isFinite(value))||vb[2]<=0||vb[3]<=0)throw new Error("viewBoxが不正です");
+    const presentation=["fill","stroke","stroke-linecap","stroke-linejoin","stroke-dasharray"].map(name=>root.hasAttribute(name)?`${name}="${escapeHtml(root.getAttribute(name))}"`:"").filter(Boolean).join(" ");
+    return{markup:root.innerHTML,presentation,viewBox:{x:vb[0],y:vb[1],width:vb[2],height:vb[3]}};
+  }
+  function openStampLibrary(){if(!editor.stampsReady)return setStatus("スタンプ素材を読み込み中です。",true);renderStampLibrary();openDialog($d("#stampLibraryDialog"));}
+  function closeStampLibrary(){closeDialog($d("#stampLibraryDialog"));}
+  function renderStampLibrary(){
+    const grid=$d("#stampGrid"),category=$d("#stampCategory")?.value||"all";
+    const items=editor.stampCatalog.filter(item=>category==="all"||item.category===category);
+    grid.innerHTML=items.map(item=>`<button class="stamp-card" data-stamp-id="${escapeHtml(item.id)}"><img src="${escapeHtml(item.src)}" alt=""><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(stampCategoryNames[item.category]||item.category)}</small></button>`).join("")||"<p class=\"muted\">このカテゴリには素材がありません。</p>";
+  }
+  function addStampObject(stampId){
+    const asset=stampAssets.get(stampId);if(!asset)return setStatus("スタンプ素材が見つかりません。",true);
+    const c=editor.document.canvas,fit=Math.min(1,c.widthMm/(asset.defaultWidthMm*1.4),c.heightMm/(asset.defaultHeightMm*1.4));
+    editor.document.objects.push({type:"stamp",stampId,x:c.widthMm/2,y:c.heightMm/2,scale:Math.max(.05,fit),rotation:0,flipX:false,flipY:false});
+    editor.selected=editor.document.objects.length-1;commit("スタンプ追加");setTool("select");closeStampLibrary();renderDrawing();setStatus(`${asset.name}を中央に追加しました。`);
   }
 
   async function loadTextFont() {
@@ -91,7 +142,7 @@
     const point = eventPoint(event); const canvas = $d("#drawingCanvas");
     editor.activePointers.set(event.pointerId, point);
     canvas.setPointerCapture?.(event.pointerId);
-    if (editor.tool === "select" && editor.activePointers.size === 2 && editor.document.objects[editor.selected]?.type === "text") {
+    if (editor.tool === "select" && editor.activePointers.size === 2 && ["text","stamp"].includes(editor.document.objects[editor.selected]?.type)) {
       clearLongPress(); const distance=twoPointerDistance();
       editor.gesture={type:"pinch",startDistance:Math.max(.01,distance),original:clone(editor.document.objects[editor.selected]),changed:false};return;
     }
@@ -103,9 +154,13 @@
       return;
     }
     if (editor.tool === "select") {
+      const current=editor.document.objects[editor.selected];
+      if(current?.type==="stamp"&&pointNearRotationHandle(point,current)){
+        const center={x:current.x,y:current.y};editor.gesture={type:"rotate",center,startAngle:Math.atan2(point.y-center.y,point.x-center.x),original:clone(current),changed:false};renderDrawing();return;
+      }
       editor.selected = findNearestObject(point);
       editor.gesture = editor.selected >= 0 ? { type: "move", start: point, original: clone(editor.document.objects[editor.selected]), changed: false } : null;
-      if (editor.document.objects[editor.selected]?.type === "text" && event.pointerType !== "mouse") scheduleLongPress(point);
+      if (["text","stamp"].includes(editor.document.objects[editor.selected]?.type) && event.pointerType !== "mouse") scheduleLongPress(point);
       renderDrawing(); return;
     }
     editor.selected = -1;
@@ -124,8 +179,11 @@
     event.preventDefault();
     if (gesture.type === "pinch") {
       const scale=twoPointerDistance()/gesture.startDistance;
-      editor.document.objects[editor.selected]={...clone(gesture.original),fontSize:clamp(gesture.original.fontSize*scale,1,500)};
+      editor.document.objects[editor.selected]=gesture.original.type==="stamp"?{...clone(gesture.original),scale:clamp(gesture.original.scale*scale,.05,50)}:{...clone(gesture.original),fontSize:clamp(gesture.original.fontSize*scale,1,500)};
       gesture.changed=Math.abs(scale-1)>.01;clearLongPress();
+    } else if (gesture.type === "rotate") {
+      const angle=Math.atan2(point.y-gesture.center.y,point.x-gesture.center.x),delta=(angle-gesture.startAngle)*180/Math.PI;
+      editor.document.objects[editor.selected]={...clone(gesture.original),rotation:normalizeAngle(gesture.original.rotation+delta)};gesture.changed=Math.abs(delta)>.2;
     } else if (gesture.type === "erase") {
       editor.eraserPoint = point;
       gesture.changed = eraseAlongStroke(gesture.last, point) || gesture.changed;
@@ -152,7 +210,9 @@
     const gesture = editor.gesture; if (!gesture) return;
     event.preventDefault();
     if (gesture.type === "pinch") {
-      if (gesture.changed) commit("テキスト拡大縮小");
+      if (gesture.changed) commit(gesture.original.type==="stamp"?"スタンプ拡大縮小":"テキスト拡大縮小");
+    } else if (gesture.type === "rotate") {
+      if (gesture.changed) commit("スタンプ回転");
     } else if (gesture.type === "erase") {
       if (gesture.changed) commit("部分消去");
     } else if (gesture.type === "move") {
@@ -169,14 +229,15 @@
     clearLongPress();editor.activePointers.clear();
     if (editor.gesture?.type === "move") editor.document.objects[editor.selected] = editor.gesture.original;
     if (editor.gesture?.type === "pinch") editor.document.objects[editor.selected] = editor.gesture.original;
+    if (editor.gesture?.type === "rotate") editor.document.objects[editor.selected] = editor.gesture.original;
     if (editor.gesture?.type === "erase") editor.document.objects = editor.gesture.before;
     editor.gesture = null; renderDrawing();
   }
 
   function twoPointerDistance(){const points=[...editor.activePointers.values()];return points.length<2?0:Math.hypot(points[0].x-points[1].x,points[0].y-points[1].y);}
-  function scheduleLongPress(point){clearLongPress();editor.longPressTimer=setTimeout(()=>{if(editor.document.objects[editor.selected]?.type==="text"&&!editor.gesture?.changed)openTextProperties();},650);}
+  function scheduleLongPress(point){clearLongPress();editor.longPressTimer=setTimeout(()=>{if(["text","stamp"].includes(editor.document.objects[editor.selected]?.type)&&!editor.gesture?.changed)openSelectedProperties();},650);}
   function clearLongPress(){if(editor.longPressTimer){clearTimeout(editor.longPressTimer);editor.longPressTimer=null;}}
-  function drawingContextMenu(event){const index=findNearestObject(eventPoint(event));if(editor.document.objects[index]?.type!=="text")return;event.preventDefault();editor.selected=index;renderDrawing();openTextProperties();}
+  function drawingContextMenu(event){const index=findNearestObject(eventPoint(event));if(!["text","stamp"].includes(editor.document.objects[index]?.type))return;event.preventDefault();editor.selected=index;renderDrawing();openSelectedProperties();}
 
   function eventPoint(event) {
     const svg = $d("#drawingCanvas"), rect = svg.getBoundingClientRect(), canvas = editor.document.canvas;
@@ -193,8 +254,12 @@
     svg.innerHTML = editor.document.objects.map((object, index) => objectMarkup(object, index === editor.selected)).join("");
     if (editor.gesture?.draft) svg.insertAdjacentHTML("beforeend", objectMarkup(editor.gesture.draft, false));
     if (editor.selected >= 0 && editor.document.objects[editor.selected]) {
-      const b = objectBounds(editor.document.objects[editor.selected]), pad = Math.max(c.widthMm, c.heightMm) * .008;
+      const selectedObject=editor.document.objects[editor.selected],b = objectBounds(selectedObject), pad = Math.max(c.widthMm, c.heightMm) * .008;
       svg.insertAdjacentHTML("beforeend", `<rect class="drawing-selection" x="${b.x-pad}" y="${b.y-pad}" width="${b.width+2*pad}" height="${b.height+2*pad}"/>`);
+      if(selectedObject.type==="stamp"){
+        const handle=rotationHandlePoint(selectedObject),top={x:b.x+b.width/2,y:b.y-pad};
+        svg.insertAdjacentHTML("beforeend",`<line class="stamp-rotation-line" x1="${fmt(top.x)}" y1="${fmt(top.y)}" x2="${fmt(handle.x)}" y2="${fmt(handle.y)}"/><circle class="stamp-rotation-handle" cx="${fmt(handle.x)}" cy="${fmt(handle.y)}" r="${fmt(Math.max(pad*1.8,.8))}"/>`);
+      }
     }
     if (editor.tool === "eraser" && editor.eraserPoint) {
       svg.insertAdjacentHTML("beforeend", `<circle class="drawing-eraser-cursor" cx="${fmt(editor.eraserPoint.x)}" cy="${fmt(editor.eraserPoint.y)}" r="${fmt(eraserRadius())}"/>`);
@@ -202,7 +267,7 @@
     $d("#drawingObjectCount").textContent = `${editor.document.objects.length}オブジェクト`;
     $d("#drawingUndo").disabled = editor.history.length <= 1; $d("#drawingRedo").disabled = !editor.future.length;
     $d("#drawingDelete").disabled = editor.selected < 0;
-    $d("#drawingProperties").hidden = editor.document.objects[editor.selected]?.type !== "text";
+    $d("#drawingProperties").hidden = !["text","stamp"].includes(editor.document.objects[editor.selected]?.type);
     updateCanvasFit(); persistLast();
   }
 
@@ -213,7 +278,16 @@
     if (object.type === "circle") return `<circle class="${cls}" cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>`;
     if (object.type === "star") return `<polygon class="${cls}" points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
     if (object.type === "text") return `<path class="${cls}" d="${contoursToPathData(textObjectContours(object))}"/>`;
+    if (object.type === "stamp") return stampMarkup(object,selected);
     return "";
+  }
+  function stampMarkup(object,selected=false){
+    const asset=stampAssets.get(object.stampId);if(!asset)return"";
+    return `<g class="stamp-visual${selected?" selected":""}" ${asset.presentation} transform="${stampTransform(object,asset)}">${asset.markup}</g>`;
+  }
+  function stampTransform(object,asset){
+    const sx=asset.defaultWidthMm/asset.viewBox.width,sy=asset.defaultHeightMm/asset.viewBox.height,flipX=object.flipX?-1:1,flipY=object.flipY?-1:1;
+    return `translate(${fmt(object.x)} ${fmt(object.y)}) rotate(${fmt(object.rotation||0)}) scale(${fmt(object.scale*flipX)} ${fmt(object.scale*flipY)}) translate(${fmt(-asset.defaultWidthMm/2)} ${fmt(-asset.defaultHeightMm/2)}) scale(${fmt(sx)} ${fmt(sy)}) translate(${fmt(-asset.viewBox.x)} ${fmt(-asset.viewBox.y)})`;
   }
 
   function commit() {
@@ -229,16 +303,39 @@
   function deleteSelected() { if (editor.selected < 0) return; editor.document.objects.splice(editor.selected, 1); editor.selected = -1; commit("削除"); renderDrawing(); }
   function clearDrawing() { if (!editor.document.objects.length || !confirm("描画内容をすべて消去しますか？")) return; editor.document.objects = []; editor.selected = -1; commit("全消去"); renderDrawing(); }
 
+  function openSelectedProperties(){const type=editor.document.objects[editor.selected]?.type;if(type==="text")openTextProperties();if(type==="stamp")openStampProperties();}
+  function openDialog(dialog){if(typeof dialog.showModal==="function")dialog.showModal();else dialog.setAttribute("open","");}
+  function closeDialog(dialog){if(typeof dialog.close==="function"&&dialog.open)dialog.close();else dialog.removeAttribute("open");}
+
   function openTextProperties() {
     const object=editor.document.objects[editor.selected];if(object?.type!=="text")return;
     $d("#textFontSize").value=object.fontSize;$d("#textLetterSpacing").value=object.letterSpacing;$d("#textLineHeight").value=object.lineHeight;$d("#textWritingMode").value=object.writingMode;$d("#textRotation").value=object.rotation;
-    const dialog=$d("#textPropertiesDialog");if(typeof dialog.showModal==="function")dialog.showModal();else dialog.setAttribute("open","");
+    openDialog($d("#textPropertiesDialog"));
   }
-  function closeTextProperties(){const dialog=$d("#textPropertiesDialog");if(typeof dialog.close==="function"&&dialog.open)dialog.close();else dialog.removeAttribute("open");}
+  function closeTextProperties(){closeDialog($d("#textPropertiesDialog"));}
   function applyTextProperties() {
     const object=editor.document.objects[editor.selected];if(object?.type!=="text")return closeTextProperties();
     object.fontSize=clamp(+$d("#textFontSize").value||object.fontSize,1,500);object.letterSpacing=clamp(+$d("#textLetterSpacing").value||0,-20,100);object.lineHeight=clamp(+$d("#textLineHeight").value||1.2,.5,5);object.writingMode=$d("#textWritingMode").value;object.rotation=clamp(+$d("#textRotation").value||0,-360,360);object.renderMode="outline";
     commit("文字プロパティ変更");closeTextProperties();renderDrawing();
+  }
+  function openStampProperties(){
+    const object=editor.document.objects[editor.selected];if(object?.type!=="stamp")return;
+    const asset=stampAssets.get(object.stampId);$d("#stampPropertiesName").textContent=asset?.name||object.stampId;
+    $d("#stampScale").value=fmt(object.scale);$d("#stampRotation").value=fmt(object.rotation);$d("#stampFlipX").checked=!!object.flipX;$d("#stampFlipY").checked=!!object.flipY;openDialog($d("#stampPropertiesDialog"));
+  }
+  function closeStampProperties(){closeDialog($d("#stampPropertiesDialog"));}
+  function applyStampProperties(){
+    const object=editor.document.objects[editor.selected];if(object?.type!=="stamp")return closeStampProperties();
+    object.scale=clamp(+$d("#stampScale").value||object.scale,.05,50);object.rotation=normalizeAngle(+$d("#stampRotation").value||0);object.flipX=$d("#stampFlipX").checked;object.flipY=$d("#stampFlipY").checked;
+    commit("スタンププロパティ変更");closeStampProperties();renderDrawing();
+  }
+  function bringStampToFront(){
+    if(editor.document.objects[editor.selected]?.type!=="stamp"||editor.selected===editor.document.objects.length-1)return;
+    const [object]=editor.document.objects.splice(editor.selected,1);editor.document.objects.push(object);editor.selected=editor.document.objects.length-1;commit("最前面へ移動");renderDrawing();
+  }
+  function sendStampToBack(){
+    if(editor.document.objects[editor.selected]?.type!=="stamp"||editor.selected===0)return;
+    const [object]=editor.document.objects.splice(editor.selected,1);editor.document.objects.unshift(object);editor.selected=0;commit("最背面へ移動");renderDrawing();
   }
 
   function drawingKeydown(event) {
@@ -313,11 +410,13 @@
     if (object.type === "rect") return `<rect x="${fmt(object.x)}" y="${fmt(object.y)}" width="${fmt(object.width)}" height="${fmt(object.height)}"/>`;
     if (object.type === "circle") return `<circle cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>`;
     if (object.type === "text") return `<path d="${contoursToPathData(textObjectContours(object))}"/>`;
+    if (object.type === "stamp") return stampMarkup(object,false);
     return `<polygon points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
   }
   function generateDrawingGcode() {
     if (!editor.document.objects.length) return setStatus("先に図形を描いてください。", true);
     if (editor.document.objects.some(object=>object.type==="text")&&!editor.fontReady) return setStatus("フォントを読み込み中です。",true);
+    if (editor.document.objects.some(object=>object.type==="stamp"&&!stampAssets.has(object.stampId))) return setStatus("スタンプ素材を読み込み中、または素材IDが見つかりません。",true);
     const paths = objectsToPaths(editor.document.objects); const name = ensureJsonName($d("#drawingName").value || editor.name);
     window.PlotterFlow.generateFromPaths(paths, name); setStatus(`${paths.length}パスをG-codeへ変換しました。`);
   }
@@ -328,6 +427,7 @@
       if (object.type === "rect") return [[[object.x,object.y],[object.x+object.width,object.y],[object.x+object.width,object.y+object.height],[object.x,object.y+object.height],[object.x,object.y]].map(p => ({x:p[0],y:p[1]}))];
       if (object.type === "star") return [[...starPoints(object), starPoints(object)[0]].map(p => ({x:p[0],y:p[1]}))];
       if (object.type === "text") return textObjectContours(object,interval).map(contour=>contour.map(p=>({x:p[0],y:p[1]})));
+      if (object.type === "stamp") return stampObjectPaths(object,interval).map(path=>path.map(p=>({x:p[0],y:p[1]})));
       const count = Math.max(16, Math.ceil(2 * Math.PI * object.r / interval));
       return [Array.from({ length: count + 1 }, (_, i) => ({ x: object.cx + Math.cos(i/count*2*Math.PI) * object.r, y: object.cy + Math.sin(i/count*2*Math.PI) * object.r }))];
     }).filter(path => path.length >= 2);
@@ -351,6 +451,7 @@
     if (object.type === "rect") return [{ points: resamplePolyline([[object.x,object.y],[object.x+object.width,object.y],[object.x+object.width,object.y+object.height],[object.x,object.y+object.height],[object.x,object.y]], step), closed: true }];
     if (object.type === "star") { const points=starPoints(object);points.push(points[0]);return [{ points:resamplePolyline(points,step),closed:true }]; }
     if (object.type === "text") return textObjectContours(object,step).map(points=>({points:resamplePolyline(points,step),closed:true}));
+    if (object.type === "stamp") return stampObjectPaths(object,step).map(points=>({points:resamplePolyline(points,step),closed:Math.hypot(points[0][0]-points.at(-1)[0],points[0][1]-points.at(-1)[1])<.01}));
     const count=Math.max(24,Math.ceil(2*Math.PI*object.r/step));
     return [{ points:Array.from({length:count+1},(_,i)=>[object.cx+Math.cos(i/count*2*Math.PI)*object.r,object.cy+Math.sin(i/count*2*Math.PI)*object.r]),closed:true }];
   }
@@ -361,6 +462,26 @@
       for(let j=1;j<=count;j++)result.push([a[0]+(b[0]-a[0])*j/count,a[1]+(b[1]-a[1])*j/count]);
     }
     return result;
+  }
+  function stampObjectPaths(object,interval=.5){
+    const asset=stampAssets.get(object.stampId);if(!asset)return[];
+    const host=document.createElementNS(svgNS,"svg");host.setAttribute("viewBox",`${asset.viewBox.x} ${asset.viewBox.y} ${asset.viewBox.width} ${asset.viewBox.height}`);host.style.cssText="position:fixed;left:-10000px;top:-10000px;width:400px;height:400px;visibility:hidden";host.innerHTML=asset.markup;document.body.append(host);
+    const rootCtm=host.getScreenCTM(),sx=asset.defaultWidthMm/asset.viewBox.width,sy=asset.defaultHeightMm/asset.viewBox.height,paths=[];
+    host.querySelectorAll("path,line,polyline,polygon,rect,circle,ellipse").forEach(element=>{
+      let length;try{length=element.getTotalLength();}catch{return;}if(!Number.isFinite(length)||length<=0)return;
+      const elementCtm=element.getScreenCTM();if(!rootCtm||!elementCtm)return;const relative=rootCtm.inverse().multiply(elementCtm),localScale=Math.max(Math.hypot(relative.a,relative.b)*sx,Math.hypot(relative.c,relative.d)*sy)*object.scale;
+      const count=Math.max(1,Math.ceil(length*localScale/Math.max(.04,interval))),points=[];
+      for(let i=0;i<=count;i++){
+        const raw=element.getPointAtLength(length*i/count),q=new DOMPoint(raw.x,raw.y).matrixTransform(relative);
+        points.push(transformStampPoint(object,[(q.x-asset.viewBox.x)*sx-asset.defaultWidthMm/2,(q.y-asset.viewBox.y)*sy-asset.defaultHeightMm/2]));
+      }
+      if(points.length>=2)paths.push(points);
+    });
+    host.remove();return paths;
+  }
+  function transformStampPoint(object,point){
+    const x=point[0]*object.scale*(object.flipX?-1:1),y=point[1]*object.scale*(object.flipY?-1:1),angle=(object.rotation||0)*Math.PI/180,cos=Math.cos(angle),sin=Math.sin(angle);
+    return[object.x+x*cos-y*sin,object.y+x*sin+y*cos];
   }
   function splitPolylineOutsideStroke(points, from, to, radius, closed) {
     const runs=[];let current=[];
@@ -387,6 +508,7 @@
   function distanceToObject(point, object) {
     if (object.type === "circle") return Math.abs(Math.hypot(point.x-object.cx,point.y-object.cy)-object.r);
     if (object.type === "text") { const b=objectBounds(object);if(point.x>=b.x&&point.x<=b.x+b.width&&point.y>=b.y&&point.y<=b.y+b.height)return 0;return Math.min(...textObjectContours(object).map(points=>distanceToPointList(point,points)),Infinity); }
+    if (object.type === "stamp") { const b=objectBounds(object);if(point.x>=b.x&&point.x<=b.x+b.width&&point.y>=b.y&&point.y<=b.y+b.height)return 0;return Math.min(Math.abs(point.x-b.x),Math.abs(point.x-b.x-b.width),Math.abs(point.y-b.y),Math.abs(point.y-b.y-b.height)); }
     let points;
     if (object.type === "freehand") points = object.points;
     if (object.type === "rect") points = [[object.x,object.y],[object.x+object.width,object.y],[object.x+object.width,object.y+object.height],[object.x,object.y+object.height],[object.x,object.y]];
@@ -395,8 +517,15 @@
   }
   function distanceToPointList(point,points){let distance=Infinity;for(let i=1;i<points.length;i++)distance=Math.min(distance,distanceToSegment(point,{x:points[i-1][0],y:points[i-1][1]},{x:points[i][0],y:points[i][1]}));return distance;}
   function distanceToSegment(p, a, b) { const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(!l2)return Math.hypot(p.x-a.x,p.y-a.y);const t=clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/l2,0,1);return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy)); }
-  function translateObject(object, dx, dy) { const result=clone(object);if(result.type==="freehand")result.points=result.points.map(p=>[p[0]+dx,p[1]+dy]);else if(result.type==="rect"){result.x+=dx;result.y+=dy;}else if(result.type==="text"){result.x+=dx;result.y+=dy;}else{result.cx+=dx;result.cy+=dy;}return result; }
-  function objectBounds(object) { let points;if(object.type==="freehand")points=object.points;else if(object.type==="rect")points=[[object.x,object.y],[object.x+object.width,object.y+object.height]];else if(object.type==="text")points=textObjectContours(object).flat();else points=[[object.cx-object.r,object.cy-object.r],[object.cx+object.r,object.cy+object.r]];if(!points.length)return{x:object.x||0,y:object.y||0,width:0,height:0};const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);return{x:Math.min(...xs),y:Math.min(...ys),width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys)}; }
+  function translateObject(object, dx, dy) { const result=clone(object);if(result.type==="freehand")result.points=result.points.map(p=>[p[0]+dx,p[1]+dy]);else if(result.type==="rect"){result.x+=dx;result.y+=dy;}else if(["text","stamp"].includes(result.type)){result.x+=dx;result.y+=dy;}else{result.cx+=dx;result.cy+=dy;}return result; }
+  function objectBounds(object) {
+    let points;if(object.type==="freehand")points=object.points;else if(object.type==="rect")points=[[object.x,object.y],[object.x+object.width,object.y+object.height]];else if(object.type==="text")points=textObjectContours(object).flat();else if(object.type==="stamp"){
+      const asset=stampAssets.get(object.stampId),w=(asset?.defaultWidthMm||30)/2,h=(asset?.defaultHeightMm||30)/2;points=[[-w,-h],[w,-h],[w,h],[-w,h]].map(point=>transformStampPoint(object,point));
+    }else points=[[object.cx-object.r,object.cy-object.r],[object.cx+object.r,object.cy+object.r]];
+    if(!points.length)return{x:object.x||0,y:object.y||0,width:0,height:0};const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);return{x:Math.min(...xs),y:Math.min(...ys),width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys)};
+  }
+  function rotationHandlePoint(object){const b=objectBounds(object),c=editor.document.canvas;return{x:b.x+b.width/2,y:b.y-Math.max(2,Math.max(c.widthMm,c.heightMm)*.035)};}
+  function pointNearRotationHandle(point,object){const handle=rotationHandlePoint(object),svg=$d("#drawingCanvas"),rect=svg.getBoundingClientRect(),c=editor.document.canvas,threshold=Math.max(c.widthMm/Math.max(1,rect.width),c.heightMm/Math.max(1,rect.height))*18;return Math.hypot(point.x-handle.x,point.y-handle.y)<=threshold;}
   function starPoints(object) { const points=[];for(let i=0;i<object.vertices*2;i++){const radius=i%2?object.r*.45:object.r,angle=-Math.PI/2+i*Math.PI/object.vertices;points.push([object.cx+Math.cos(angle)*radius,object.cy+Math.sin(angle)*radius]);}return points; }
 
   function textObjectContours(object,tolerance) {
@@ -444,11 +573,12 @@
     const objects=data.objects.map(normalizeObject);return{version:1,canvas:{widthMm:width,heightMm:height},objects};
   }
   function normalizeObject(object) {
-    if (!object || !["freehand","rect","circle","star","text"].includes(object.type)) throw new Error("未対応のオブジェクトがあります");
+    if (!object || !["freehand","rect","circle","star","text","stamp"].includes(object.type)) throw new Error("未対応のオブジェクトがあります");
     if(object.type==="freehand"){if(!Array.isArray(object.points)||object.points.length<2)throw new Error("自由線の点列が不正です");return{type:"freehand",points:object.points.map(p=>[finite(p[0]),finite(p[1])])};}
     if(object.type==="rect")return{type:"rect",x:finite(object.x),y:finite(object.y),width:Math.abs(finite(object.width)),height:Math.abs(finite(object.height))};
     if(object.type==="circle")return{type:"circle",cx:finite(object.cx),cy:finite(object.cy),r:Math.abs(finite(object.r))};
     if(object.type==="text")return{type:"text",text:String(object.text||""),x:finite(object.x),y:finite(object.y),fontSize:clamp(Math.abs(finite(object.fontSize||6)),1,500),letterSpacing:clamp(finite(object.letterSpacing||0),-20,100),lineHeight:clamp(finite(object.lineHeight||1.2),.5,5),writingMode:object.writingMode==="vertical"?"vertical":"horizontal",rotation:clamp(finite(object.rotation||0),-360,360),renderMode:object.renderMode==="singleline"?"singleline":"outline"};
+    if(object.type==="stamp")return{type:"stamp",stampId:String(object.stampId||""),x:finite(object.x),y:finite(object.y),scale:clamp(Math.abs(finite(object.scale??1)),.05,50),rotation:normalizeAngle(finite(object.rotation||0)),flipX:!!object.flipX,flipY:!!object.flipY};
     return{type:"star",cx:finite(object.cx),cy:finite(object.cy),r:Math.abs(finite(object.r)),vertices:clamp(Math.round(finite(object.vertices||5)),3,24)};
   }
   function finite(value){const number=+value;if(!Number.isFinite(number))throw new Error("数値データが不正です");return number;}
@@ -461,6 +591,7 @@
   function makeId(){return crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random()}`;}
   function escapeHtml(text){const div=document.createElement("div");div.textContent=text;return div.innerHTML;}
   function clamp(value,min,max){return Math.min(max,Math.max(min,value));}
+  function normalizeAngle(value){let angle=(+value||0)%360;if(angle>180)angle-=360;if(angle<=-180)angle+=360;return angle;}
   function fmt(value){return Number((+value).toFixed(3)).toString();}
 
   document.addEventListener("DOMContentLoaded", initDrawing);
