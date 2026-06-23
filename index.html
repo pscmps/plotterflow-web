@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>PlotterFlow - SVG to FluidNC</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="drawing.css">
 </head>
 <body>
   <header class="app-header">
@@ -13,7 +14,8 @@
   </header>
 
   <nav class="tabs" aria-label="メインメニュー">
-    <button class="tab active" data-tab="convert">SVG変換</button>
+    <button class="tab active" data-tab="drawing">お絵描き</button>
+    <button class="tab" data-tab="convert">SVG変換</button>
     <button class="tab" data-tab="gcode">G-code</button>
     <button class="tab" data-tab="serial">Serial</button>
     <button class="tab" data-tab="jobs">ジョブ実行</button>
@@ -21,7 +23,60 @@
   </nav>
 
   <main>
-    <section id="tab-convert" class="panel active">
+    <section id="tab-drawing" class="panel active">
+      <div class="drawing-layout">
+        <article class="card drawing-tools-card">
+          <h2>作図ツール</h2>
+          <div class="drawing-tools" role="toolbar" aria-label="作図ツール">
+            <button class="draw-tool active" data-draw-tool="pen" title="自由線">✎<span>ペン</span></button>
+            <button class="draw-tool" data-draw-tool="rect" title="四角">□<span>四角</span></button>
+            <button class="draw-tool" data-draw-tool="circle" title="丸">○<span>丸</span></button>
+            <button class="draw-tool" data-draw-tool="star" title="星">☆<span>星</span></button>
+            <button class="draw-tool" data-draw-tool="select" title="選択・移動">↖<span>選択</span></button>
+            <button class="draw-tool" data-draw-tool="eraser" title="オブジェクト削除">⌫<span>消しゴム</span></button>
+          </div>
+          <div class="drawing-history-actions">
+            <button id="drawingUndo" title="Ctrl+Z">↶ Undo</button>
+            <button id="drawingRedo" title="Ctrl+Y">↷ Redo</button>
+            <button id="drawingDelete" class="danger">選択を削除</button>
+            <button id="drawingClear" class="danger">全消去</button>
+          </div>
+          <hr>
+          <h2>キャンバス</h2>
+          <label>プリセット<select id="drawingCanvasPreset"><option value="30x30">30 × 30 mm</option><option value="100x100">100 × 100 mm</option><option value="150x150">150 × 150 mm</option><option value="200x200">200 × 200 mm</option><option value="297x210">297 × 210 mm</option><option value="custom">カスタム</option></select></label>
+          <div class="inline compact-inputs"><label>幅 (mm)<input id="drawingWidth" type="number" min="1" max="2000" value="30"></label><label>高さ (mm)<input id="drawingHeight" type="number" min="1" max="2000" value="30"></label></div>
+          <label>星の頂点数<input id="drawingStarPoints" type="number" min="3" max="24" value="5"></label>
+          <label>線の単純化 (mm)<input id="drawingSimplify" type="number" min="0" max="10" step="0.05" value="0.2"></label>
+          <p class="drawing-hint">指、Apple Pencil、スタイラス、マウスに対応。選択した図形はドラッグで移動できます。</p>
+        </article>
+
+        <article class="card drawing-canvas-card">
+          <div class="card-title"><h2>キャンバス</h2><span id="drawingObjectCount" class="muted">0オブジェクト</span></div>
+          <div id="drawingCanvasWrap" class="drawing-canvas-wrap">
+            <svg id="drawingCanvas" viewBox="0 0 30 30" aria-label="お絵描きキャンバス"></svg>
+          </div>
+          <p id="drawingCoordinates" class="drawing-coordinates">30 × 30 mm</p>
+        </article>
+
+        <article class="card drawing-files-card">
+          <h2>保存・出力</h2>
+          <label>保存済み<select id="drawingLibrary"><option value="">新規</option></select></label>
+          <label>ファイル名<input id="drawingName" value="drawing.plotter.json"></label>
+          <div class="stack">
+            <button id="drawingNew">新規</button>
+            <button id="drawingSave" class="primary">保存 / 上書き</button>
+            <button id="drawingSaveAs">名前を付けて保存</button>
+            <button id="drawingDownloadJson">JSONダウンロード</button>
+            <label class="file-button">JSON読み込み<input id="drawingLoadJson" type="file" accept=".json,.plotter.json,application/json"></label>
+            <button id="drawingDownloadSvg">SVGダウンロード</button>
+            <button id="drawingGenerateGcode" class="primary">G-code生成</button>
+          </div>
+          <p id="drawingStatus" class="status">描いてすぐG-code化できます。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="tab-convert" class="panel">
       <div class="grid two">
         <article class="card">
           <h2>SVG入力</h2>
@@ -110,5 +165,6 @@
   </main>
   <div id="toast" role="status"></div>
   <script src="app.js"></script>
+  <script src="drawing.js"></script>
 </body>
 </html>

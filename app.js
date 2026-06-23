@@ -126,7 +126,10 @@ function dwell(lines, seconds) { if (seconds > 0.0001) lines.push(`G4 P${fmt(sec
 function generateGcode() {
   if (!state.paths.length) return setSvgStatus("先にSVGを読み込んでください。", true);
   state.paths = extractPaths($("#previewSvg"));
-  const paths = transformedPaths(), s = state.settings, lines = [], moves = [];
+  buildGcodeFromPaths(transformedPaths());
+}
+function buildGcodeFromPaths(paths, outputName = "") {
+  const s = state.settings, lines = [], moves = [];
   lines.push(...String(s.header).split(/\r?\n/).filter(Boolean));
   let previous = { x: 0, y: 0 };
   for (const path of paths) {
@@ -156,9 +159,12 @@ function generateGcode() {
   }
   lines.push(s.penUpCommand); dwell(lines, +s.penUpDelay); lines.push(...String(s.footer).split(/\r?\n/).filter(Boolean));
   $("#gcodeEditor").value = lines.join("\n"); state.gcodeMoves = moves; state.currentId = null;
-  $("#gcodeName").value = `plot-${new Date().toISOString().slice(0, 19).replaceAll(":", "-")}.gcode`;
+  $("#gcodeName").value = outputName ? ensureExt(outputName.replace(/\.plotter\.json$/i, "")) : `plot-${new Date().toISOString().slice(0, 19).replaceAll(":", "-")}.gcode`;
   updateEditorStats(); setPreviewMode("gcode"); renderGcodePreview(); switchTab("gcode"); toast("G-codeを生成しました");
+  return lines.join("\n");
 }
+
+window.PlotterFlow = { generateFromPaths: buildGcodeFromPaths, switchTab, getSettings: () => state.settings };
 
 function setPreviewMode(mode) { state.previewMode = mode; $("#showSvgPreview").classList.toggle("active", mode === "svg"); $("#showGcodePreview").classList.toggle("active", mode === "gcode"); mode === "svg" ? renderSvgPreview() : renderGcodePreview(); }
 function renderSvgPreview() { if (!state.svgText) return; const svg = $("#previewSvg"); svg.style.display = "block"; }

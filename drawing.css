@@ -1,0 +1,23 @@
+.drawing-layout{display:grid;grid-template-columns:230px minmax(360px,1fr) 220px;gap:18px;align-items:start}
+.drawing-tools{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.draw-tool{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:22px;line-height:1;padding:10px 6px}
+.draw-tool span{font-size:12px}
+.draw-tool.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.drawing-history-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px}
+.drawing-history-actions .danger{grid-column:span 2}
+.compact-inputs{flex-wrap:nowrap}
+.compact-inputs label{min-width:0}
+.drawing-hint{font-size:12px;color:var(--muted);margin-bottom:0}
+.drawing-canvas-wrap{height:min(68vh,720px);min-height:400px;display:flex;align-items:center;justify-content:center;padding:14px;border:1px solid var(--line);border-radius:8px;background-color:#e8ecee;background-image:linear-gradient(45deg,#dfe4e6 25%,transparent 25%),linear-gradient(-45deg,#dfe4e6 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#dfe4e6 75%),linear-gradient(-45deg,transparent 75%,#dfe4e6 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0}
+.drawing-canvas-wrap svg{display:block;max-width:100%;max-height:100%;background:#fff;box-shadow:0 3px 18px #102c3230;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair}
+.drawing-canvas-wrap svg.select-mode{cursor:default}
+.drawing-canvas-wrap svg.eraser-mode{cursor:not-allowed}
+.drawing-object{fill:none;stroke:#111;stroke-width:1.5;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.drawing-object.selected{stroke:#087985}
+.drawing-selection{fill:none;stroke:#087985;stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke;pointer-events:none}
+.drawing-coordinates{text-align:center;color:var(--muted);margin:8px 0 0}
+.file-button{display:block;text-align:center;border:1px solid #b9c5ca;border-radius:6px;background:#fff;padding:8px 13px;cursor:pointer;margin:0;font-weight:400}
+.file-button input{display:none}
+.drawing-files-card .stack{margin-top:8px}
+@media(max-width:1100px){.drawing-layout{grid-template-columns:220px 1fr}.drawing-files-card{grid-column:1/-1}.drawing-files-card .stack{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:720px){.drawing-layout{grid-template-columns:1fr}.drawing-files-card{grid-column:auto}.drawing-tools{grid-template-columns:repeat(6,1fr)}.draw-tool{font-size:20px;padding:9px 2px}.draw-tool span{font-size:10px}.drawing-canvas-card{order:-1}.drawing-canvas-wrap{height:58vh;min-height:300px;padding:8px}.drawing-files-card .stack{grid-template-columns:1fr 1fr}.drawing-history-actions .danger{grid-column:auto}}
