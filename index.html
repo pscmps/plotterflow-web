@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PlotterFlow - SVG to FluidNC</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div><h1>PlotterFlow</h1><p>SVG → FluidNC G-code</p></div>
+    <div id="connectionBadge" class="badge">Serial: 未接続</div>
+  </header>
+
+  <nav class="tabs" aria-label="メインメニュー">
+    <button class="tab active" data-tab="convert">SVG変換</button>
+    <button class="tab" data-tab="gcode">G-code</button>
+    <button class="tab" data-tab="serial">Serial</button>
+    <button class="tab" data-tab="jobs">ジョブ実行</button>
+    <button class="tab" data-tab="settings">設定</button>
+  </nav>
+
+  <main>
+    <section id="tab-convert" class="panel active">
+      <div class="grid two">
+        <article class="card">
+          <h2>SVG入力</h2>
+          <label class="file-drop" id="dropZone">
+            <input id="svgFile" type="file" accept="image/svg+xml,.svg">
+            <strong>SVGを選択</strong><span>またはここへドロップ</span>
+          </label>
+          <label>SVGテキスト（任意）<textarea id="svgText" rows="9" placeholder="&lt;svg ...&gt;"></textarea></label>
+          <div class="actions"><button id="loadSvgText" class="secondary">テキストを読み込む</button><button id="generateGcode" class="primary">G-code生成</button></div>
+          <p id="svgStatus" class="status">SVGを読み込んでください。</p>
+        </article>
+        <article class="card preview-card">
+          <div class="card-title"><h2>プレビュー</h2><div class="segmented"><button id="showSvgPreview" class="active">SVG</button><button id="showGcodePreview">G-code</button></div></div>
+          <div id="preview" class="preview"><svg id="previewSvg" aria-label="描画プレビュー"></svg></div>
+          <div class="legend"><span><i class="draw"></i>描画</span><span><i class="travel"></i>空走</span><span><i class="position"></i>現在位置</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="tab-gcode" class="panel">
+      <div class="grid sidebar-layout">
+        <article class="card library">
+          <h2>ライブラリ</h2>
+          <label>保存済み<select id="gcodeLibrary"><option value="">未選択</option></select></label>
+          <div class="stack"><button id="newGcode">新規</button><button id="duplicateGcode">複製</button><button id="renameGcode">名前変更</button><button id="deleteGcode" class="danger">削除</button></div>
+        </article>
+        <article class="card">
+          <div class="card-title"><h2>G-code編集</h2><span id="gcodeStats" class="muted">0行</span></div>
+          <label>名前<input id="gcodeName" value="untitled.gcode"></label>
+          <textarea id="gcodeEditor" class="code" rows="24" spellcheck="false"></textarea>
+          <div class="actions"><button id="saveGcode" class="primary">保存</button><button id="downloadGcode">ダウンロード</button><button id="sendFromEditor">Serialで送信</button></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="tab-serial" class="panel">
+      <div class="grid two">
+        <article class="card">
+          <h2>接続・操作</h2>
+          <div class="inline"><label>Baudrate<input id="serialBaud" type="number" value="115200"></label><button id="connectSerial" class="primary">接続</button><button id="disconnectSerial">切断</button></div>
+          <div class="control-grid"><button data-command="?">?</button><button data-command="$$">$$</button><button data-command="$X">$X</button><button id="penUpButton">ペンアップ</button><button id="penDownButton">ペンダウン</button><button id="pauseSend">Pause (!)</button><button id="resumeSend">Resume (~)</button><button id="stopSend" class="danger">Stop</button><button id="resetController" class="danger">Reset</button></div>
+          <div class="inline"><input id="manualCommand" placeholder="手動コマンド"><button id="sendManual">送信</button></div>
+          <hr>
+          <label>送信対象<select id="serialSource"><option value="editor">現在のエディタ</option></select></label>
+          <button id="startSend" class="primary wide">送信開始</button>
+          <div class="progress-row"><progress id="sendProgress" value="0" max="1"></progress><span id="sendProgressText">0 / 0 (0%)</span></div>
+        </article>
+        <article class="card">
+          <h2>通信ログ</h2>
+          <div id="serialLog" class="log" aria-live="polite"></div>
+          <button id="clearLog">ログを消去</button>
+        </article>
+      </div>
+    </section>
+
+    <section id="tab-jobs" class="panel">
+      <article class="card">
+        <div class="card-title"><h2>ジョブリスト</h2><button id="addJob" class="primary">ジョブ追加</button></div>
+        <div id="jobList" class="job-list"></div>
+        <div class="inline job-footer"><label>全体ループ回数<input id="jobLoops" type="number" min="1" value="1"></label><button id="runJobs" class="primary">実行</button><button id="stopJobs" class="danger">停止</button></div>
+        <div class="progress-row"><progress id="jobProgress" value="0" max="1"></progress><span id="jobProgressText">待機中</span></div>
+      </article>
+    </section>
+
+    <section id="tab-settings" class="panel">
+      <form id="settingsForm" class="settings-grid">
+        <article class="card"><h2>ペン・Delay</h2>
+          <label>ペンアップ command<input name="penUpCommand"></label><label>ペンダウン command<input name="penDownCommand"></label>
+          <label>ペンアップ delay (秒)<input name="penUpDelay" type="number" min="0" step="0.01"></label><label>ペンダウン delay (秒)<input name="penDownDelay" type="number" min="0" step="0.01"></label>
+          <label>アップDelay方式<select name="upDelayMode"><option value="fixed">fixed</option><option value="threshold">threshold</option><option value="distance">distance_based</option></select></label>
+          <label>長距離しきい値 (mm)<input name="longMoveThreshold" type="number" min="0" step="1"></label><label>short delay (秒)<input name="penUpDelayShort" type="number" min="0" step="0.01"></label><label>long delay (秒)<input name="penUpDelayLong" type="number" min="0" step="0.01"></label>
+          <label>base delay (秒)<input name="baseDelay" type="number" min="0" step="0.01"></label><label>100mmごとのdelay (秒)<input name="delayPer100" type="number" min="0" step="0.01"></label><label>最大delay (秒)<input name="maxDelay" type="number" min="0" step="0.01"></label>
+        </article>
+        <article class="card"><h2>変換</h2>
+          <label>描画 feed (mm/min)<input name="drawFeed" type="number" min="1"></label><label>空走 feed (mm/min)<input name="travelFeed" type="number" min="1"></label><label>サンプル間隔 (mm)<input name="sampleInterval" type="number" min="0.05" step="0.05"></label>
+          <label>scale<input name="scale" type="number" step="0.01"></label><label>offset X (mm)<input name="offsetX" type="number" step="0.1"></label><label>offset Y (mm)<input name="offsetY" type="number" step="0.1"></label><label class="check"><input name="yFlip" type="checkbox">Y軸反転</label>
+          <label>最適化<select name="optimization"><option value="safe">safe</option><option value="overlap_up">overlap_up（推奨）</option><option value="overlap_down">overlap_down（実験）</option><option value="off">off</option></select></label>
+          <label>down lead距離 (mm)<input name="downLeadDistance" type="number" min="0" step="0.1"></label><label>必要down時間 (秒)<input name="requiredPenDownTime" type="number" min="0" step="0.01"></label>
+        </article>
+        <article class="card"><h2>出力・接続</h2>
+          <label>Baudrate<input name="baudrate" type="number"></label><label>ヘッダ<textarea name="header" rows="5"></textarea></label><label>フッタ<textarea name="footer" rows="5"></textarea></label>
+          <button type="submit" class="primary">設定を保存</button><button type="button" id="resetSettings">初期値へ戻す</button><p id="settingsStatus" class="status"></p>
+        </article>
+      </form>
+    </section>
+  </main>
+  <div id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
