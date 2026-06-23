@@ -33,7 +33,7 @@
             <button class="draw-tool" data-draw-tool="circle" title="丸">○<span>丸</span></button>
             <button class="draw-tool" data-draw-tool="star" title="星">☆<span>星</span></button>
             <button class="draw-tool" data-draw-tool="select" title="選択・移動">↖<span>選択</span></button>
-            <button class="draw-tool" data-draw-tool="eraser" title="オブジェクト削除">⌫<span>消しゴム</span></button>
+            <button class="draw-tool" data-draw-tool="eraser" title="触れた範囲を部分消去">⌫<span>消しゴム</span></button>
           </div>
           <div class="drawing-history-actions">
             <button id="drawingUndo" title="Ctrl+Z">↶ Undo</button>
@@ -47,6 +47,7 @@
           <div class="inline compact-inputs"><label>幅 (mm)<input id="drawingWidth" type="number" min="1" max="2000" value="30"></label><label>高さ (mm)<input id="drawingHeight" type="number" min="1" max="2000" value="30"></label></div>
           <label>星の頂点数<input id="drawingStarPoints" type="number" min="3" max="24" value="5"></label>
           <label>線の単純化 (mm)<input id="drawingSimplify" type="number" min="0" max="10" step="0.05" value="0.2"></label>
+          <label>消しゴム直径 (mm)<input id="drawingEraserSize" type="number" min="0.2" max="100" step="0.2" value="2"></label>
           <p class="drawing-hint">指、Apple Pencil、スタイラス、マウスに対応。選択した図形はドラッグで移動できます。</p>
         </article>
 

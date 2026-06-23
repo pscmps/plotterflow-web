@@ -10,7 +10,7 @@
 
   const editor = {
     document: { version: 1, canvas: { widthMm: 30, heightMm: 30 }, objects: [] },
-    tool: "pen", selected: -1, history: [], future: [], gesture: null, currentId: null,
+    tool: "pen", selected: -1, history: [], future: [], gesture: null, eraserPoint: null, currentId: null,
     name: "drawing.plotter.json", library: readStorage(STORAGE_LIBRARY, [])
   };
 
@@ -52,6 +52,7 @@
 
   function setTool(tool) {
     editor.tool = tool; editor.gesture = null;
+    if (tool !== "eraser") editor.eraserPoint = null;
     $$d(".draw-tool").forEach(button => button.classList.toggle("active", button.dataset.drawTool === tool));
     const canvas = $d("#drawingCanvas");
     canvas.classList.toggle("select-mode", tool === "select");
@@ -64,8 +65,10 @@
     const point = eventPoint(event); const canvas = $d("#drawingCanvas");
     canvas.setPointerCapture?.(event.pointerId);
     if (editor.tool === "eraser") {
-      const index = findNearestObject(point);
-      if (index >= 0) { editor.document.objects.splice(index, 1); editor.selected = -1; commit("削除"); renderDrawing(); }
+      editor.selected = -1; editor.eraserPoint = point;
+      editor.gesture = { type: "erase", last: point, before: clone(editor.document.objects), changed: false };
+      editor.gesture.changed = eraseAlongStroke(point, point);
+      renderDrawing();
       return;
     }
     if (editor.tool === "select") {
@@ -86,7 +89,11 @@
     $d("#drawingCoordinates").textContent = `${fmt(point.x)}, ${fmt(point.y)} mm`;
     const gesture = editor.gesture; if (!gesture) return;
     event.preventDefault();
-    if (gesture.type === "move") {
+    if (gesture.type === "erase") {
+      editor.eraserPoint = point;
+      gesture.changed = eraseAlongStroke(gesture.last, point) || gesture.changed;
+      gesture.last = point;
+    } else if (gesture.type === "move") {
       const dx = point.x - gesture.start.x, dy = point.y - gesture.start.y;
       editor.document.objects[editor.selected] = translateObject(gesture.original, dx, dy);
       gesture.changed = Math.hypot(dx, dy) > 0.01;
@@ -105,7 +112,9 @@
   function pointerUp(event) {
     const gesture = editor.gesture; if (!gesture) return;
     event.preventDefault();
-    if (gesture.type === "move") {
+    if (gesture.type === "erase") {
+      if (gesture.changed) commit("部分消去");
+    } else if (gesture.type === "move") {
       if (gesture.changed) commit("移動");
     } else {
       let object = gesture.draft;
@@ -117,6 +126,7 @@
   }
   function pointerCancel() {
     if (editor.gesture?.type === "move") editor.document.objects[editor.selected] = editor.gesture.original;
+    if (editor.gesture?.type === "erase") editor.document.objects = editor.gesture.before;
     editor.gesture = null; renderDrawing();
   }
 
@@ -137,6 +147,9 @@
     if (editor.selected >= 0 && editor.document.objects[editor.selected]) {
       const b = objectBounds(editor.document.objects[editor.selected]), pad = Math.max(c.widthMm, c.heightMm) * .008;
       svg.insertAdjacentHTML("beforeend", `<rect class="drawing-selection" x="${b.x-pad}" y="${b.y-pad}" width="${b.width+2*pad}" height="${b.height+2*pad}"/>`);
+    }
+    if (editor.tool === "eraser" && editor.eraserPoint) {
+      svg.insertAdjacentHTML("beforeend", `<circle class="drawing-eraser-cursor" cx="${fmt(editor.eraserPoint.x)}" cy="${fmt(editor.eraserPoint.y)}" r="${fmt(eraserRadius())}"/>`);
     }
     $d("#drawingObjectCount").textContent = `${editor.document.objects.length}オブジェクト`;
     $d("#drawingUndo").disabled = editor.history.length <= 1; $d("#drawingRedo").disabled = !editor.future.length;
@@ -253,6 +266,50 @@
       const count = Math.max(16, Math.ceil(2 * Math.PI * object.r / interval));
       return Array.from({ length: count + 1 }, (_, i) => ({ x: object.cx + Math.cos(i/count*2*Math.PI) * object.r, y: object.cy + Math.sin(i/count*2*Math.PI) * object.r }));
     }).filter(path => path.length >= 2);
+  }
+
+  function eraserRadius() { return clamp(+$d("#drawingEraserSize").value || 2, .2, 100) / 2; }
+  function eraseAlongStroke(from, to) {
+    const radius = eraserRadius(), step = Math.max(.04, radius / 3); let changed = false; const next = [];
+    for (const object of editor.document.objects) {
+      const source = objectAsPolyline(object, step);
+      const touched = source.points.some(point => distanceToSegment({ x: point[0], y: point[1] }, from, to) <= radius);
+      if (!touched) { next.push(object); continue; }
+      changed = true;
+      const runs = splitPolylineOutsideStroke(source.points, from, to, radius, source.closed);
+      runs.forEach(points => next.push({ type: "freehand", points }));
+    }
+    if (changed) editor.document.objects = next;
+    return changed;
+  }
+  function objectAsPolyline(object, step) {
+    if (object.type === "freehand") return { points: resamplePolyline(object.points, step), closed: false };
+    if (object.type === "rect") return { points: resamplePolyline([[object.x,object.y],[object.x+object.width,object.y],[object.x+object.width,object.y+object.height],[object.x,object.y+object.height],[object.x,object.y]], step), closed: true };
+    if (object.type === "star") { const points=starPoints(object);points.push(points[0]);return { points:resamplePolyline(points,step),closed:true }; }
+    const count=Math.max(24,Math.ceil(2*Math.PI*object.r/step));
+    return { points:Array.from({length:count+1},(_,i)=>[object.cx+Math.cos(i/count*2*Math.PI)*object.r,object.cy+Math.sin(i/count*2*Math.PI)*object.r]),closed:true };
+  }
+  function resamplePolyline(points, step) {
+    const result=[clone(points[0])];
+    for(let i=1;i<points.length;i++){
+      const a=points[i-1],b=points[i],distance=Math.hypot(b[0]-a[0],b[1]-a[1]),count=Math.max(1,Math.ceil(distance/step));
+      for(let j=1;j<=count;j++)result.push([a[0]+(b[0]-a[0])*j/count,a[1]+(b[1]-a[1])*j/count]);
+    }
+    return result;
+  }
+  function splitPolylineOutsideStroke(points, from, to, radius, closed) {
+    const runs=[];let current=[];
+    for(const point of points){
+      const outside=distanceToSegment({x:point[0],y:point[1]},from,to)>radius;
+      if(outside)current.push(point);else if(current.length){if(current.length>=2)runs.push(current);current=[];}
+    }
+    if(current.length>=2)runs.push(current);
+    if(closed&&runs.length>1){
+      const firstOutside=distanceToSegment({x:points[0][0],y:points[0][1]},from,to)>radius;
+      const lastOutside=distanceToSegment({x:points.at(-1)[0],y:points.at(-1)[1]},from,to)>radius;
+      if(firstOutside&&lastOutside){const merged=runs.at(-1).concat(runs[0].slice(1));runs[0]=merged;runs.pop();}
+    }
+    return runs;
   }
 
   function findNearestObject(point) {

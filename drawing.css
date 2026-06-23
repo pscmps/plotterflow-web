@@ -15,6 +15,7 @@
 .drawing-object{fill:none;stroke:#111;stroke-width:1.5;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 .drawing-object.selected{stroke:#087985}
 .drawing-selection{fill:none;stroke:#087985;stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke;pointer-events:none}
+.drawing-eraser-cursor{fill:#fff8;stroke:#c23b3b;stroke-width:1;stroke-dasharray:3 2;vector-effect:non-scaling-stroke;pointer-events:none}
 .drawing-coordinates{text-align:center;color:var(--muted);margin:8px 0 0}
 .file-button{display:block;text-align:center;border:1px solid #b9c5ca;border-radius:6px;background:#fff;padding:8px 13px;cursor:pointer;margin:0;font-weight:400}
 .file-button input{display:none}
