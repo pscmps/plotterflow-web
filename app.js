@@ -2,7 +2,7 @@
 
 const DEFAULTS = {
   penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
-  penUpDelay: 0.1, penDownDelay: 0.1, upDelayMode: "fixed",
+  penUpDelay: 0.1, penDownDelay: 0.1, penUpClearanceDelay: 0.1, upDelayMode: "fixed",
   longMoveThreshold: 100, penUpDelayShort: 0.1, penUpDelayLong: 0.3,
   baseDelay: 0.1, delayPer100: 0.1, maxDelay: 1,
   travelFeed: 6000, drawFeed: 3000, sampleInterval: 0.5,
@@ -15,7 +15,7 @@ const state = {
   settings: loadJSON("plotterflow.settings", DEFAULTS), svgText: "", paths: [], gcodeMoves: [],
   library: loadJSON("plotterflow.library", []), currentId: null, port: null, reader: null, writer: null,
   readBuffer: "", okWaiters: [], sending: false, jogging: false, paused: false, stopped: false, jobStopped: false,
-  previewMode: "svg", position: null, machinePosition: null, workPosition: null, workOffset: null, controllerState: "未接続", statusPollTimer: null
+  previewMode: "svg", previewNormalizeY: false, position: null, machinePosition: null, workPosition: null, workOffset: null, controllerState: "未接続", statusPollTimer: null
 };
 
 const $ = (s, root = document) => root.querySelector(s);
@@ -132,9 +132,9 @@ function dwell(lines, seconds) { if (seconds > 0.0001) lines.push(`G4 P${fmt(sec
 function generateGcode() {
   if (!state.paths.length) return setSvgStatus("先にSVGを読み込んでください。", true);
   state.paths = extractPaths(mountSvgForMeasurement(state.svgText));
-  buildGcodeFromPaths(transformedPaths());
+  buildGcodeFromPaths(transformedPaths(), "", { normalizeYPreview: !!state.settings.yFlip });
 }
-function buildGcodeFromPaths(paths, outputName = "") {
+function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
   const s = state.settings, lines = [], moves = [];
   lines.push(...String(s.header).split(/\r?\n/).filter(Boolean));
   let previous = { x: 0, y: 0 };
@@ -142,20 +142,23 @@ function buildGcodeFromPaths(paths, outputName = "") {
     if (path.length < 2) continue;
     const start = path[0], distance = Math.hypot(start.x - previous.x, start.y - previous.y);
     lines.push(s.penUpCommand);
-    let upDelay = requiredUpDelay(distance);
-    if (s.optimization === "overlap_up") upDelay = Math.max(0, upDelay - distance / (+s.travelFeed / 60));
-    if (s.optimization === "safe") dwell(lines, upDelay);
+    const upDelay = Math.max(0, requiredUpDelay(distance));
+    const travelSpeed = Math.max(1, +s.travelFeed) / 60;
+    const clearanceDelay = Math.min(upDelay, Math.max(0, +s.penUpClearanceDelay || 0));
+    const overlapEnabled = s.optimization === "overlap_up" || s.optimization === "overlap_down";
+    const preTravelDelay = overlapEnabled ? clearanceDelay : upDelay;
+    dwell(lines, preTravelDelay);
     if (s.optimization === "overlap_down" && distance > +s.downLeadDistance) {
       const lead = Math.min(distance, +s.downLeadDistance), ratio = (distance - lead) / distance;
       const leadPoint = { x: previous.x + (start.x - previous.x) * ratio, y: previous.y + (start.y - previous.y) * ratio };
       lines.push(`G0 X${fmt(leadPoint.x)} Y${fmt(leadPoint.y)} F${fmt(+s.travelFeed)}`); moves.push({ type: "travel", from: previous, to: leadPoint });
+      dwell(lines, Math.max(0, upDelay - preTravelDelay - (distance - lead) / travelSpeed));
       lines.push(s.penDownCommand);
       lines.push(`G0 X${fmt(start.x)} Y${fmt(start.y)} F${fmt(+s.travelFeed)}`); moves.push({ type: "travel", from: leadPoint, to: start });
-      const absorbed = lead / (+s.travelFeed / 60); dwell(lines, Math.max(0, +s.requiredPenDownTime - absorbed));
+      const absorbed = lead / travelSpeed; dwell(lines, Math.max(0, +s.requiredPenDownTime - absorbed));
     } else {
       lines.push(`G0 X${fmt(start.x)} Y${fmt(start.y)} F${fmt(+s.travelFeed)}`); moves.push({ type: "travel", from: previous, to: start });
-      if (s.optimization !== "safe" && s.optimization !== "off") dwell(lines, upDelay);
-      if (s.optimization === "off") dwell(lines, upDelay);
+      if (overlapEnabled) dwell(lines, Math.max(0, upDelay - preTravelDelay - distance / travelSpeed));
       lines.push(s.penDownCommand); dwell(lines, +s.penDownDelay);
     }
     for (let i = 1; i < path.length; i++) {
@@ -164,7 +167,7 @@ function buildGcodeFromPaths(paths, outputName = "") {
     previous = path[path.length - 1];
   }
   lines.push(s.penUpCommand); dwell(lines, +s.penUpDelay); lines.push(...String(s.footer).split(/\r?\n/).filter(Boolean));
-  $("#gcodeEditor").value = lines.join("\n"); state.gcodeMoves = moves; state.currentId = null;
+  $("#gcodeEditor").value = lines.join("\n"); state.gcodeMoves = moves; state.previewNormalizeY = !!previewOptions.normalizeYPreview; state.currentId = null;
   $("#gcodeName").value = outputName ? ensureExt(outputName.replace(/\.plotter\.json$/i, "")) : `plot-${new Date().toISOString().slice(0, 19).replaceAll(":", "-")}.gcode`;
   updateEditorStats(); setPreviewMode("gcode"); renderGcodePreview(); switchTab("gcode"); toast("G-codeを生成しました");
   return lines.join("\n");
@@ -175,11 +178,20 @@ window.PlotterFlow = { generateFromPaths: buildGcodeFromPaths, switchTab, getSet
 function setPreviewMode(mode) { state.previewMode = mode; $("#showSvgPreview").classList.toggle("active", mode === "svg"); $("#showGcodePreview").classList.toggle("active", mode === "gcode"); mode === "svg" ? renderSvgPreview() : renderGcodePreview(); }
 function renderSvgPreview() { if (!state.svgText) return; const svg = $("#previewSvg"); svg.style.display = "block"; }
 function renderGcodePreview() {
-  const svg = $("#previewSvg"), moves = parseGcodeMoves($("#gcodeEditor").value);
+  const svg = $("#previewSvg"); let moves = parseGcodeMoves($("#gcodeEditor").value);
+  let previewPosition = state.position;
+  if (state.previewNormalizeY && moves.length) {
+    const drawnPoints = moves.filter(m => m.type === "draw").flatMap(m => [m.from, m.to]);
+    const referencePoints = drawnPoints.length ? drawnPoints : moves.flatMap(m => [m.from, m.to]);
+    const ys = referencePoints.map(p => p.y), axis = Math.min(...ys) + Math.max(...ys);
+    const flipPoint = p => ({ x: p.x, y: axis - p.y });
+    moves = moves.map(m => ({ ...m, from: flipPoint(m.from), to: flipPoint(m.to) }));
+    if (previewPosition) previewPosition = flipPoint(previewPosition);
+  }
   const pts = moves.flatMap(m => [m.from, m.to]); if (!pts.length) { svg.innerHTML = ""; return; }
   const xs = pts.map(p => p.x), ys = pts.map(p => p.y), pad = Math.max(5, (Math.max(...xs)-Math.min(...xs))*.05);
   svg.setAttribute("viewBox", `${Math.min(...xs)-pad} ${Math.min(...ys)-pad} ${Math.max(...xs)-Math.min(...xs)+2*pad || 10} ${Math.max(...ys)-Math.min(...ys)+2*pad || 10}`);
-  svg.innerHTML = moves.map(m => `<line x1="${m.from.x}" y1="${m.from.y}" x2="${m.to.x}" y2="${m.to.y}" stroke="${m.type === "draw" ? "#087985" : "#df8a32"}" stroke-width="0.5" ${m.type === "travel" ? 'stroke-dasharray="2 2"' : ""} vector-effect="non-scaling-stroke"/>`).join("") + (state.position ? `<circle cx="${state.position.x}" cy="${state.position.y}" r="2" fill="#d02f52" vector-effect="non-scaling-stroke"/>` : "");
+  svg.innerHTML = moves.map(m => `<line x1="${m.from.x}" y1="${m.from.y}" x2="${m.to.x}" y2="${m.to.y}" stroke="${m.type === "draw" ? "#087985" : "#df8a32"}" stroke-width="0.5" ${m.type === "travel" ? 'stroke-dasharray="2 2"' : ""} vector-effect="non-scaling-stroke"/>`).join("") + (previewPosition ? `<circle cx="${previewPosition.x}" cy="${previewPosition.y}" r="2" fill="#d02f52" vector-effect="non-scaling-stroke"/>` : "");
 }
 function parseGcodeMoves(code) {
   let pos = { x: 0, y: 0 }, absolute = true; const moves = [];
@@ -195,7 +207,7 @@ function parseGcodeMoves(code) {
 }
 
 function bindEditor() {
-  $("#gcodeEditor").addEventListener("input", () => { updateEditorStats(); if (state.previewMode === "gcode") renderGcodePreview(); });
+  $("#gcodeEditor").addEventListener("input", () => { state.previewNormalizeY = false; updateEditorStats(); if (state.previewMode === "gcode") renderGcodePreview(); });
   $("#saveGcode").addEventListener("click", saveCurrentGcode); $("#downloadGcode").addEventListener("click", downloadGcode);
   $("#newGcode").addEventListener("click", () => loadEditor(null)); $("#duplicateGcode").addEventListener("click", duplicateGcode);
   $("#renameGcode").addEventListener("click", renameGcode); $("#deleteGcode").addEventListener("click", deleteGcode);
@@ -216,7 +228,7 @@ function saveCurrentGcode() {
   else { item = { id: uid(), name, gcode, settings: { ...state.settings }, updated: Date.now() }; state.library.push(item); state.currentId = item.id; }
   saveJSON("plotterflow.library", state.library); refreshLibrary(); toast("G-codeを保存しました");
 }
-function loadEditor(id) { const item = state.library.find(x => x.id === id); state.currentId = item?.id || null; $("#gcodeName").value = item?.name || "untitled.gcode"; $("#gcodeEditor").value = item?.gcode || ""; updateEditorStats(); renderGcodePreview(); }
+function loadEditor(id) { const item = state.library.find(x => x.id === id); state.currentId = item?.id || null; state.previewNormalizeY = false; $("#gcodeName").value = item?.name || "untitled.gcode"; $("#gcodeEditor").value = item?.gcode || ""; updateEditorStats(); renderGcodePreview(); }
 function duplicateGcode() { const item = state.library.find(x => x.id === state.currentId); if (!item) return toast("複製するG-codeを選択してください"); state.currentId = null; $("#gcodeName").value = item.name.replace(/(\.gcode)?$/, "-copy.gcode"); saveCurrentGcode(); }
 function renameGcode() { const item = state.library.find(x => x.id === state.currentId); if (!item) return toast("名前を変更する項目を選択してください"); const name = prompt("新しい名前", item.name); if (name) { item.name = ensureExt(name); item.updated = Date.now(); saveJSON("plotterflow.library", state.library); refreshLibrary(); $("#gcodeName").value = item.name; } }
 function deleteGcode() { if (!state.currentId || !confirm("選択中のG-codeを削除しますか？")) return; state.library = state.library.filter(x => x.id !== state.currentId); saveJSON("plotterflow.library", state.library); loadEditor(null); refreshLibrary(); }
