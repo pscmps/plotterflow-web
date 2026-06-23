@@ -145,6 +145,12 @@
           <div class="control-grid"><button data-command="?">?</button><button data-command="$$">$$</button><button data-command="$X">$X</button><button id="penUpButton">ペンアップ</button><button id="penDownButton">ペンダウン</button><button id="pauseSend">Pause (!)</button><button id="resumeSend">Resume (~)</button><button id="stopSend" class="danger">Stop</button><button id="resetController" class="danger">Reset</button></div>
           <section class="jog-section" aria-labelledby="jogTitle">
             <div class="jog-heading"><div><h3 id="jogTitle">XYジョグ</h3><p>1タップで選択距離だけ移動</p></div><span class="jog-unit">mm</span></div>
+            <div class="coordinate-readout" aria-live="polite">
+              <div class="coordinate-status"><i id="machineStateDot"></i><span id="machineState">未接続</span><small id="positionSource">ワーク座標</small></div>
+              <div class="coordinate-axis"><span>X</span><strong id="serialXPosition">—</strong><small>mm</small></div>
+              <div class="coordinate-axis"><span>Y</span><strong id="serialYPosition">—</strong><small>mm</small></div>
+              <button id="setXyZero" class="zero-button" title="現在位置をワーク座標のX0 Y0に設定"><span>⊙</span> XYを0セット</button>
+            </div>
             <div class="jog-controller">
               <div class="jog-pad" aria-label="XY移動">
                 <div class="jog-rings" aria-hidden="true"></div>

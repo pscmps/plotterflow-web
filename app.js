@@ -15,7 +15,7 @@ const state = {
   settings: loadJSON("plotterflow.settings", DEFAULTS), svgText: "", paths: [], gcodeMoves: [],
   library: loadJSON("plotterflow.library", []), currentId: null, port: null, reader: null, writer: null,
   readBuffer: "", okWaiters: [], sending: false, jogging: false, paused: false, stopped: false, jobStopped: false,
-  previewMode: "svg", position: null
+  previewMode: "svg", position: null, machinePosition: null, workPosition: null, workOffset: null, controllerState: "未接続", statusPollTimer: null
 };
 
 const $ = (s, root = document) => root.querySelector(s);
@@ -232,6 +232,7 @@ function bindSerial() {
   $("#jogStep").addEventListener("change", saveJogSettings); $("#jogFeed").addEventListener("input", updateJogPreview); $("#jogFeed").addEventListener("change", saveJogSettings);
   $$('[data-jog-axis]').forEach(button => button.addEventListener("click", () => sendJog(button.dataset.jogAxis, +button.dataset.jogSign)));
   $("#jogCancel").addEventListener("click", cancelJog); updateJogPreview();
+  $("#setXyZero").addEventListener("click", setCurrentXyZero); updateSerialPositionDisplay();
   $$('[data-command]').forEach(b => b.addEventListener("click", () => sendRealtime(b.dataset.command + "\n")));
   $("#sendManual").addEventListener("click", () => { const c = $("#manualCommand").value; if (c) sendRealtime(c + "\n"); });
   $("#penUpButton").addEventListener("click", () => sendRealtime(state.settings.penUpCommand + "\n")); $("#penDownButton").addEventListener("click", () => sendRealtime(state.settings.penDownCommand + "\n"));
@@ -243,7 +244,7 @@ async function connectSerial() {
   if (!("serial" in navigator)) return toast("このブラウザはWeb Serialに対応していません");
   try {
     state.port = await navigator.serial.requestPort(); await state.port.open({ baudRate: +$("#serialBaud").value || 115200 }); state.writer = state.port.writable.getWriter();
-    $("#connectionBadge").textContent = "Serial: 接続済み"; $("#connectionBadge").classList.add("connected"); log("接続しました", "rx"); readSerial();
+    $("#connectionBadge").textContent = "Serial: 接続済み"; $("#connectionBadge").classList.add("connected"); log("接続しました", "rx"); readSerial(); startStatusPolling();
   } catch (e) { log(`接続エラー: ${e.message}`, "rx"); }
 }
 async function readSerial() {
@@ -252,13 +253,18 @@ async function readSerial() {
   catch (e) { if (state.port) log(`受信エラー: ${e.message}`, "rx"); }
   finally { try { state.reader?.releaseLock(); } catch {} state.reader = null; }
 }
-function handleSerialLine(line) { if (!line) return; log(line, "rx"); if (/^ok\b/i.test(line)) state.okWaiters.shift()?.resolve(); else if (/^(error|alarm):?/i.test(line)) state.okWaiters.shift()?.reject(new Error(line)); }
+function handleSerialLine(line) {
+  if (!line) return;
+  if (/^<.*>$/.test(line)) { parseControllerStatus(line); return; }
+  log(line, "rx"); if (/^ok\b/i.test(line)) state.okWaiters.shift()?.resolve(); else if (/^(error|alarm):?/i.test(line)) state.okWaiters.shift()?.reject(new Error(line));
+}
 async function disconnectSerial() {
+  stopStatusPolling();
   state.stopped = true; state.okWaiters.splice(0).forEach(w => w.reject(new Error("切断")));
   try { await state.reader?.cancel(); } catch {} try { state.writer?.releaseLock(); state.writer = null; await state.port?.close(); } catch (e) { log(`切断エラー: ${e.message}`, "rx"); }
-  state.port = null; $("#connectionBadge").textContent = "Serial: 未接続"; $("#connectionBadge").classList.remove("connected"); log("切断しました", "rx");
+  state.port = null; state.controllerState="未接続"; state.machinePosition=null; state.workPosition=null; state.workOffset=null; updateSerialPositionDisplay(); $("#connectionBadge").textContent = "Serial: 未接続"; $("#connectionBadge").classList.remove("connected"); log("切断しました", "rx");
 }
-async function rawWrite(text) { if (!state.writer) throw new Error("Serial未接続です"); await state.writer.write(new TextEncoder().encode(text)); log(text.replace(/[\r\n]+$/, "") || "Ctrl-X", "tx"); }
+async function rawWrite(text, shouldLog = true) { if (!state.writer) throw new Error("Serial未接続です"); await state.writer.write(new TextEncoder().encode(text)); if (shouldLog) log(text.replace(/[\r\n]+$/, "") || "Ctrl-X", "tx"); }
 async function sendRealtime(text) { try { await rawWrite(text); } catch (e) { toast(e.message); } }
 function waitOk(timeout = 15000) { return new Promise((resolve,reject) => { const item = { resolve: () => { clearTimeout(item.timer); resolve(); }, reject: e => { clearTimeout(item.timer); reject(e); } }; item.timer = setTimeout(() => { const i=state.okWaiters.indexOf(item); if(i>=0) state.okWaiters.splice(i,1); reject(new Error("ok応答がタイムアウトしました")); }, timeout); state.okWaiters.push(item); }); }
 async function sendLineAndWait(line, trackPosition = true) { const pending = waitOk(); await rawWrite(line + "\n"); await pending; if (trackPosition) updatePosition(line); }
@@ -282,6 +288,35 @@ async function cancelJog() {
   try { await state.writer.write(new Uint8Array([0x85])); log("Jog cancel (0x85)", "tx"); toast("ジョグ停止を送信しました"); }
   catch (error) { toast(error.message); }
 }
+function startStatusPolling() {
+  stopStatusPolling();
+  const poll=()=>{if(state.writer)rawWrite("?",false).catch(()=>{});};poll();state.statusPollTimer=setInterval(poll,750);
+}
+function stopStatusPolling(){if(state.statusPollTimer){clearInterval(state.statusPollTimer);state.statusPollTimer=null;}}
+function parseControllerStatus(line) {
+  const fields=line.slice(1,-1).split("|");state.controllerState=fields.shift()||"接続済み";let hasWorkPosition=false;
+  for(const field of fields){
+    const separator=field.indexOf(":");if(separator<0)continue;const key=field.slice(0,separator),value=field.slice(separator+1);
+    if(key==="MPos")state.machinePosition=parseStatusVector(value);
+    if(key==="WPos"){state.workPosition=parseStatusVector(value);hasWorkPosition=true;}
+    if(key==="WCO")state.workOffset=parseStatusVector(value);
+  }
+  if(!hasWorkPosition&&state.machinePosition&&state.workOffset)state.workPosition={x:state.machinePosition.x-state.workOffset.x,y:state.machinePosition.y-state.workOffset.y,z:state.machinePosition.z-state.workOffset.z};
+  if(state.workPosition){state.position={x:state.workPosition.x,y:state.workPosition.y};if(state.previewMode==="gcode")renderGcodePreview();}
+  updateSerialPositionDisplay();
+}
+function parseStatusVector(value){const numbers=value.split(",").map(Number);return{x:numbers[0]||0,y:numbers[1]||0,z:numbers[2]||0};}
+function updateSerialPositionDisplay() {
+  const actual=state.workPosition,position=actual||state.position;
+  $("#serialXPosition").textContent=position?fmt(position.x):"—";$("#serialYPosition").textContent=position?fmt(position.y):"—";
+  $("#machineState").textContent=state.controllerState;$("#machineStateDot").classList.toggle("online",!!state.writer);
+  $("#positionSource").textContent=actual?"ワーク座標 WPos":position?"送信値からの推定":"ワーク座標";
+}
+async function setCurrentXyZero() {
+  if(!state.writer)return toast("先にSerial接続してください");if(state.sending)return toast("G-code送信中は0点を変更できません");
+  try{await sendLineAndWait("G10 L20 P0 X0 Y0",false);state.workPosition={x:0,y:0,z:state.workPosition?.z||0};state.position={x:0,y:0};updateSerialPositionDisplay();await rawWrite("?",false);toast("現在位置をXY=0に設定しました");}
+  catch(error){log(`0点設定エラー: ${error.message}`,"rx");toast("XYの0点設定に失敗しました");}
+}
 function cleanLines(code) { return code.split(/\r?\n/).map(x => x.trim()).filter(x => x && !x.startsWith(";") && !x.startsWith("(")); }
 async function startSending(code, options = {}) {
   if (!state.writer) return toast("先にSerial接続してください"); if (state.sending) return toast("すでに送信中です");
@@ -302,7 +337,7 @@ async function pauseSending() { state.paused = true; await sendRealtime("!"); lo
 async function resumeSending() { state.paused = false; await sendRealtime("~"); log("再開", "rx"); }
 async function stopSending() { state.stopped = true; state.paused = false; state.okWaiters.splice(0).forEach(w => w.reject(new Error("停止"))); await sendRealtime(state.settings.penUpCommand + "\n"); log("送信キューを停止しました", "rx"); }
 async function resetController() { state.stopped = true; state.paused = false; state.okWaiters.splice(0).forEach(w => w.reject(new Error("リセット"))); await sendRealtime("\x18"); }
-function updatePosition(line) { const xm=line.match(/\bX(-?\d*\.?\d+)/i), ym=line.match(/\bY(-?\d*\.?\d+)/i); if (!xm&&!ym) return; state.position={x:xm?+xm[1]:(state.position?.x||0),y:ym?+ym[1]:(state.position?.y||0)}; if(state.previewMode==="gcode") renderGcodePreview(); }
+function updatePosition(line) { const xm=line.match(/\bX(-?\d*\.?\d+)/i), ym=line.match(/\bY(-?\d*\.?\d+)/i); if (!xm&&!ym) return; state.position={x:xm?+xm[1]:(state.position?.x||0),y:ym?+ym[1]:(state.position?.y||0)}; updateSerialPositionDisplay(); if(state.previewMode==="gcode") renderGcodePreview(); }
 function log(text, type) { const el=$("#serialLog"), line=document.createElement("div"); line.className=type; line.textContent=`${new Date().toLocaleTimeString()} ${type==="tx"?">":"<"} ${text}`; el.append(line); el.scrollTop=el.scrollHeight; }
 
 function bindJobs() {
