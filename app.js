@@ -8,13 +8,13 @@ const DEFAULTS = {
   travelFeed: 6000, drawFeed: 3000, sampleInterval: 0.5,
   scale: 1, offsetX: 0, offsetY: 0, yFlip: false,
   optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1,
-  baudrate: 115200, header: "G21\nG90", footer: ""
+  baudrate: 115200, jogStep: 1, jogFeed: 1000, header: "G21\nG90", footer: ""
 };
 
 const state = {
   settings: loadJSON("plotterflow.settings", DEFAULTS), svgText: "", paths: [], gcodeMoves: [],
   library: loadJSON("plotterflow.library", []), currentId: null, port: null, reader: null, writer: null,
-  readBuffer: "", okWaiters: [], sending: false, paused: false, stopped: false, jobStopped: false,
+  readBuffer: "", okWaiters: [], sending: false, jogging: false, paused: false, stopped: false, jobStopped: false,
   previewMode: "svg", position: null
 };
 
@@ -228,6 +228,10 @@ function readSettings() { const f = $("#settingsForm"); for (const k of Object.k
 function bindSerial() {
   $("#connectSerial").addEventListener("click", connectSerial); $("#disconnectSerial").addEventListener("click", disconnectSerial);
   $("#serialBaud").addEventListener("change", e => { state.settings.baudrate = +e.target.value || 115200; saveJSON("plotterflow.settings", state.settings); });
+  $("#jogStep").value = String(state.settings.jogStep || 1); $("#jogFeed").value = state.settings.jogFeed || 1000;
+  $("#jogStep").addEventListener("change", saveJogSettings); $("#jogFeed").addEventListener("input", updateJogPreview); $("#jogFeed").addEventListener("change", saveJogSettings);
+  $$('[data-jog-axis]').forEach(button => button.addEventListener("click", () => sendJog(button.dataset.jogAxis, +button.dataset.jogSign)));
+  $("#jogCancel").addEventListener("click", cancelJog); updateJogPreview();
   $$('[data-command]').forEach(b => b.addEventListener("click", () => sendRealtime(b.dataset.command + "\n")));
   $("#sendManual").addEventListener("click", () => { const c = $("#manualCommand").value; if (c) sendRealtime(c + "\n"); });
   $("#penUpButton").addEventListener("click", () => sendRealtime(state.settings.penUpCommand + "\n")); $("#penDownButton").addEventListener("click", () => sendRealtime(state.settings.penDownCommand + "\n"));
@@ -257,7 +261,27 @@ async function disconnectSerial() {
 async function rawWrite(text) { if (!state.writer) throw new Error("Serial未接続です"); await state.writer.write(new TextEncoder().encode(text)); log(text.replace(/[\r\n]+$/, "") || "Ctrl-X", "tx"); }
 async function sendRealtime(text) { try { await rawWrite(text); } catch (e) { toast(e.message); } }
 function waitOk(timeout = 15000) { return new Promise((resolve,reject) => { const item = { resolve: () => { clearTimeout(item.timer); resolve(); }, reject: e => { clearTimeout(item.timer); reject(e); } }; item.timer = setTimeout(() => { const i=state.okWaiters.indexOf(item); if(i>=0) state.okWaiters.splice(i,1); reject(new Error("ok応答がタイムアウトしました")); }, timeout); state.okWaiters.push(item); }); }
-async function sendLineAndWait(line) { const pending = waitOk(); await rawWrite(line + "\n"); await pending; updatePosition(line); }
+async function sendLineAndWait(line, trackPosition = true) { const pending = waitOk(); await rawWrite(line + "\n"); await pending; if (trackPosition) updatePosition(line); }
+function saveJogSettings() {
+  state.settings.jogStep = Math.max(.001, +$("#jogStep").value || 1); state.settings.jogFeed = Math.max(1, +$("#jogFeed").value || 1000);
+  saveJSON("plotterflow.settings", state.settings); updateJogPreview();
+}
+function updateJogPreview() { const step=+$("#jogStep").value||1,feed=+$("#jogFeed").value||1000;$("#jogCommandPreview").textContent=`$J=G91 G21 X±${fmt(step)} F${fmt(feed)}`; }
+async function sendJog(axis, sign) {
+  if (!state.writer) return toast("先にSerial接続してください");
+  if (state.sending) return toast("G-code送信中はジョグできません");
+  if (state.jogging) return;
+  saveJogSettings(); const distance=sign*state.settings.jogStep,command=`$J=G91 G21 ${axis}${fmt(distance)} F${fmt(state.settings.jogFeed)}`;
+  state.jogging=true;
+  try { await sendLineAndWait(command, false); toast(`${axis} ${distance>0?"+":""}${fmt(distance)} mm`); }
+  catch (error) { log(`ジョグエラー: ${error.message}`, "rx"); }
+  finally { state.jogging=false; }
+}
+async function cancelJog() {
+  if (!state.writer) return toast("先にSerial接続してください");
+  try { await state.writer.write(new Uint8Array([0x85])); log("Jog cancel (0x85)", "tx"); toast("ジョグ停止を送信しました"); }
+  catch (error) { toast(error.message); }
+}
 function cleanLines(code) { return code.split(/\r?\n/).map(x => x.trim()).filter(x => x && !x.startsWith(";") && !x.startsWith("(")); }
 async function startSending(code, options = {}) {
   if (!state.writer) return toast("先にSerial接続してください"); if (state.sending) return toast("すでに送信中です");

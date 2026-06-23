@@ -6,6 +6,7 @@
   <title>PlotterFlow - SVG to FluidNC</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="drawing.css">
+  <link rel="stylesheet" href="serial.css">
 </head>
 <body>
   <header class="app-header">
@@ -119,6 +120,24 @@
           <h2>接続・操作</h2>
           <div class="inline"><label>Baudrate<input id="serialBaud" type="number" value="115200"></label><button id="connectSerial" class="primary">接続</button><button id="disconnectSerial">切断</button></div>
           <div class="control-grid"><button data-command="?">?</button><button data-command="$$">$$</button><button data-command="$X">$X</button><button id="penUpButton">ペンアップ</button><button id="penDownButton">ペンダウン</button><button id="pauseSend">Pause (!)</button><button id="resumeSend">Resume (~)</button><button id="stopSend" class="danger">Stop</button><button id="resetController" class="danger">Reset</button></div>
+          <section class="jog-section" aria-labelledby="jogTitle">
+            <div class="jog-heading"><div><h3 id="jogTitle">XYジョグ</h3><p>1タップで選択距離だけ移動</p></div><span class="jog-unit">mm</span></div>
+            <div class="jog-controller">
+              <div class="jog-pad" aria-label="XY移動">
+                <div class="jog-rings" aria-hidden="true"></div>
+                <button class="jog-button jog-up" data-jog-axis="Y" data-jog-sign="1" aria-label="Yプラス"><span>↑</span><small>Y+</small></button>
+                <button class="jog-button jog-left" data-jog-axis="X" data-jog-sign="-1" aria-label="Xマイナス"><span>←</span><small>X−</small></button>
+                <button id="jogCancel" class="jog-center" aria-label="ジョグ停止" title="ジョグ停止"><span>■</span><small>STOP</small></button>
+                <button class="jog-button jog-right" data-jog-axis="X" data-jog-sign="1" aria-label="Xプラス"><span>→</span><small>X+</small></button>
+                <button class="jog-button jog-down" data-jog-axis="Y" data-jog-sign="-1" aria-label="Yマイナス"><span>↓</span><small>Y−</small></button>
+              </div>
+              <div class="jog-options">
+                <label>移動量<select id="jogStep"><option value="0.1">0.1 mm</option><option value="1" selected>1 mm</option><option value="10">10 mm</option><option value="50">50 mm</option></select></label>
+                <label>速度<input id="jogFeed" type="number" min="1" max="50000" step="100" value="1000"><span>mm/min</span></label>
+                <div class="jog-command-preview" id="jogCommandPreview">$J=G91 G21 X±1 F1000</div>
+              </div>
+            </div>
+          </section>
           <div class="inline"><input id="manualCommand" placeholder="手動コマンド"><button id="sendManual">送信</button></div>
           <hr>
           <label>送信対象<select id="serialSource"><option value="editor">現在のエディタ</option></select></label>
