@@ -1,3 +1,5 @@
 .orientation-fix{display:flex;flex-direction:row;align-items:center;gap:10px;margin:12px 0;padding:11px 12px;border:1px solid #a9cdca;border-radius:9px;background:#eef8f7;cursor:pointer}
 .orientation-fix input{width:18px;height:18px;margin:0;accent-color:var(--primary);flex:0 0 auto}
 .orientation-fix span{display:flex;flex-direction:column;gap:1px}.orientation-fix strong{color:#075b63;font-size:13px}.orientation-fix small{color:var(--muted);font-size:10px;font-weight:400}
+.compact-file-drop{min-height:82px;margin-bottom:16px}.convert-title{align-items:flex-start}.convert-title h2{margin-top:8px}.convert-primary-actions{margin-top:0;justify-content:flex-end}
+@media(max-width:560px){.convert-title{align-items:stretch;flex-direction:column}.convert-title h2{margin-top:0}.convert-primary-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}}

@@ -105,14 +105,14 @@
     <section id="tab-convert" class="panel">
       <div class="grid two">
         <article class="card">
-          <h2>SVG入力</h2>
+          <div class="card-title convert-title"><h2>SVG入力</h2><div class="actions convert-primary-actions"><button id="generateGcode" class="primary">G-code生成</button><button id="generateAndSendSvg" class="secondary">生成して実行</button></div></div>
           <label class="file-drop" id="dropZone">
             <input id="svgFile" type="file" accept="image/svg+xml,.svg">
             <strong>SVGを選択</strong><span>またはここへドロップ</span>
           </label>
           <label>SVGテキスト（任意）<textarea id="svgText" rows="9" placeholder="&lt;svg ...&gt;"></textarea></label>
           <label class="orientation-fix"><input id="svgOrientationFlip" type="checkbox" checked><span><strong>180°回転＋左右反転</strong><small>描画方向を実機向けに補正（合成結果はY反転）</small></span></label>
-          <div class="actions"><button id="loadSvgText" class="secondary">テキストを読み込む</button><button id="generateGcode" class="primary">G-code生成</button></div>
+          <div class="actions"><button id="loadSvgText" class="secondary">テキストを読み込む</button></div>
           <p id="svgStatus" class="status">SVGを読み込んでください。</p>
         </article>
         <article class="card preview-card">
@@ -127,6 +127,7 @@
       <div class="grid sidebar-layout">
         <article class="card library">
           <h2>ライブラリ</h2>
+          <label class="file-drop compact-file-drop"><input id="gcodeFile" type="file" accept=".gcode,.nc,.tap,.txt,text/plain"><strong>G-codeを開く</strong><span>.gcode / .nc / .tap</span></label>
           <label>保存済み<select id="gcodeLibrary"><option value="">未選択</option></select></label>
           <div class="stack"><button id="newGcode">新規</button><button id="duplicateGcode">複製</button><button id="renameGcode">名前変更</button><button id="deleteGcode" class="danger">削除</button></div>
         </article>
@@ -144,7 +145,7 @@
         <article class="card">
           <h2>接続・操作</h2>
           <div class="inline"><label>Baudrate<input id="serialBaud" type="number" value="115200"></label><button id="connectSerial" class="primary">接続</button><button id="disconnectSerial">切断</button></div>
-          <div class="control-grid"><button data-command="?">?</button><button data-command="$$">$$</button><button data-command="$X">$X</button><button id="penUpButton">ペンアップ</button><button id="penDownButton">ペンダウン</button><button id="pauseSend">Pause (!)</button><button id="resumeSend">Resume (~)</button><button id="stopSend" class="danger">Stop</button><button id="resetController" class="danger">Reset</button></div>
+          <div class="control-grid"><button data-command="?">?</button><button data-command="$$">$$</button><button data-command="$X">$X</button><button id="penUpButton">ペンアップ</button><button id="penDownButton">ペンダウン</button><button id="reloadButton" class="secondary">リロード</button><button id="pauseSend">Pause (!)</button><button id="resumeSend">Resume (~)</button><button id="stopSend" class="danger">Stop</button><button id="resetController" class="danger">Reset</button></div>
           <section class="jog-section" aria-labelledby="jogTitle">
             <div class="jog-heading"><div><h3 id="jogTitle">XYジョグ</h3><p>1タップで選択距離だけ移動</p></div><span class="jog-unit">mm</span></div>
             <div class="coordinate-readout" aria-live="polite">
@@ -209,6 +210,7 @@
         </article>
         <article class="card"><h2>出力・接続</h2>
           <label>Baudrate<input name="baudrate" type="number"></label><label>ヘッダ<textarea name="header" rows="5"></textarea></label><label>フッタ<textarea name="footer" rows="5"></textarea></label>
+          <label>リロード動作 G-code<textarea name="reloadGcode" class="code" rows="18" spellcheck="false"></textarea></label><p class="muted">Serialの「リロード」とジョブの「リロード動作（設定）」で共通使用します。</p>
           <button type="submit" class="primary">設定を保存</button><button type="button" id="resetSettings">初期値へ戻す</button><p id="settingsStatus" class="status"></p>
         </article>
       </form>

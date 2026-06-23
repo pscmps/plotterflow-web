@@ -8,7 +8,33 @@ const DEFAULTS = {
   travelFeed: 6000, drawFeed: 3000, sampleInterval: 0.5,
   scale: 1, offsetX: 0, offsetY: 0, yFlip: true,
   optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1,
-  baudrate: 115200, jogStep: 1, jogFeed: 1000, header: "G21\nG90", footer: ""
+  baudrate: 115200, jogStep: 1, jogFeed: 1000, header: "G21\nG90", footer: "",
+  reloadGcode: `; G21 ; millimeters
+; G90 ; absolute coordinate
+; G17 ; XY plane
+; G94 ; units per minute feed rate mode
+; M3 S1000 ; Turning on spindle
+
+M3 S1600
+; Go to safety height
+
+G1 X20 Y50 F500
+G1 Y-10 F500
+G1 Y0 F500
+
+; Go to zero location
+; G0 X0 Y0
+; G0 Z0
+
+; Create rectangle
+; G1 X0 Y0 F1000
+; G1 Y10
+; G1 X10
+; G1 Y0
+; G1 X0
+
+; Turning off spindle
+; M5`
 };
 
 const state = {
@@ -49,7 +75,8 @@ function bindSvg() {
   ["dragleave", "drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("drag"); }));
   drop.addEventListener("drop", e => e.dataTransfer.files[0] && readSvgFile(e.dataTransfer.files[0]));
   $("#loadSvgText").addEventListener("click", () => loadSvg($("#svgText").value));
-  $("#generateGcode").addEventListener("click", generateGcode);
+  $("#generateGcode").addEventListener("click", () => generateGcode());
+  $("#generateAndSendSvg").addEventListener("click", generateAndSendSvg);
   $("#svgOrientationFlip").addEventListener("change", event => { state.settings.yFlip=event.target.checked;$("#settingsForm").elements.yFlip.checked=event.target.checked;saveJSON("plotterflow.settings",state.settings); });
   $("#showSvgPreview").addEventListener("click", () => setPreviewMode("svg"));
   $("#showGcodePreview").addEventListener("click", () => setPreviewMode("gcode"));
@@ -129,10 +156,14 @@ function requiredUpDelay(distance) {
   return +s.penUpDelay;
 }
 function dwell(lines, seconds) { if (seconds > 0.0001) lines.push(`G4 P${fmt(seconds)}`); }
-function generateGcode() {
+function generateGcode(options = {}) {
   if (!state.paths.length) return setSvgStatus("先にSVGを読み込んでください。", true);
   state.paths = extractPaths(mountSvgForMeasurement(state.svgText));
-  buildGcodeFromPaths(transformedPaths(), "", { normalizeYPreview: !!state.settings.yFlip });
+  return buildGcodeFromPaths(transformedPaths(), "", { normalizeYPreview: !!state.settings.yFlip, stayOnCurrentTab: !!options.stayOnCurrentTab });
+}
+async function generateAndSendSvg() {
+  const code = generateGcode({ stayOnCurrentTab: true });
+  if (code) await startSending(code);
 }
 function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
   const s = state.settings, lines = [], moves = [];
@@ -169,7 +200,7 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
   lines.push(s.penUpCommand); dwell(lines, +s.penUpDelay); lines.push(...String(s.footer).split(/\r?\n/).filter(Boolean));
   $("#gcodeEditor").value = lines.join("\n"); state.gcodeMoves = moves; state.previewNormalizeY = !!previewOptions.normalizeYPreview; state.currentId = null;
   $("#gcodeName").value = outputName ? ensureExt(outputName.replace(/\.plotter\.json$/i, "")) : `plot-${new Date().toISOString().slice(0, 19).replaceAll(":", "-")}.gcode`;
-  updateEditorStats(); setPreviewMode("gcode"); renderGcodePreview(); switchTab("gcode"); toast("G-codeを生成しました");
+  updateEditorStats(); setPreviewMode("gcode"); renderGcodePreview(); if (!previewOptions.stayOnCurrentTab) switchTab("gcode"); toast("G-codeを生成しました");
   return lines.join("\n");
 }
 
@@ -212,13 +243,20 @@ function bindEditor() {
   $("#newGcode").addEventListener("click", () => loadEditor(null)); $("#duplicateGcode").addEventListener("click", duplicateGcode);
   $("#renameGcode").addEventListener("click", renameGcode); $("#deleteGcode").addEventListener("click", deleteGcode);
   $("#gcodeLibrary").addEventListener("change", e => loadEditor(e.target.value));
+  $("#gcodeFile").addEventListener("change", event => event.target.files[0] && loadGcodeFile(event.target.files[0]));
   $("#sendFromEditor").addEventListener("click", () => { switchTab("serial"); startSending($("#gcodeEditor").value); });
+}
+async function loadGcodeFile(file) {
+  if (!/\.(gcode|nc|tap|txt)$/i.test(file.name)) return toast("G-codeファイルを選択してください");
+  state.currentId = null; state.previewNormalizeY = false;
+  $("#gcodeName").value = ensureExt(file.name); $("#gcodeEditor").value = await file.text();
+  $("#gcodeLibrary").value = ""; updateEditorStats(); renderGcodePreview(); toast(`${file.name}を読み込みました`);
 }
 function updateEditorStats() { const text = $("#gcodeEditor").value, lines = text ? text.split(/\r?\n/).length : 0; $("#gcodeStats").textContent = `${lines}行 / ${new Blob([text]).size} bytes`; }
 function refreshLibrary() {
   const select = $("#gcodeLibrary"), source = $("#serialSource");
   const options = state.library.sort((a,b) => b.updated-a.updated).map(x => `<option value="${x.id}">${escapeHtml(x.name)}</option>`).join("");
-  select.innerHTML = `<option value="">未選択</option>${options}`; source.innerHTML = `<option value="editor">現在のエディタ</option>${options}`;
+  select.innerHTML = `<option value="">未選択</option>${options}`; source.innerHTML = `<option value="editor">現在のエディタ</option><option value="__reload__">リロード動作（設定）</option>${options}`;
   if (state.currentId) select.value = state.currentId; renderJobs();
 }
 function saveCurrentGcode() {
@@ -254,8 +292,9 @@ function bindSerial() {
   $$('[data-command]').forEach(b => b.addEventListener("click", () => sendRealtime(b.dataset.command + "\n")));
   $("#sendManual").addEventListener("click", () => { const c = $("#manualCommand").value; if (c) sendRealtime(c + "\n"); });
   $("#penUpButton").addEventListener("click", () => sendRealtime(state.settings.penUpCommand + "\n")); $("#penDownButton").addEventListener("click", () => sendRealtime(state.settings.penDownCommand + "\n"));
+  $("#reloadButton").addEventListener("click", () => startSending(state.settings.reloadGcode));
   $("#pauseSend").addEventListener("click", pauseSending); $("#resumeSend").addEventListener("click", resumeSending); $("#stopSend").addEventListener("click", stopSending); $("#resetController").addEventListener("click", resetController);
-  $("#startSend").addEventListener("click", () => { const id = $("#serialSource").value, code = id === "editor" ? $("#gcodeEditor").value : state.library.find(x => x.id === id)?.gcode; startSending(code || ""); });
+  $("#startSend").addEventListener("click", () => { const id = $("#serialSource").value, code = id === "editor" ? $("#gcodeEditor").value : id === "__reload__" ? state.settings.reloadGcode : state.library.find(x => x.id === id)?.gcode; startSending(code || ""); });
   $("#clearLog").addEventListener("click", () => $("#serialLog").innerHTML = "");
 }
 async function connectSerial() {
@@ -367,7 +406,8 @@ function bindJobs() {
 function addJob(data={}) {
   const row=document.createElement("div"); row.className="job-row"; row.dataset.id=data.id||uid();
   const options=state.library.map(x=>`<option value="${x.id}" ${x.id===data.gcodeId?"selected":""}>${escapeHtml(x.name)}</option>`).join("");
-  row.innerHTML=`<div><button class="move-up" title="上へ">↑</button><button class="move-down" title="下へ">↓</button></div><label>G-code<select class="job-gcode"><option value="">選択</option>${options}</select></label><label>回数<input class="job-count" type="number" min="1" value="${data.count||1}"></label><label>前delay (秒)<input class="job-before-delay" type="number" min="0" step="0.1" value="${data.beforeDelay||0}"></label><label>後delay (秒)<input class="job-after-delay" type="number" min="0" step="0.1" value="${data.afterDelay||0}"></label><label>前コマンド<input class="job-before-command" value="${escapeHtml(data.beforeCommand||"")}"></label><label>後コマンド<input class="job-after-command" value="${escapeHtml(data.afterCommand||"")}"></label><button class="remove-job danger" title="削除">×</button>`;
+  const reloadSelected = data.gcodeId === "__reload__" ? "selected" : "";
+  row.innerHTML=`<div><button class="move-up" title="上へ">↑</button><button class="move-down" title="下へ">↓</button></div><label>G-code<select class="job-gcode"><option value="">選択</option><option value="__reload__" ${reloadSelected}>リロード動作（設定）</option>${options}</select></label><label>回数<input class="job-count" type="number" min="1" value="${data.count||1}"></label><label>前delay (秒)<input class="job-before-delay" type="number" min="0" step="0.1" value="${data.beforeDelay||0}"></label><label>後delay (秒)<input class="job-after-delay" type="number" min="0" step="0.1" value="${data.afterDelay||0}"></label><label>前コマンド<input class="job-before-command" value="${escapeHtml(data.beforeCommand||"")}"></label><label>後コマンド<input class="job-after-command" value="${escapeHtml(data.afterCommand||"")}"></label><button class="remove-job danger" title="削除">×</button>`;
   $("#jobList").append(row);
 }
 function getJobs() { return $$(".job-row").map(r=>({id:r.dataset.id,gcodeId:$(".job-gcode",r).value,count:+$(".job-count",r).value||1,beforeDelay:+$(".job-before-delay",r).value||0,afterDelay:+$(".job-after-delay",r).value||0,beforeCommand:$(".job-before-command",r).value,afterCommand:$(".job-after-command",r).value})); }
@@ -377,10 +417,10 @@ async function runJobs() {
   if(!state.writer)return toast("先にSerial接続してください"); if(state.sending)return toast("Serial送信中です");
   const jobs=getJobs().filter(j=>j.gcodeId), loops=Math.max(1,+$("#jobLoops").value||1); if(!jobs.length)return toast("実行するジョブを追加してください");
   state.sending=true; state.stopped=false; state.jobStopped=false; let total=loops*jobs.reduce((n,j)=>n+j.count,0), done=0;
-  try{ for(let loop=1;loop<=loops;loop++){ for(let ji=0;ji<jobs.length;ji++){const j=jobs[ji],item=state.library.find(x=>x.id===j.gcodeId);if(!item)continue;for(let run=1;run<=j.count;run++){
+  try{ for(let loop=1;loop<=loops;loop++){ for(let ji=0;ji<jobs.length;ji++){const j=jobs[ji],item=state.library.find(x=>x.id===j.gcodeId),jobGcode=j.gcodeId==="__reload__"?state.settings.reloadGcode:item?.gcode;if(!jobGcode)continue;for(let run=1;run<=j.count;run++){
     if(state.jobStopped)throw new Error("停止しました"); $("#jobProgressText").textContent=`ループ ${loop}/${loops}・ジョブ ${ji+1}/${jobs.length}・実行 ${run}/${j.count}`;
     if(j.beforeDelay)await interruptibleDelay(j.beforeDelay*1000); if(j.beforeCommand)for(const c of cleanLines(j.beforeCommand))await sendLineAndWait(c);
-    await sendLines(cleanLines(item.gcode),{silent:true,onProgress:r=>{$("#jobProgress").value=(done+r)/total;}});
+    await sendLines(cleanLines(jobGcode),{silent:true,onProgress:r=>{$("#jobProgress").value=(done+r)/total;}});
     if(j.afterCommand)for(const c of cleanLines(j.afterCommand))await sendLineAndWait(c); if(j.afterDelay)await interruptibleDelay(j.afterDelay*1000); done++; $("#jobProgress").value=done/total;
   }}} $("#jobProgressText").textContent="完了"; toast("全ジョブが完了しました");}
   catch(e){$("#jobProgressText").textContent=`停止: ${e.message}`;}finally{state.sending=false;}
