@@ -27,7 +27,20 @@
     <section id="tab-drawing" class="panel active">
       <div class="drawing-layout">
         <article class="card drawing-tools-card">
-          <h2>作図ツール</h2>
+          <section class="text-quick-add" aria-labelledby="textAddTitle">
+            <h2 id="textAddTitle">テキスト</h2>
+            <label class="sr-only" for="drawingTextInput">描画するテキスト</label>
+            <textarea id="drawingTextInput" rows="2" placeholder="名前・メッセージを入力"></textarea>
+            <div class="text-add-row">
+              <div class="text-writing-toggle" aria-label="文字方向">
+                <button class="active" data-text-writing="horizontal">横書き</button>
+                <button data-text-writing="vertical">縦書き</button>
+              </div>
+              <button id="drawingAddText" class="primary">追加</button>
+            </div>
+            <p id="textFontStatus" class="text-font-status">フォント読込中…</p>
+          </section>
+          <h2 class="drawing-tools-title">作図ツール</h2>
           <div class="drawing-tools" role="toolbar" aria-label="作図ツール">
             <button class="draw-tool active" data-draw-tool="pen" title="自由線">✎<span>ペン</span></button>
             <button class="draw-tool" data-draw-tool="rect" title="四角">□<span>四角</span></button>
@@ -53,7 +66,7 @@
         </article>
 
         <article class="card drawing-canvas-card">
-          <div class="card-title"><h2>キャンバス</h2><span id="drawingObjectCount" class="muted">0オブジェクト</span></div>
+          <div class="card-title"><h2>キャンバス</h2><div class="drawing-canvas-actions"><button id="drawingProperties" class="secondary" hidden>文字プロパティ</button><span id="drawingObjectCount" class="muted">0オブジェクト</span></div></div>
           <div id="drawingCanvasWrap" class="drawing-canvas-wrap">
             <svg id="drawingCanvas" viewBox="0 0 30 30" aria-label="お絵描きキャンバス"></svg>
           </div>
@@ -76,6 +89,16 @@
           <p id="drawingStatus" class="status">描いてすぐG-code化できます。</p>
         </article>
       </div>
+      <dialog id="textPropertiesDialog" class="text-properties-dialog">
+        <div class="dialog-title"><h2>文字プロパティ</h2><button id="textPropertiesClose" aria-label="閉じる">×</button></div>
+        <label>フォントサイズ (mm)<input id="textFontSize" type="number" min="1" max="500" step="0.5"></label>
+        <label>文字間隔 (mm)<input id="textLetterSpacing" type="number" min="-20" max="100" step="0.1"></label>
+        <label>行間（倍率）<input id="textLineHeight" type="number" min="0.5" max="5" step="0.1"></label>
+        <label>方向<select id="textWritingMode"><option value="horizontal">横書き</option><option value="vertical">縦書き</option></select></label>
+        <label>回転角度 (°)<input id="textRotation" type="number" min="-360" max="360" step="1"></label>
+        <p class="muted">アウトライン描画。将来のシングルライン方式に拡張可能な形式で保存します。</p>
+        <div class="actions"><button id="textPropertiesApply" class="primary">適用</button><button id="textPropertiesCancel">キャンセル</button></div>
+      </dialog>
     </section>
 
     <section id="tab-convert" class="panel">
@@ -185,6 +208,7 @@
   </main>
   <div id="toast" role="status"></div>
   <script src="app.js"></script>
+  <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js"></script>
 </body>
 </html>
