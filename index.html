@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="drawing.css">
   <link rel="stylesheet" href="serial.css">
+  <link rel="stylesheet" href="conversion.css">
 </head>
 <body>
   <header class="app-header">
@@ -110,6 +111,7 @@
             <strong>SVGを選択</strong><span>またはここへドロップ</span>
           </label>
           <label>SVGテキスト（任意）<textarea id="svgText" rows="9" placeholder="&lt;svg ...&gt;"></textarea></label>
+          <label class="orientation-fix"><input id="svgOrientationFlip" type="checkbox" checked><span><strong>180°回転＋左右反転</strong><small>描画方向を実機向けに補正（合成結果はY反転）</small></span></label>
           <div class="actions"><button id="loadSvgText" class="secondary">テキストを読み込む</button><button id="generateGcode" class="primary">G-code生成</button></div>
           <p id="svgStatus" class="status">SVGを読み込んでください。</p>
         </article>

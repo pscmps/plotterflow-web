@@ -6,7 +6,7 @@ const DEFAULTS = {
   longMoveThreshold: 100, penUpDelayShort: 0.1, penUpDelayLong: 0.3,
   baseDelay: 0.1, delayPer100: 0.1, maxDelay: 1,
   travelFeed: 6000, drawFeed: 3000, sampleInterval: 0.5,
-  scale: 1, offsetX: 0, offsetY: 0, yFlip: false,
+  scale: 1, offsetX: 0, offsetY: 0, yFlip: true,
   optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1,
   baudrate: 115200, jogStep: 1, jogFeed: 1000, header: "G21\nG90", footer: ""
 };
@@ -35,6 +35,7 @@ function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}
 function switchTab(name) { $$(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === name)); $$(".panel").forEach(x => x.classList.toggle("active", x.id === `tab-${name}`)); }
 
 function init() {
+  if (!localStorage.getItem("plotterflow.svgOrientationV1")) { state.settings.yFlip = true; saveJSON("plotterflow.settings", state.settings); localStorage.setItem("plotterflow.svgOrientationV1", "1"); }
   $$(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
   bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindJobs();
   populateSettings(); refreshLibrary(); updateEditorStats(); renderJobs();
@@ -49,6 +50,7 @@ function bindSvg() {
   drop.addEventListener("drop", e => e.dataTransfer.files[0] && readSvgFile(e.dataTransfer.files[0]));
   $("#loadSvgText").addEventListener("click", () => loadSvg($("#svgText").value));
   $("#generateGcode").addEventListener("click", generateGcode);
+  $("#svgOrientationFlip").addEventListener("change", event => { state.settings.yFlip=event.target.checked;$("#settingsForm").elements.yFlip.checked=event.target.checked;saveJSON("plotterflow.settings",state.settings); });
   $("#showSvgPreview").addEventListener("click", () => setPreviewMode("svg"));
   $("#showGcodePreview").addEventListener("click", () => setPreviewMode("gcode"));
 }
@@ -60,7 +62,14 @@ function loadSvg(text, name = "") {
     doc.querySelectorAll("script,foreignObject").forEach(n => n.remove());
     state.svgText = new XMLSerializer().serializeToString(doc.documentElement);
     $("#svgText").value = state.svgText;
-    const host = $("#previewSvg");
+    const host = mountSvgForMeasurement(state.svgText);
+    state.paths = extractPaths(host);
+    renderSvgPreview();
+    setSvgStatus(`${name ? name + ": " : ""}${state.paths.length}個の描画要素を読み込みました。`);
+  } catch (e) { setSvgStatus(e.message, true); }
+}
+function mountSvgForMeasurement(text) {
+    const doc = new DOMParser().parseFromString(text, "image/svg+xml"),host = $("#previewSvg");
     [...host.attributes].forEach(a => !["id", "aria-label", "style"].includes(a.name) && host.removeAttribute(a.name));
     host.innerHTML = doc.documentElement.innerHTML;
     [...doc.documentElement.attributes].forEach(a => { if (a.name !== "xmlns") host.setAttribute(a.name, a.value); });
@@ -68,10 +77,7 @@ function loadSvg(text, name = "") {
       const w = parseFloat(doc.documentElement.getAttribute("width")) || 100, h = parseFloat(doc.documentElement.getAttribute("height")) || 100;
       host.setAttribute("viewBox", `0 0 ${w} ${h}`);
     }
-    state.paths = extractPaths(host);
-    renderSvgPreview();
-    setSvgStatus(`${name ? name + ": " : ""}${state.paths.length}個の描画要素を読み込みました。`);
-  } catch (e) { setSvgStatus(e.message, true); }
+    return host;
 }
 function setSvgStatus(msg, error = false) { const el = $("#svgStatus"); el.textContent = msg; el.classList.toggle("error", error); }
 
@@ -125,7 +131,7 @@ function requiredUpDelay(distance) {
 function dwell(lines, seconds) { if (seconds > 0.0001) lines.push(`G4 P${fmt(seconds)}`); }
 function generateGcode() {
   if (!state.paths.length) return setSvgStatus("先にSVGを読み込んでください。", true);
-  state.paths = extractPaths($("#previewSvg"));
+  state.paths = extractPaths(mountSvgForMeasurement(state.svgText));
   buildGcodeFromPaths(transformedPaths());
 }
 function buildGcodeFromPaths(paths, outputName = "") {
@@ -219,10 +225,10 @@ function ensureExt(name) { return /\.(gcode|nc|tap)$/i.test(name) ? name : `${na
 function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 
 function bindSettings() {
-  $("#settingsForm").addEventListener("submit", e => { e.preventDefault(); readSettings(); saveJSON("plotterflow.settings", state.settings); $("#serialBaud").value = state.settings.baudrate; $("#settingsStatus").textContent = "保存しました。"; toast("設定を保存しました"); });
+  $("#settingsForm").addEventListener("submit", e => { e.preventDefault(); readSettings(); saveJSON("plotterflow.settings", state.settings); $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; $("#settingsStatus").textContent = "保存しました。"; toast("設定を保存しました"); });
   $("#resetSettings").addEventListener("click", () => { if (confirm("設定を初期値へ戻しますか？")) { state.settings = { ...DEFAULTS }; populateSettings(); saveJSON("plotterflow.settings", state.settings); } });
 }
-function populateSettings() { const f = $("#settingsForm"); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#serialBaud").value = state.settings.baudrate; }
+function populateSettings() { const f = $("#settingsForm"); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; }
 function readSettings() { const f = $("#settingsForm"); for (const k of Object.keys(DEFAULTS)) if (f.elements[k]) state.settings[k] = f.elements[k].type === "checkbox" ? f.elements[k].checked : f.elements[k].type === "number" ? +f.elements[k].value : f.elements[k].value; }
 
 function bindSerial() {
