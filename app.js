@@ -119,8 +119,11 @@ function getSvgMmScale(svg, vb) {
   return value && vb.width ? value * unitMm / vb.width : 25.4 / 96;
 }
 function transformedPaths() {
+  return transformOutputPaths(state.paths);
+}
+function transformOutputPaths(sourcePaths) {
   const s = state.settings; const scale = +s.scale || 1, ox = +s.offsetX || 0, oy = +s.offsetY || 0;
-  let paths = state.paths.map(path => path.map(p => ({ x: p.x * scale + ox, y: p.y * scale + oy })));
+  let paths = sourcePaths.map(path => path.map(p => ({ x: p.x * scale + ox, y: p.y * scale + oy })));
   if (s.yFlip && paths.length) {
     const ys = paths.flat().map(p => p.y), axis = Math.min(...ys) + Math.max(...ys);
     paths = paths.map(path => path.map(p => ({ x: p.x, y: axis - p.y })));
@@ -183,7 +186,8 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
   return lines.join("\n");
 }
 
-window.PlotterFlow = { generateFromPaths: buildGcodeFromPaths, switchTab, getSettings: () => state.settings };
+function generateFromLayoutPaths(paths, outputName = "") { return buildGcodeFromPaths(transformOutputPaths(paths), outputName, { normalizeYPreview: !!state.settings.yFlip }); }
+window.PlotterFlow = { generateFromPaths: generateFromLayoutPaths, switchTab, getSettings: () => state.settings };
 
 function setPreviewMode(mode) { state.previewMode = mode; $("#showSvgPreview").classList.toggle("active", mode === "svg"); $("#showGcodePreview").classList.toggle("active", mode === "gcode"); mode === "svg" ? renderSvgPreview() : renderGcodePreview(); }
 function renderSvgPreview() { if (!state.svgText) return; const svg = $("#previewSvg"); svg.style.display = "block"; }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>PlotterFlow - SVG to FluidNC</title>
+  <title>PlotterFlow - Pen Plotter Layout Editor</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="drawing.css">
   <link rel="stylesheet" href="serial.css">
@@ -11,16 +11,15 @@
 </head>
 <body>
   <header class="app-header">
-    <div><h1>PlotterFlow</h1><p>SVG → FluidNC G-code</p></div>
+    <div><h1>PlotterFlow</h1><p>Pen Plotter Layout Editor</p></div>
     <div id="connectionBadge" class="badge">Serial: 未接続</div>
   </header>
 
   <nav class="tabs" aria-label="メインメニュー">
-    <button class="tab active" data-tab="drawing">お絵描き</button>
-    <button class="tab" data-tab="convert">SVG変換</button>
+    <button class="tab active" data-tab="drawing">編集</button>
     <button class="tab" data-tab="gcode">G-code</button>
-    <button class="tab" data-tab="serial">Serial</button>
     <button class="tab" data-tab="jobs">ジョブ実行</button>
+    <button class="tab" data-tab="serial">Serial</button>
     <button class="tab" data-tab="settings">設定</button>
   </nav>
 
@@ -42,8 +41,10 @@
             <p id="textFontStatus" class="text-font-status">フォント読込中…</p>
           </section>
           <section class="stamp-quick-add" aria-labelledby="stampAddTitle">
-            <h2 id="stampAddTitle">スタンプ</h2>
+            <h2 id="stampAddTitle">素材を配置</h2>
             <button id="openStampLibrary" class="secondary wide stamp-open-button">＋ スタンプを追加</button>
+            <label class="file-button svg-object-file">SVGを読み込んで配置<input id="drawingLoadSvg" type="file" accept="image/svg+xml,.svg"></label>
+            <details class="svg-paste-details"><summary>SVGテキストを貼り付け</summary><textarea id="drawingSvgText" rows="4" placeholder="&lt;svg ...&gt;"></textarea><button id="drawingAddSvgText" class="secondary wide">キャンバスへ配置</button></details>
             <p id="stampLibraryStatus" class="stamp-library-status">素材一覧を読み込み中…</p>
           </section>
           <h2 class="drawing-tools-title">作図ツール</h2>
@@ -58,6 +59,9 @@
           <div class="drawing-history-actions">
             <button id="drawingUndo" title="Ctrl+Z">↶ Undo</button>
             <button id="drawingRedo" title="Ctrl+Y">↷ Redo</button>
+            <button id="drawingDuplicate">複製</button>
+            <button id="drawingToFront">最前面へ</button>
+            <button id="drawingToBack">最背面へ</button>
             <button id="drawingDelete" class="danger">選択を削除</button>
             <button id="drawingClear" class="danger">全消去</button>
           </div>
@@ -72,7 +76,7 @@
         </article>
 
         <article class="card drawing-canvas-card">
-          <div class="card-title"><h2>キャンバス</h2><div class="drawing-canvas-actions"><button id="drawingProperties" class="secondary" hidden>プロパティ</button><span id="drawingObjectCount" class="muted">0オブジェクト</span></div></div>
+          <div class="card-title"><h2>キャンバス</h2><div class="drawing-canvas-actions"><button id="drawingGenerateGcode" class="primary">G-code生成</button><button id="drawingProperties" class="secondary" hidden>プロパティ</button><span id="drawingObjectCount" class="muted">0オブジェクト</span></div></div>
           <div id="drawingCanvasWrap" class="drawing-canvas-wrap">
             <svg id="drawingCanvas" viewBox="0 0 30 30" aria-label="お絵描きキャンバス"></svg>
           </div>
@@ -90,7 +94,6 @@
             <button id="drawingDownloadJson">JSONダウンロード</button>
             <label class="file-button">JSON読み込み<input id="drawingLoadJson" type="file" accept=".json,.plotter.json,application/json"></label>
             <button id="drawingDownloadSvg">SVGダウンロード</button>
-            <button id="drawingGenerateGcode" class="primary">G-code生成</button>
           </div>
           <p id="drawingStatus" class="status">描いてすぐG-code化できます。</p>
         </article>
@@ -111,7 +114,7 @@
         <div id="stampGrid" class="stamp-grid" aria-live="polite"></div>
       </dialog>
       <dialog id="stampPropertiesDialog" class="stamp-dialog stamp-properties-dialog">
-        <div class="dialog-title"><h2>スタンププロパティ</h2><button id="stampPropertiesClose" aria-label="閉じる">×</button></div>
+        <div class="dialog-title"><h2>SVG素材プロパティ</h2><button id="stampPropertiesClose" aria-label="閉じる">×</button></div>
         <p id="stampPropertiesName" class="stamp-properties-name"></p>
         <label>サイズ（倍率）<input id="stampScale" type="number" min="0.05" max="50" step="0.05"></label>
         <label>回転角度（°）<input id="stampRotation" type="number" min="-360" max="360" step="1"></label>
@@ -121,7 +124,7 @@
       </dialog>
     </section>
 
-    <section id="tab-convert" class="panel">
+    <section id="tab-convert" class="panel legacy-convert-panel" aria-hidden="true">
       <div class="grid two">
         <article class="card">
           <div class="card-title convert-title"><h2>SVG入力</h2><div class="actions convert-primary-actions"><button id="generateGcode" class="primary">G-code生成</button><button id="generateAndSendSvg" class="secondary">生成して実行</button></div></div>
@@ -133,11 +136,6 @@
           <label class="orientation-fix"><input id="svgOrientationFlip" type="checkbox" checked><span><strong>180°回転＋左右反転</strong><small>描画方向を実機向けに補正（合成結果はY反転）</small></span></label>
           <div class="actions"><button id="loadSvgText" class="secondary">テキストを読み込む</button></div>
           <p id="svgStatus" class="status">SVGを読み込んでください。</p>
-        </article>
-        <article class="card preview-card">
-          <div class="card-title"><h2>プレビュー</h2><div class="segmented"><button id="showSvgPreview" class="active">SVG</button><button id="showGcodePreview">G-code</button></div></div>
-          <div id="preview" class="preview"><svg id="previewSvg" aria-label="描画プレビュー"></svg></div>
-          <div class="legend"><span><i class="draw"></i>描画</span><span><i class="travel"></i>空走</span><span><i class="position"></i>現在位置</span></div>
         </article>
       </div>
     </section>
@@ -157,6 +155,11 @@
           <div class="actions"><button id="saveGcode" class="primary">保存</button><button id="downloadGcode">ダウンロード</button><button id="sendFromEditor">Serialで送信</button></div>
         </article>
       </div>
+      <article class="card preview-card gcode-preview-card">
+        <div class="card-title"><h2>G-codeプレビュー</h2><div class="segmented legacy-preview-switch"><button id="showSvgPreview">SVG</button><button id="showGcodePreview" class="active">G-code</button></div></div>
+        <div id="preview" class="preview"><svg id="previewSvg" aria-label="G-code描画プレビュー"></svg></div>
+        <div class="legend"><span><i class="draw"></i>描画</span><span><i class="travel"></i>空走</span><span><i class="position"></i>現在位置</span></div>
+      </article>
     </section>
 
     <section id="tab-serial" class="panel">

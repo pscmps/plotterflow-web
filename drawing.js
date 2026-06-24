@@ -51,12 +51,17 @@
     $d("#drawingSaveAs").addEventListener("click", saveDrawingAs);
     $d("#drawingLibrary").addEventListener("change", event => loadLibraryDrawing(event.target.value));
     $d("#drawingLoadJson").addEventListener("change", loadJsonFile);
+    $d("#drawingLoadSvg").addEventListener("change", loadSvgObjectFile);
+    $d("#drawingAddSvgText").addEventListener("click",()=>{const input=$d("#drawingSvgText"),text=input.value.trim();if(text){addSvgObjectFromText(text,"pasted.svg");input.value="";}else setStatus("SVGテキストを入力してください。",true);});
     $d("#drawingDownloadJson").addEventListener("click", downloadJson);
     $d("#drawingDownloadSvg").addEventListener("click", downloadSvg);
     $d("#drawingGenerateGcode").addEventListener("click", generateDrawingGcode);
     $d("#drawingAddText").addEventListener("click", addTextObject);
     $$d("[data-text-writing]").forEach(button => button.addEventListener("click", () => setTextWriting(button.dataset.textWriting)));
     $d("#drawingProperties").addEventListener("click", openSelectedProperties);
+    $d("#drawingDuplicate").addEventListener("click", duplicateSelected);
+    $d("#drawingToFront").addEventListener("click", bringSelectedToFront);
+    $d("#drawingToBack").addEventListener("click", sendSelectedToBack);
     $d("#textPropertiesApply").addEventListener("click", applyTextProperties);
     $d("#textPropertiesClose").addEventListener("click", closeTextProperties);
     $d("#textPropertiesCancel").addEventListener("click", closeTextProperties);
@@ -90,13 +95,15 @@
   function parseStampSvg(text) {
     const doc=new DOMParser().parseFromString(text,"image/svg+xml"),root=doc.documentElement;
     if(root.localName!=="svg"||doc.querySelector("parsererror"))throw new Error("SVG形式が不正です");
-    root.querySelectorAll("script,foreignObject,image,text,style").forEach(node=>node.remove());
-    root.querySelectorAll("*").forEach(node=>[...node.attributes].forEach(attribute=>{if(attribute.name.toLowerCase().startsWith("on")||/^(href|xlink:href)$/i.test(attribute.name))node.removeAttribute(attribute.name);}));
+    root.querySelectorAll("script,foreignObject,image,text,style,defs,clipPath,mask,pattern,symbol,metadata").forEach(node=>node.remove());
+    root.querySelectorAll("*").forEach(node=>{[...node.attributes].forEach(attribute=>{if(attribute.name.toLowerCase().startsWith("on")||/^(href|xlink:href|clip-path|mask|filter)$/i.test(attribute.name)||/url\s*\(/i.test(attribute.value))node.removeAttribute(attribute.name);});if(["g","path","line","polyline","polygon","rect","circle","ellipse"].includes(node.localName)){["fill","stroke","stroke-width","stroke-linecap","stroke-linejoin"].forEach(name=>node.removeAttribute(name));if(node.localName!=="g")node.setAttribute("fill","none");}});
     const vb=(root.getAttribute("viewBox")||"0 0 100 100").trim().split(/[ ,]+/).map(Number);
     if(vb.length!==4||vb.some(value=>!Number.isFinite(value))||vb[2]<=0||vb[3]<=0)throw new Error("viewBoxが不正です");
-    const presentation=["fill","stroke","stroke-linecap","stroke-linejoin","stroke-dasharray"].map(name=>root.hasAttribute(name)?`${name}="${escapeHtml(root.getAttribute(name))}"`:"").filter(Boolean).join(" ");
-    return{markup:root.innerHTML,presentation,viewBox:{x:vb[0],y:vb[1],width:vb[2],height:vb[3]}};
+    const presentation={fill:"none",stroke:"#111"};["stroke-linecap","stroke-linejoin","stroke-dasharray"].forEach(name=>{if(root.hasAttribute(name))presentation[name]=sanitizePresentationValue(root.getAttribute(name));});
+    return{markup:root.innerHTML,presentation,viewBox:{x:vb[0],y:vb[1],width:vb[2],height:vb[3]},rawWidth:root.getAttribute("width")||"",rawHeight:root.getAttribute("height")||""};
   }
+  function sanitizePresentationValue(value){const clean=String(value||"").replace(/["'<>]/g,"");return/url\s*\(|javascript:/i.test(clean)?"":clean;}
+  function presentationAttributes(values={}){return Object.entries(values).filter(([name,value])=>["fill","stroke","stroke-linecap","stroke-linejoin","stroke-dasharray"].includes(name)&&value).map(([name,value])=>`${name}="${escapeHtml(value)}"`).join(" ");}
   function openStampLibrary(){if(!editor.stampsReady)return setStatus("スタンプ素材を読み込み中です。",true);renderStampLibrary();openDialog($d("#stampLibraryDialog"));}
   function closeStampLibrary(){closeDialog($d("#stampLibraryDialog"));}
   function renderStampLibrary(){
@@ -110,6 +117,21 @@
     editor.document.objects.push({type:"stamp",stampId,x:c.widthMm/2,y:c.heightMm/2,scale:Math.max(.05,fit),rotation:0,flipX:false,flipY:false});
     editor.selected=editor.document.objects.length-1;commit("スタンプ追加");setTool("select");closeStampLibrary();renderDrawing();setStatus(`${asset.name}を中央に追加しました。`);
   }
+  async function loadSvgObjectFile(event){
+    const file=event.target.files[0];if(!file)return;
+    try{addSvgObjectFromText(await file.text(),file.name);}catch(error){setStatus(`SVG読込エラー: ${error.message}`,true);}event.target.value="";
+  }
+  function addSvgObjectFromText(text,name){
+      const parsed=parseStampSvg(text),size=svgObjectNaturalSize(parsed),c=editor.document.canvas,fit=Math.min(1,c.widthMm/(size.widthMm*1.15),c.heightMm/(size.heightMm*1.15));
+      editor.document.objects.push({type:"svgObject",name,x:c.widthMm/2,y:c.heightMm/2,scale:Math.max(.01,fit),rotation:0,flipX:false,flipY:false,widthMm:size.widthMm,heightMm:size.heightMm,viewBox:parsed.viewBox,markup:parsed.markup,presentation:parsed.presentation});
+      editor.selected=editor.document.objects.length-1;commit("SVG配置");setTool("select");renderDrawing();setStatus(`${name}をキャンバス中央へ配置しました。`);
+  }
+  function svgObjectNaturalSize(parsed){
+    const ratio=parsed.viewBox.width/parsed.viewBox.height,w=svgLengthMm(parsed.rawWidth),h=svgLengthMm(parsed.rawHeight);
+    if(w&&h)return{widthMm:w,heightMm:h};if(w)return{widthMm:w,heightMm:w/ratio};if(h)return{widthMm:h*ratio,heightMm:h};
+    const widthMm=Math.min(80,Math.max(10,parsed.viewBox.width*25.4/96));return{widthMm,heightMm:widthMm/ratio};
+  }
+  function svgLengthMm(raw){const value=parseFloat(raw);if(!Number.isFinite(value)||value<=0)return 0;const unit=(String(raw).match(/[a-z]+/i)||["px"])[0].toLowerCase(),factor={mm:1,cm:10,in:25.4,pt:25.4/72,pc:25.4/6,px:25.4/96}[unit];return factor?value*factor:0;}
 
   async function loadTextFont() {
     const addButton=$d("#drawingAddText"),status=$d("#textFontStatus");addButton.disabled=true;
@@ -142,7 +164,7 @@
     const point = eventPoint(event); const canvas = $d("#drawingCanvas");
     editor.activePointers.set(event.pointerId, point);
     canvas.setPointerCapture?.(event.pointerId);
-    if (editor.tool === "select" && editor.activePointers.size === 2 && ["text","stamp"].includes(editor.document.objects[editor.selected]?.type)) {
+    if (editor.tool === "select" && editor.activePointers.size === 2 && (editor.document.objects[editor.selected]?.type === "text" || isVectorObject(editor.document.objects[editor.selected]))) {
       clearLongPress(); const distance=twoPointerDistance();
       editor.gesture={type:"pinch",startDistance:Math.max(.01,distance),original:clone(editor.document.objects[editor.selected]),changed:false};return;
     }
@@ -155,12 +177,12 @@
     }
     if (editor.tool === "select") {
       const current=editor.document.objects[editor.selected];
-      if(current?.type==="stamp"&&pointNearRotationHandle(point,current)){
+      if(isVectorObject(current)&&pointNearRotationHandle(point,current)){
         const center={x:current.x,y:current.y};editor.gesture={type:"rotate",center,startAngle:Math.atan2(point.y-center.y,point.x-center.x),original:clone(current),changed:false};renderDrawing();return;
       }
       editor.selected = findNearestObject(point);
       editor.gesture = editor.selected >= 0 ? { type: "move", start: point, original: clone(editor.document.objects[editor.selected]), changed: false } : null;
-      if (["text","stamp"].includes(editor.document.objects[editor.selected]?.type) && event.pointerType !== "mouse") scheduleLongPress(point);
+      if ((editor.document.objects[editor.selected]?.type === "text" || isVectorObject(editor.document.objects[editor.selected])) && event.pointerType !== "mouse") scheduleLongPress(point);
       renderDrawing(); return;
     }
     editor.selected = -1;
@@ -179,7 +201,7 @@
     event.preventDefault();
     if (gesture.type === "pinch") {
       const scale=twoPointerDistance()/gesture.startDistance;
-      editor.document.objects[editor.selected]=gesture.original.type==="stamp"?{...clone(gesture.original),scale:clamp(gesture.original.scale*scale,.05,50)}:{...clone(gesture.original),fontSize:clamp(gesture.original.fontSize*scale,1,500)};
+      editor.document.objects[editor.selected]=isVectorObject(gesture.original)?{...clone(gesture.original),scale:clamp(gesture.original.scale*scale,.01,50)}:{...clone(gesture.original),fontSize:clamp(gesture.original.fontSize*scale,1,500)};
       gesture.changed=Math.abs(scale-1)>.01;clearLongPress();
     } else if (gesture.type === "rotate") {
       const angle=Math.atan2(point.y-gesture.center.y,point.x-gesture.center.x),delta=(angle-gesture.startAngle)*180/Math.PI;
@@ -210,7 +232,7 @@
     const gesture = editor.gesture; if (!gesture) return;
     event.preventDefault();
     if (gesture.type === "pinch") {
-      if (gesture.changed) commit(gesture.original.type==="stamp"?"スタンプ拡大縮小":"テキスト拡大縮小");
+      if (gesture.changed) commit(isVectorObject(gesture.original)?"SVG素材拡大縮小":"テキスト拡大縮小");
     } else if (gesture.type === "rotate") {
       if (gesture.changed) commit("スタンプ回転");
     } else if (gesture.type === "erase") {
@@ -235,9 +257,9 @@
   }
 
   function twoPointerDistance(){const points=[...editor.activePointers.values()];return points.length<2?0:Math.hypot(points[0].x-points[1].x,points[0].y-points[1].y);}
-  function scheduleLongPress(point){clearLongPress();editor.longPressTimer=setTimeout(()=>{if(["text","stamp"].includes(editor.document.objects[editor.selected]?.type)&&!editor.gesture?.changed)openSelectedProperties();},650);}
+  function scheduleLongPress(point){clearLongPress();editor.longPressTimer=setTimeout(()=>{const object=editor.document.objects[editor.selected];if((object?.type==="text"||isVectorObject(object))&&!editor.gesture?.changed)openSelectedProperties();},650);}
   function clearLongPress(){if(editor.longPressTimer){clearTimeout(editor.longPressTimer);editor.longPressTimer=null;}}
-  function drawingContextMenu(event){const index=findNearestObject(eventPoint(event));if(!["text","stamp"].includes(editor.document.objects[index]?.type))return;event.preventDefault();editor.selected=index;renderDrawing();openSelectedProperties();}
+  function drawingContextMenu(event){const index=findNearestObject(eventPoint(event)),object=editor.document.objects[index];if(!(object?.type==="text"||isVectorObject(object)))return;event.preventDefault();editor.selected=index;renderDrawing();openSelectedProperties();}
 
   function eventPoint(event) {
     const svg = $d("#drawingCanvas"), rect = svg.getBoundingClientRect(), canvas = editor.document.canvas;
@@ -256,7 +278,7 @@
     if (editor.selected >= 0 && editor.document.objects[editor.selected]) {
       const selectedObject=editor.document.objects[editor.selected],b = objectBounds(selectedObject), pad = Math.max(c.widthMm, c.heightMm) * .008;
       svg.insertAdjacentHTML("beforeend", `<rect class="drawing-selection" x="${b.x-pad}" y="${b.y-pad}" width="${b.width+2*pad}" height="${b.height+2*pad}"/>`);
-      if(selectedObject.type==="stamp"){
+      if(isVectorObject(selectedObject)){
         const handle=rotationHandlePoint(selectedObject),top={x:b.x+b.width/2,y:b.y-pad};
         svg.insertAdjacentHTML("beforeend",`<line class="stamp-rotation-line" x1="${fmt(top.x)}" y1="${fmt(top.y)}" x2="${fmt(handle.x)}" y2="${fmt(handle.y)}"/><circle class="stamp-rotation-handle" cx="${fmt(handle.x)}" cy="${fmt(handle.y)}" r="${fmt(Math.max(pad*1.8,.8))}"/>`);
       }
@@ -267,7 +289,8 @@
     $d("#drawingObjectCount").textContent = `${editor.document.objects.length}オブジェクト`;
     $d("#drawingUndo").disabled = editor.history.length <= 1; $d("#drawingRedo").disabled = !editor.future.length;
     $d("#drawingDelete").disabled = editor.selected < 0;
-    $d("#drawingProperties").hidden = !["text","stamp"].includes(editor.document.objects[editor.selected]?.type);
+    const selectedObject=editor.document.objects[editor.selected];$d("#drawingProperties").hidden = !(selectedObject?.type==="text"||isVectorObject(selectedObject));
+    ["#drawingDuplicate","#drawingToFront","#drawingToBack"].forEach(selector=>$d(selector).disabled=editor.selected<0);
     updateCanvasFit(); persistLast();
   }
 
@@ -278,12 +301,14 @@
     if (object.type === "circle") return `<circle class="${cls}" cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>`;
     if (object.type === "star") return `<polygon class="${cls}" points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
     if (object.type === "text") return `<path class="${cls}" d="${contoursToPathData(textObjectContours(object))}"/>`;
-    if (object.type === "stamp") return stampMarkup(object,selected);
+    if (isVectorObject(object)) return vectorObjectMarkup(object,selected);
     return "";
   }
-  function stampMarkup(object,selected=false){
-    const asset=stampAssets.get(object.stampId);if(!asset)return"";
-    return `<g class="stamp-visual${selected?" selected":""}" ${asset.presentation} transform="${stampTransform(object,asset)}">${asset.markup}</g>`;
+  function isVectorObject(object){return !!object&&["stamp","svgObject"].includes(object.type);}
+  function vectorAsset(object){if(object?.type==="stamp")return stampAssets.get(object.stampId);if(object?.type==="svgObject")return{markup:object.markup,presentation:object.presentation||{},viewBox:object.viewBox,defaultWidthMm:object.widthMm,defaultHeightMm:object.heightMm,name:object.name};return null;}
+  function vectorObjectMarkup(object,selected=false){
+    const asset=vectorAsset(object);if(!asset)return"";
+    return `<g class="stamp-visual${selected?" selected":""}" ${presentationAttributes(asset.presentation)} transform="${stampTransform(object,asset)}">${asset.markup}</g>`;
   }
   function stampTransform(object,asset){
     const sx=asset.defaultWidthMm/asset.viewBox.width,sy=asset.defaultHeightMm/asset.viewBox.height,flipX=object.flipX?-1:1,flipY=object.flipY?-1:1;
@@ -301,9 +326,12 @@
   function undo() { if (editor.history.length <= 1) return; editor.future.push(editor.history.pop()); restore(editor.history.at(-1)); }
   function redo() { if (!editor.future.length) return; const item = editor.future.pop(); editor.history.push(clone(item)); restore(item); }
   function deleteSelected() { if (editor.selected < 0) return; editor.document.objects.splice(editor.selected, 1); editor.selected = -1; commit("削除"); renderDrawing(); }
+  function duplicateSelected(){if(editor.selected<0)return;const copy=translateObject(editor.document.objects[editor.selected],Math.max(.8,editor.document.canvas.widthMm*.02),Math.max(.8,editor.document.canvas.heightMm*.02));editor.document.objects.splice(editor.selected+1,0,copy);editor.selected++;commit("複製");renderDrawing();}
+  function bringSelectedToFront(){if(editor.selected<0||editor.selected===editor.document.objects.length-1)return;const [object]=editor.document.objects.splice(editor.selected,1);editor.document.objects.push(object);editor.selected=editor.document.objects.length-1;commit("最前面へ移動");renderDrawing();}
+  function sendSelectedToBack(){if(editor.selected<=0)return;const [object]=editor.document.objects.splice(editor.selected,1);editor.document.objects.unshift(object);editor.selected=0;commit("最背面へ移動");renderDrawing();}
   function clearDrawing() { if (!editor.document.objects.length || !confirm("描画内容をすべて消去しますか？")) return; editor.document.objects = []; editor.selected = -1; commit("全消去"); renderDrawing(); }
 
-  function openSelectedProperties(){const type=editor.document.objects[editor.selected]?.type;if(type==="text")openTextProperties();if(type==="stamp")openStampProperties();}
+  function openSelectedProperties(){const object=editor.document.objects[editor.selected];if(object?.type==="text")openTextProperties();if(isVectorObject(object))openStampProperties();}
   function openDialog(dialog){if(typeof dialog.showModal==="function")dialog.showModal();else dialog.setAttribute("open","");}
   function closeDialog(dialog){if(typeof dialog.close==="function"&&dialog.open)dialog.close();else dialog.removeAttribute("open");}
 
@@ -319,24 +347,18 @@
     commit("文字プロパティ変更");closeTextProperties();renderDrawing();
   }
   function openStampProperties(){
-    const object=editor.document.objects[editor.selected];if(object?.type!=="stamp")return;
-    const asset=stampAssets.get(object.stampId);$d("#stampPropertiesName").textContent=asset?.name||object.stampId;
+    const object=editor.document.objects[editor.selected];if(!isVectorObject(object))return;
+    const asset=vectorAsset(object);$d("#stampPropertiesName").textContent=asset?.name||object.stampId||object.name||"SVG素材";
     $d("#stampScale").value=fmt(object.scale);$d("#stampRotation").value=fmt(object.rotation);$d("#stampFlipX").checked=!!object.flipX;$d("#stampFlipY").checked=!!object.flipY;openDialog($d("#stampPropertiesDialog"));
   }
   function closeStampProperties(){closeDialog($d("#stampPropertiesDialog"));}
   function applyStampProperties(){
-    const object=editor.document.objects[editor.selected];if(object?.type!=="stamp")return closeStampProperties();
-    object.scale=clamp(+$d("#stampScale").value||object.scale,.05,50);object.rotation=normalizeAngle(+$d("#stampRotation").value||0);object.flipX=$d("#stampFlipX").checked;object.flipY=$d("#stampFlipY").checked;
-    commit("スタンププロパティ変更");closeStampProperties();renderDrawing();
+    const object=editor.document.objects[editor.selected];if(!isVectorObject(object))return closeStampProperties();
+    object.scale=clamp(+$d("#stampScale").value||object.scale,.01,50);object.rotation=normalizeAngle(+$d("#stampRotation").value||0);object.flipX=$d("#stampFlipX").checked;object.flipY=$d("#stampFlipY").checked;
+    commit("SVG素材プロパティ変更");closeStampProperties();renderDrawing();
   }
-  function bringStampToFront(){
-    if(editor.document.objects[editor.selected]?.type!=="stamp"||editor.selected===editor.document.objects.length-1)return;
-    const [object]=editor.document.objects.splice(editor.selected,1);editor.document.objects.push(object);editor.selected=editor.document.objects.length-1;commit("最前面へ移動");renderDrawing();
-  }
-  function sendStampToBack(){
-    if(editor.document.objects[editor.selected]?.type!=="stamp"||editor.selected===0)return;
-    const [object]=editor.document.objects.splice(editor.selected,1);editor.document.objects.unshift(object);editor.selected=0;commit("最背面へ移動");renderDrawing();
-  }
+  function bringStampToFront(){bringSelectedToFront();}
+  function sendStampToBack(){sendSelectedToBack();}
 
   function drawingKeydown(event) {
     if (!$d("#tab-drawing").classList.contains("active") || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
@@ -410,13 +432,13 @@
     if (object.type === "rect") return `<rect x="${fmt(object.x)}" y="${fmt(object.y)}" width="${fmt(object.width)}" height="${fmt(object.height)}"/>`;
     if (object.type === "circle") return `<circle cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>`;
     if (object.type === "text") return `<path d="${contoursToPathData(textObjectContours(object))}"/>`;
-    if (object.type === "stamp") return stampMarkup(object,false);
+    if (isVectorObject(object)) return vectorObjectMarkup(object,false);
     return `<polygon points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
   }
   function generateDrawingGcode() {
     if (!editor.document.objects.length) return setStatus("先に図形を描いてください。", true);
     if (editor.document.objects.some(object=>object.type==="text")&&!editor.fontReady) return setStatus("フォントを読み込み中です。",true);
-    if (editor.document.objects.some(object=>object.type==="stamp"&&!stampAssets.has(object.stampId))) return setStatus("スタンプ素材を読み込み中、または素材IDが見つかりません。",true);
+    if (editor.document.objects.some(object=>isVectorObject(object)&&!vectorAsset(object))) return setStatus("SVG素材を読み込み中、または素材が見つかりません。",true);
     const paths = objectsToPaths(editor.document.objects); const name = ensureJsonName($d("#drawingName").value || editor.name);
     window.PlotterFlow.generateFromPaths(paths, name); setStatus(`${paths.length}パスをG-codeへ変換しました。`);
   }
@@ -427,7 +449,7 @@
       if (object.type === "rect") return [[[object.x,object.y],[object.x+object.width,object.y],[object.x+object.width,object.y+object.height],[object.x,object.y+object.height],[object.x,object.y]].map(p => ({x:p[0],y:p[1]}))];
       if (object.type === "star") return [[...starPoints(object), starPoints(object)[0]].map(p => ({x:p[0],y:p[1]}))];
       if (object.type === "text") return textObjectContours(object,interval).map(contour=>contour.map(p=>({x:p[0],y:p[1]})));
-      if (object.type === "stamp") return stampObjectPaths(object,interval).map(path=>path.map(p=>({x:p[0],y:p[1]})));
+      if (isVectorObject(object)) return stampObjectPaths(object,interval).map(path=>path.map(p=>({x:p[0],y:p[1]})));
       const count = Math.max(16, Math.ceil(2 * Math.PI * object.r / interval));
       return [Array.from({ length: count + 1 }, (_, i) => ({ x: object.cx + Math.cos(i/count*2*Math.PI) * object.r, y: object.cy + Math.sin(i/count*2*Math.PI) * object.r }))];
     }).filter(path => path.length >= 2);
@@ -437,6 +459,7 @@
   function eraseAlongStroke(from, to) {
     const radius = eraserRadius(), step = Math.max(.04, radius / 3); let changed = false; const next = [];
     for (const object of editor.document.objects) {
+      if(isVectorObject(object)){next.push(object);continue;}
       const sources = objectAsPolylines(object, step);
       const touched = sources.some(source=>source.points.some(point => distanceToSegment({ x: point[0], y: point[1] }, from, to) <= radius));
       if (!touched) { next.push(object); continue; }
@@ -451,7 +474,7 @@
     if (object.type === "rect") return [{ points: resamplePolyline([[object.x,object.y],[object.x+object.width,object.y],[object.x+object.width,object.y+object.height],[object.x,object.y+object.height],[object.x,object.y]], step), closed: true }];
     if (object.type === "star") { const points=starPoints(object);points.push(points[0]);return [{ points:resamplePolyline(points,step),closed:true }]; }
     if (object.type === "text") return textObjectContours(object,step).map(points=>({points:resamplePolyline(points,step),closed:true}));
-    if (object.type === "stamp") return stampObjectPaths(object,step).map(points=>({points:resamplePolyline(points,step),closed:Math.hypot(points[0][0]-points.at(-1)[0],points[0][1]-points.at(-1)[1])<.01}));
+    if (isVectorObject(object)) return stampObjectPaths(object,step).map(points=>({points:resamplePolyline(points,step),closed:Math.hypot(points[0][0]-points.at(-1)[0],points[0][1]-points.at(-1)[1])<.01}));
     const count=Math.max(24,Math.ceil(2*Math.PI*object.r/step));
     return [{ points:Array.from({length:count+1},(_,i)=>[object.cx+Math.cos(i/count*2*Math.PI)*object.r,object.cy+Math.sin(i/count*2*Math.PI)*object.r]),closed:true }];
   }
@@ -464,16 +487,17 @@
     return result;
   }
   function stampObjectPaths(object,interval=.5){
-    const asset=stampAssets.get(object.stampId);if(!asset)return[];
+    const asset=vectorAsset(object);if(!asset)return[];
     const host=document.createElementNS(svgNS,"svg");host.setAttribute("viewBox",`${asset.viewBox.x} ${asset.viewBox.y} ${asset.viewBox.width} ${asset.viewBox.height}`);host.style.cssText="position:fixed;left:-10000px;top:-10000px;width:400px;height:400px;visibility:hidden";host.innerHTML=asset.markup;document.body.append(host);
     const rootCtm=host.getScreenCTM(),sx=asset.defaultWidthMm/asset.viewBox.width,sy=asset.defaultHeightMm/asset.viewBox.height,paths=[];
     host.querySelectorAll("path,line,polyline,polygon,rect,circle,ellipse").forEach(element=>{
       let length;try{length=element.getTotalLength();}catch{return;}if(!Number.isFinite(length)||length<=0)return;
       const elementCtm=element.getScreenCTM();if(!rootCtm||!elementCtm)return;const relative=rootCtm.inverse().multiply(elementCtm),localScale=Math.max(Math.hypot(relative.a,relative.b)*sx,Math.hypot(relative.c,relative.d)*sy)*object.scale;
-      const count=Math.max(1,Math.ceil(length*localScale/Math.max(.04,interval))),points=[];
+      const count=Math.max(1,Math.ceil(length*localScale/Math.max(.04,interval))),splitDistance=Math.max(.12,interval*2.5);let points=[];
       for(let i=0;i<=count;i++){
         const raw=element.getPointAtLength(length*i/count),q=new DOMPoint(raw.x,raw.y).matrixTransform(relative);
-        points.push(transformStampPoint(object,[(q.x-asset.viewBox.x)*sx-asset.defaultWidthMm/2,(q.y-asset.viewBox.y)*sy-asset.defaultHeightMm/2]));
+        const point=transformStampPoint(object,[(q.x-asset.viewBox.x)*sx-asset.defaultWidthMm/2,(q.y-asset.viewBox.y)*sy-asset.defaultHeightMm/2]);
+        if(points.length&&Math.hypot(point[0]-points.at(-1)[0],point[1]-points.at(-1)[1])>splitDistance){if(points.length>=2)paths.push(points);points=[];}points.push(point);
       }
       if(points.length>=2)paths.push(points);
     });
@@ -508,7 +532,7 @@
   function distanceToObject(point, object) {
     if (object.type === "circle") return Math.abs(Math.hypot(point.x-object.cx,point.y-object.cy)-object.r);
     if (object.type === "text") { const b=objectBounds(object);if(point.x>=b.x&&point.x<=b.x+b.width&&point.y>=b.y&&point.y<=b.y+b.height)return 0;return Math.min(...textObjectContours(object).map(points=>distanceToPointList(point,points)),Infinity); }
-    if (object.type === "stamp") { const b=objectBounds(object);if(point.x>=b.x&&point.x<=b.x+b.width&&point.y>=b.y&&point.y<=b.y+b.height)return 0;return Math.min(Math.abs(point.x-b.x),Math.abs(point.x-b.x-b.width),Math.abs(point.y-b.y),Math.abs(point.y-b.y-b.height)); }
+    if (isVectorObject(object)) { const b=objectBounds(object);if(point.x>=b.x&&point.x<=b.x+b.width&&point.y>=b.y&&point.y<=b.y+b.height)return 0;return Math.min(Math.abs(point.x-b.x),Math.abs(point.x-b.x-b.width),Math.abs(point.y-b.y),Math.abs(point.y-b.y-b.height)); }
     let points;
     if (object.type === "freehand") points = object.points;
     if (object.type === "rect") points = [[object.x,object.y],[object.x+object.width,object.y],[object.x+object.width,object.y+object.height],[object.x,object.y+object.height],[object.x,object.y]];
@@ -517,10 +541,10 @@
   }
   function distanceToPointList(point,points){let distance=Infinity;for(let i=1;i<points.length;i++)distance=Math.min(distance,distanceToSegment(point,{x:points[i-1][0],y:points[i-1][1]},{x:points[i][0],y:points[i][1]}));return distance;}
   function distanceToSegment(p, a, b) { const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(!l2)return Math.hypot(p.x-a.x,p.y-a.y);const t=clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/l2,0,1);return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy)); }
-  function translateObject(object, dx, dy) { const result=clone(object);if(result.type==="freehand")result.points=result.points.map(p=>[p[0]+dx,p[1]+dy]);else if(result.type==="rect"){result.x+=dx;result.y+=dy;}else if(["text","stamp"].includes(result.type)){result.x+=dx;result.y+=dy;}else{result.cx+=dx;result.cy+=dy;}return result; }
+  function translateObject(object, dx, dy) { const result=clone(object);if(result.type==="freehand")result.points=result.points.map(p=>[p[0]+dx,p[1]+dy]);else if(result.type==="rect"){result.x+=dx;result.y+=dy;}else if(result.type==="text"||isVectorObject(result)){result.x+=dx;result.y+=dy;}else{result.cx+=dx;result.cy+=dy;}return result; }
   function objectBounds(object) {
-    let points;if(object.type==="freehand")points=object.points;else if(object.type==="rect")points=[[object.x,object.y],[object.x+object.width,object.y+object.height]];else if(object.type==="text")points=textObjectContours(object).flat();else if(object.type==="stamp"){
-      const asset=stampAssets.get(object.stampId),w=(asset?.defaultWidthMm||30)/2,h=(asset?.defaultHeightMm||30)/2;points=[[-w,-h],[w,-h],[w,h],[-w,h]].map(point=>transformStampPoint(object,point));
+    let points;if(object.type==="freehand")points=object.points;else if(object.type==="rect")points=[[object.x,object.y],[object.x+object.width,object.y+object.height]];else if(object.type==="text")points=textObjectContours(object).flat();else if(isVectorObject(object)){
+      const asset=vectorAsset(object),w=(asset?.defaultWidthMm||30)/2,h=(asset?.defaultHeightMm||30)/2;points=[[-w,-h],[w,-h],[w,h],[-w,h]].map(point=>transformStampPoint(object,point));
     }else points=[[object.cx-object.r,object.cy-object.r],[object.cx+object.r,object.cy+object.r]];
     if(!points.length)return{x:object.x||0,y:object.y||0,width:0,height:0};const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);return{x:Math.min(...xs),y:Math.min(...ys),width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys)};
   }
@@ -573,13 +597,20 @@
     const objects=data.objects.map(normalizeObject);return{version:1,canvas:{widthMm:width,heightMm:height},objects};
   }
   function normalizeObject(object) {
-    if (!object || !["freehand","rect","circle","star","text","stamp"].includes(object.type)) throw new Error("未対応のオブジェクトがあります");
+    if (!object || !["freehand","rect","circle","star","text","stamp","svgObject"].includes(object.type)) throw new Error("未対応のオブジェクトがあります");
     if(object.type==="freehand"){if(!Array.isArray(object.points)||object.points.length<2)throw new Error("自由線の点列が不正です");return{type:"freehand",points:object.points.map(p=>[finite(p[0]),finite(p[1])])};}
     if(object.type==="rect")return{type:"rect",x:finite(object.x),y:finite(object.y),width:Math.abs(finite(object.width)),height:Math.abs(finite(object.height))};
     if(object.type==="circle")return{type:"circle",cx:finite(object.cx),cy:finite(object.cy),r:Math.abs(finite(object.r))};
     if(object.type==="text")return{type:"text",text:String(object.text||""),x:finite(object.x),y:finite(object.y),fontSize:clamp(Math.abs(finite(object.fontSize||6)),1,500),letterSpacing:clamp(finite(object.letterSpacing||0),-20,100),lineHeight:clamp(finite(object.lineHeight||1.2),.5,5),writingMode:object.writingMode==="vertical"?"vertical":"horizontal",rotation:clamp(finite(object.rotation||0),-360,360),renderMode:object.renderMode==="singleline"?"singleline":"outline"};
     if(object.type==="stamp")return{type:"stamp",stampId:String(object.stampId||""),x:finite(object.x),y:finite(object.y),scale:clamp(Math.abs(finite(object.scale??1)),.05,50),rotation:normalizeAngle(finite(object.rotation||0)),flipX:!!object.flipX,flipY:!!object.flipY};
+    if(object.type==="svgObject")return normalizeSvgObject(object);
     return{type:"star",cx:finite(object.cx),cy:finite(object.cy),r:Math.abs(finite(object.r)),vertices:clamp(Math.round(finite(object.vertices||5)),3,24)};
+  }
+  function normalizeSvgObject(object){
+    const sourceViewBox=object.viewBox||{},viewBox={x:finite(sourceViewBox.x??0),y:finite(sourceViewBox.y??0),width:Math.max(.001,Math.abs(finite(sourceViewBox.width||100))),height:Math.max(.001,Math.abs(finite(sourceViewBox.height||100)))};
+    const parsed=parseStampSvg(`<svg xmlns="${svgNS}" viewBox="${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}">${String(object.markup||"")}</svg>`),presentation={};
+    Object.entries(object.presentation||{}).forEach(([name,value])=>{if(["fill","stroke","stroke-linecap","stroke-linejoin","stroke-dasharray"].includes(name))presentation[name]=sanitizePresentationValue(value);});
+    return{type:"svgObject",name:String(object.name||"imported.svg"),x:finite(object.x),y:finite(object.y),scale:clamp(Math.abs(finite(object.scale??1)),.01,50),rotation:normalizeAngle(finite(object.rotation||0)),flipX:!!object.flipX,flipY:!!object.flipY,widthMm:Math.max(.01,Math.abs(finite(object.widthMm||30))),heightMm:Math.max(.01,Math.abs(finite(object.heightMm||30))),viewBox:parsed.viewBox,markup:parsed.markup,presentation};
   }
   function finite(value){const number=+value;if(!Number.isFinite(number))throw new Error("数値データが不正です");return number;}
   function persistLast(){saveStorage(STORAGE_LAST,{document:editor.document,name:editor.name,currentId:editor.currentId});}
