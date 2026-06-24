@@ -5,36 +5,15 @@ const DEFAULTS = {
   penUpDelay: 0.1, penDownDelay: 0.1, penUpClearanceDelay: 0.1, upDelayMode: "fixed",
   longMoveThreshold: 100, penUpDelayShort: 0.1, penUpDelayLong: 0.3,
   baseDelay: 0.1, delayPer100: 0.1, maxDelay: 1,
-  travelFeed: 6000, drawFeed: 3000, sampleInterval: 0.5,
+  travelFeed: 500, drawFeed: 500, sampleInterval: 0.5,
   scale: 1, offsetX: 0, offsetY: 0, yFlip: true,
   optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1,
   baudrate: 115200, jogStep: 1, jogFeed: 1000, header: "G21\nG90", footer: "",
-  reloadGcode: `; G21 ; millimeters
-; G90 ; absolute coordinate
-; G17 ; XY plane
-; G94 ; units per minute feed rate mode
-; M3 S1000 ; Turning on spindle
+  reloadGcode: `M3 S1600
 
-M3 S1600
-; Go to safety height
-
-G1 X20 Y50 F500
-G1 Y-10 F500
-G1 Y0 F500
-
-; Go to zero location
-; G0 X0 Y0
-; G0 Z0
-
-; Create rectangle
-; G1 X0 Y0 F1000
-; G1 Y10
-; G1 X10
-; G1 Y0
-; G1 X0
-
-; Turning off spindle
-; M5`
+G1 X0 Y45 F500
+G1 Y-7 F500
+G1 Y0 F500`
 };
 
 const state = {
