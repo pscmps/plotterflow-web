@@ -19,6 +19,8 @@ G1 Y0 F500`
 const state = {
   settings: loadJSON("plotterflow.settings", DEFAULTS), svgText: "", paths: [], gcodeMoves: [],
   library: loadJSON("plotterflow.library", []), currentId: null, port: null, reader: null, writer: null,
+  serialLogLimit: 200, lastSentLine: "", lastReceivedLine: "", lastOkAt: 0, lastSendAt: 0,
+  serialUiTimer: null, pendingSerialProgress: null, pendingPositionDisplay: false, pendingJobProgress: null,
   readBuffer: "", okWaiters: [], sending: false, jogging: false, paused: false, stopped: false, jobStopped: false,
   previewMode: "svg", previewNormalizeY: false, position: null, machinePosition: null, workPosition: null, workOffset: null, controllerState: "未接続", statusPollTimer: null
 };
@@ -294,9 +296,22 @@ async function readSerial() {
   finally { try { state.reader?.releaseLock(); } catch {} state.reader = null; }
 }
 function handleSerialLine(line) {
-  if (!line) return;
-  if (/^<.*>$/.test(line)) { parseControllerStatus(line); return; }
-  log(line, "rx"); if (/^ok\b/i.test(line)) state.okWaiters.shift()?.resolve(); else if (/^(error|alarm):?/i.test(line)) state.okWaiters.shift()?.reject(new Error(line));
+  const text = line.trim();
+  if (!text) return;
+  state.lastReceivedLine = text;
+  if (/^<.*>$/.test(text)) { parseControllerStatus(text); return; }
+  if (/^ok\b/i.test(text)) {
+    state.lastOkAt = Date.now();
+    state.okWaiters.shift()?.resolve(text);
+    if (!state.sending) log(text, "rx");
+    return;
+  }
+  if (/^(error|alarm):?/i.test(text)) {
+    log(text, "rx");
+    state.okWaiters.shift()?.reject(new Error(text));
+    return;
+  }
+  if (!state.sending) log(text, "rx");
 }
 async function disconnectSerial() {
   stopStatusPolling();
@@ -306,8 +321,29 @@ async function disconnectSerial() {
 }
 async function rawWrite(text, shouldLog = true) { if (!state.writer) throw new Error("Serial未接続です"); await state.writer.write(new TextEncoder().encode(text)); if (shouldLog) log(text.replace(/[\r\n]+$/, "") || "Ctrl-X", "tx"); }
 async function sendRealtime(text) { try { await rawWrite(text); } catch (e) { toast(e.message); } }
-function waitOk(timeout = 15000) { return new Promise((resolve,reject) => { const item = { resolve: () => { clearTimeout(item.timer); resolve(); }, reject: e => { clearTimeout(item.timer); reject(e); } }; item.timer = setTimeout(() => { const i=state.okWaiters.indexOf(item); if(i>=0) state.okWaiters.splice(i,1); reject(new Error("ok応答がタイムアウトしました")); }, timeout); state.okWaiters.push(item); }); }
-async function sendLineAndWait(line, trackPosition = true) { const pending = waitOk(); await rawWrite(line + "\n"); await pending; if (trackPosition) updatePosition(line); }
+function waitOk(timeout = 15000, meta = {}) {
+  return new Promise((resolve,reject) => {
+    const item = {
+      ...meta,
+      startedAt: Date.now(),
+      resolve: value => { clearTimeout(item.timer); resolve(value); },
+      reject: e => { clearTimeout(item.timer); reject(e); }
+    };
+    item.timer = setTimeout(() => {
+      const i=state.okWaiters.indexOf(item); if(i>=0) state.okWaiters.splice(i,1);
+      logOkTimeoutDebug(item, timeout);
+      reject(new Error("ok応答がタイムアウトしました"));
+    }, timeout);
+    state.okWaiters.push(item);
+  });
+}
+async function sendLineAndWait(line, trackPosition = true, meta = {}) {
+  const pending = waitOk(15000, { line, ...meta });
+  state.lastSentLine = line; state.lastSendAt = Date.now();
+  await rawWrite(line + "\n", false);
+  await pending;
+  if (trackPosition) updatePosition(line);
+}
 function saveJogSettings() {
   state.settings.jogStep = Math.max(.001, +$("#jogStep").value || 1); state.settings.jogFeed = Math.max(1, +$("#jogFeed").value || 1000);
   saveJSON("plotterflow.settings", state.settings); updateJogPreview();
@@ -330,7 +366,7 @@ async function cancelJog() {
 }
 function startStatusPolling() {
   stopStatusPolling();
-  const poll=()=>{if(state.writer)rawWrite("?",false).catch(()=>{});};poll();state.statusPollTimer=setInterval(poll,750);
+  const poll=()=>{if(state.writer&&!state.sending&&!state.jobStopped)rawWrite("?",false).catch(()=>{});};poll();state.statusPollTimer=setInterval(poll,750);
 }
 function stopStatusPolling(){if(state.statusPollTimer){clearInterval(state.statusPollTimer);state.statusPollTimer=null;}}
 function parseControllerStatus(line) {
@@ -342,8 +378,8 @@ function parseControllerStatus(line) {
     if(key==="WCO")state.workOffset=parseStatusVector(value);
   }
   if(!hasWorkPosition&&state.machinePosition&&state.workOffset)state.workPosition={x:state.machinePosition.x-state.workOffset.x,y:state.machinePosition.y-state.workOffset.y,z:state.machinePosition.z-state.workOffset.z};
-  if(state.workPosition){state.position={x:state.workPosition.x,y:state.workPosition.y};if(state.previewMode==="gcode")renderGcodePreview();}
-  updateSerialPositionDisplay();
+  if(state.workPosition){state.position={x:state.workPosition.x,y:state.workPosition.y};}
+  scheduleSerialUiFlush();
 }
 function parseStatusVector(value){const numbers=value.split(",").map(Number);return{x:numbers[0]||0,y:numbers[1]||0,z:numbers[2]||0};}
 function updateSerialPositionDisplay() {
@@ -366,7 +402,7 @@ async function startSending(code, options = {}) {
   catch (e) { if (!state.stopped) log(`送信停止: ${e.message}`, "rx"); }
   finally { state.sending = false; }
 }
-async function sendLines(lines, { silent = false, onProgress } = {}) {
+async function sendLinesLegacy(lines, { silent = false, onProgress } = {}) {
   for (let i=0; i<lines.length; i++) {
     if (state.stopped || state.jobStopped) throw new Error("停止しました"); while (state.paused && !state.stopped) await sleep(100);
     await sendLineAndWait(lines[i]); const ratio=(i+1)/lines.length; $("#sendProgress").value=ratio; $("#sendProgressText").textContent=`${i+1} / ${lines.length} (${Math.round(ratio*100)}%)`; onProgress?.(ratio);
@@ -377,8 +413,76 @@ async function pauseSending() { state.paused = true; await sendRealtime("!"); lo
 async function resumeSending() { state.paused = false; await sendRealtime("~"); log("再開", "rx"); }
 async function stopSending() { state.stopped = true; state.paused = false; state.okWaiters.splice(0).forEach(w => w.reject(new Error("停止"))); await sendRealtime(state.settings.penUpCommand + "\n"); log("送信キューを停止しました", "rx"); }
 async function resetController() { state.stopped = true; state.paused = false; state.okWaiters.splice(0).forEach(w => w.reject(new Error("リセット"))); await sendRealtime("\x18"); }
-function updatePosition(line) { const xm=line.match(/\bX(-?\d*\.?\d+)/i), ym=line.match(/\bY(-?\d*\.?\d+)/i); if (!xm&&!ym) return; state.position={x:xm?+xm[1]:(state.position?.x||0),y:ym?+ym[1]:(state.position?.y||0)}; updateSerialPositionDisplay(); if(state.previewMode==="gcode") renderGcodePreview(); }
-function log(text, type) { const el=$("#serialLog"), line=document.createElement("div"); line.className=type; line.textContent=`${new Date().toLocaleTimeString()} ${type==="tx"?">":"<"} ${text}`; el.append(line); el.scrollTop=el.scrollHeight; }
+function updatePosition(line) {
+  const xm=line.match(/\bX(-?\d*\.?\d+)/i), ym=line.match(/\bY(-?\d*\.?\d+)/i);
+  if (!xm&&!ym) return;
+  state.position={x:xm?+xm[1]:(state.position?.x||0),y:ym?+ym[1]:(state.position?.y||0)};
+  scheduleSerialUiFlush();
+}
+function scheduleSendProgress(done, total, onProgress) {
+  const ratio = total ? done / total : 0;
+  state.pendingSerialProgress = { done, total, ratio };
+  if (onProgress) state.pendingJobProgress = { ratio, onProgress };
+  scheduleSerialUiFlush();
+}
+function scheduleSerialUiFlush() {
+  state.pendingPositionDisplay = true;
+  if (state.serialUiTimer) return;
+  state.serialUiTimer = setTimeout(flushSerialUi, 150);
+}
+function flushSerialUi() {
+  if (state.serialUiTimer) { clearTimeout(state.serialUiTimer); state.serialUiTimer = null; }
+  if (state.pendingSerialProgress) {
+    const p = state.pendingSerialProgress;
+    $("#sendProgress").value = p.ratio;
+    $("#sendProgressText").textContent = `${p.done} / ${p.total} (${Math.round(p.ratio*100)}%)`;
+    state.pendingSerialProgress = null;
+  }
+  if (state.pendingJobProgress) {
+    const p = state.pendingJobProgress;
+    p.onProgress?.(p.ratio);
+    state.pendingJobProgress = null;
+  }
+  if (state.pendingPositionDisplay) {
+    updateSerialPositionDisplay();
+    state.pendingPositionDisplay = false;
+  }
+}
+function logOkTimeoutDebug(item, timeout) {
+  const elapsed = Date.now() - (item.startedAt || Date.now());
+  const lineInfo = item.total ? `${item.index}/${item.total}` : "manual";
+  log(`[timeout] ok応答なし ${elapsed}ms / timeout ${timeout}ms`, "rx");
+  log(`[timeout] 待機行 ${lineInfo}: ${item.line || "(unknown)"}`, "rx");
+  log(`[timeout] 直近TX: ${state.lastSentLine || "(none)"}`, "rx");
+  log(`[timeout] 直近RX: ${state.lastReceivedLine || "(none)"}`, "rx");
+  log(`[timeout] waiters=${state.okWaiters.length} sending=${state.sending} paused=${state.paused} stopped=${state.stopped}`, "rx");
+}
+function log(text, type) {
+  const el=$("#serialLog"), line=document.createElement("div");
+  line.className=type;
+  line.textContent=`${new Date().toLocaleTimeString()} ${type==="tx"?">":"<"} ${text}`;
+  el.append(line);
+  while (el.children.length > state.serialLogLimit) el.firstElementChild?.remove();
+  el.scrollTop=el.scrollHeight;
+}
+
+async function sendLines(lines, { silent = false, onProgress } = {}) {
+  const resumePolling = !!state.statusPollTimer;
+  if (resumePolling) stopStatusPolling();
+  try {
+    scheduleSendProgress(0, lines.length, onProgress);
+    for (let i=0; i<lines.length; i++) {
+      if (state.stopped || state.jobStopped) throw new Error("停止しました");
+      while (state.paused && !state.stopped) await sleep(100);
+      await sendLineAndWait(lines[i], true, { index: i + 1, total: lines.length });
+      scheduleSendProgress(i + 1, lines.length, onProgress);
+    }
+    flushSerialUi();
+  } finally {
+    if (resumePolling && state.port && state.writer) startStatusPolling();
+  }
+  if (!silent) renderGcodePreview();
+}
 
 function bindJobs() {
   $("#addJob").addEventListener("click", () => { addJob(); persistJobs(); }); $("#runJobs").addEventListener("click", runJobs); $("#stopJobs").addEventListener("click", stopJobs);
