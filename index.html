@@ -149,10 +149,10 @@
           <div class="stack"><button id="newGcode">新規</button><button id="duplicateGcode">複製</button><button id="renameGcode">名前変更</button><button id="deleteGcode" class="danger">削除</button></div>
         </article>
         <article class="card">
-          <div class="card-title"><h2>G-code編集</h2><span id="gcodeStats" class="muted">0行</span></div>
+          <div class="card-title"><h2>G-code編集</h2><div class="actions"><button id="sendFromEditor" class="primary">Serialで送信</button><span id="gcodeStats" class="muted">0行</span></div></div>
           <label>名前<input id="gcodeName" value="untitled.gcode"></label>
+          <div class="actions"><button id="saveGcode" class="primary">保存</button><button id="downloadGcode">ダウンロード</button></div>
           <textarea id="gcodeEditor" class="code" rows="24" spellcheck="false"></textarea>
-          <div class="actions"><button id="saveGcode" class="primary">保存</button><button id="downloadGcode">ダウンロード</button><button id="sendFromEditor">Serialで送信</button></div>
         </article>
       </div>
       <article class="card preview-card gcode-preview-card">
@@ -207,6 +207,21 @@
     </section>
 
     <section id="tab-jobs" class="panel">
+      <article class="card">
+        <div class="card-title"><h2>ジョブセット</h2><span class="muted">.plotter-jobs.json</span></div>
+        <div class="inline">
+          <label>名前<input id="jobSetName" value="job-set.plotter-jobs.json"></label>
+          <label>保存済み<select id="jobSetLibrary"><option value="">未選択</option></select></label>
+        </div>
+        <div class="actions">
+          <button id="saveJobSet" class="primary">現在のジョブを保存</button>
+          <button id="loadJobSet">読み出し</button>
+          <button id="downloadJobSet">ダウンロード</button>
+          <button id="deleteJobSet" class="danger">削除</button>
+        </div>
+        <label class="file-drop compact-file-drop"><input id="jobSetFile" type="file" accept=".plotter-jobs.json,application/json"><strong>ジョブセットを開く</strong><span>.plotter-jobs.json</span></label>
+        <p class="muted">ジョブ定義に加えて、参照している保存済みG-codeもスナップショットとして同梱します。別ブラウザで読み込む時も復元しやすい形式です。</p>
+      </article>
       <article class="card">
         <div class="card-title"><h2>ジョブリスト</h2><button id="addJob" class="primary">ジョブ追加</button></div>
         <div id="jobList" class="job-list"></div>
