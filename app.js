@@ -498,9 +498,19 @@ function bindJobs() {
   $("#deleteJobSet").addEventListener("click", deleteJobSet);
   $("#jobSetLibrary").addEventListener("change", e => { state.currentJobSetId = e.target.value || null; const set=state.jobSets.find(x=>x.id===state.currentJobSetId); if(set) $("#jobSetName").value=set.name; });
   $("#jobSetFile").addEventListener("change", event => event.target.files[0] && loadJobSetFile(event.target.files[0]));
+  $("#autoReloadBetweenJobs").checked = localStorage.getItem("plotterflow.autoReloadBetweenJobs") === "1";
+  $("#autoReloadBetweenJobs").addEventListener("change", persistJobs);
   $("#jobLoops").value = localStorage.getItem("plotterflow.jobLoops") || 1; $("#jobLoops").addEventListener("change", persistJobs);
   $("#jobList").addEventListener("input", persistJobs); $("#jobList").addEventListener("change", persistJobs);
-  $("#jobList").addEventListener("click", e => { const row=e.target.closest(".job-row"); if(!row)return; const rows=$$(".job-row"); if(e.target.matches(".remove-job")) row.remove(); if(e.target.matches(".move-up")&&row.previousElementSibling) row.parentElement.insertBefore(row,row.previousElementSibling); if(e.target.matches(".move-down")&&row.nextElementSibling) row.parentElement.insertBefore(row.nextElementSibling,row); persistJobs(); });
+  $("#jobList").addEventListener("click", e => {
+    const row=e.target.closest(".job-row"); if(!row)return;
+    clearAutoReloadMarkers();
+    const rows=$$(".job-row"), index=rows.indexOf(row);
+    if(e.target.matches(".remove-job")) row.remove();
+    if(e.target.matches(".move-up")&&index>0) row.parentElement.insertBefore(row,rows[index-1]);
+    if(e.target.matches(".move-down")&&index<rows.length-1) row.parentElement.insertBefore(rows[index+1],row);
+    persistJobs();
+  });
 }
 function addJob(data={}) {
   const row=document.createElement("div"); row.className="job-row"; row.dataset.id=data.id||uid();
@@ -510,13 +520,26 @@ function addJob(data={}) {
   $("#jobList").append(row);
 }
 function getJobs() { return $$(".job-row").map(r=>({id:r.dataset.id,gcodeId:$(".job-gcode",r).value,count:+$(".job-count",r).value||1,beforeDelay:+$(".job-before-delay",r).value||0,afterDelay:+$(".job-after-delay",r).value||0,beforeCommand:$(".job-before-command",r).value,afterCommand:$(".job-after-command",r).value})); }
-function persistJobs(){ saveJSON("plotterflow.jobs",getJobs()); localStorage.setItem("plotterflow.jobLoops",$("#jobLoops").value); }
-function renderJobs(){ const saved=loadJSON("plotterflow.jobs",[]); $("#jobList").innerHTML=""; if(Array.isArray(saved)) saved.forEach(addJob); refreshJobSetLibrary(); }
+function autoReloadBetweenJobs(){return !!$("#autoReloadBetweenJobs")?.checked;}
+function persistJobs(){ saveJSON("plotterflow.jobs",getJobs()); localStorage.setItem("plotterflow.jobLoops",$("#jobLoops").value); localStorage.setItem("plotterflow.autoReloadBetweenJobs",autoReloadBetweenJobs()?"1":"0"); renderAutoReloadMarkers(); }
+function renderJobs(){ const saved=loadJSON("plotterflow.jobs",[]); $("#jobList").innerHTML=""; if(Array.isArray(saved)) saved.forEach(addJob); renderAutoReloadMarkers(); refreshJobSetLibrary(); }
+function clearAutoReloadMarkers(){ $$(".job-reload-marker").forEach(x=>x.remove()); }
+function renderAutoReloadMarkers(){
+  clearAutoReloadMarkers();
+  if(!autoReloadBetweenJobs())return;
+  const rows=$$(".job-row");
+  rows.forEach((row,index)=>{
+    const marker=document.createElement("div");
+    marker.className=`job-reload-marker ${index===rows.length-1?"final":""}`;
+    marker.textContent=index===rows.length-1?"↻ 最後にリロード動作":"↻ リロード動作";
+    row.after(marker);
+  });
+}
 function ensureJobSetExt(name){return /\.plotter-jobs\.json$/i.test(name)?name:`${name.replace(/\.json$/i,"")}.plotter-jobs.json`;}
 function buildJobSetDocument(name=$("#jobSetName").value){
   const jobs=getJobs(), ids=[...new Set(jobs.map(j=>j.gcodeId).filter(id=>id&&id!=="__reload__"))];
   const embeddedGcodes=ids.map(id=>state.library.find(x=>x.id===id)).filter(Boolean).map(x=>({id:x.id,name:x.name,gcode:x.gcode,settings:x.settings||null,updated:x.updated||Date.now()}));
-  return {version:1,type:"plotterflow.jobSet",name:ensureJobSetExt(name.trim()||"job-set.plotter-jobs.json"),loops:Math.max(1,+$("#jobLoops").value||1),jobs,embeddedGcodes,exportedAt:new Date().toISOString()};
+  return {version:1,type:"plotterflow.jobSet",name:ensureJobSetExt(name.trim()||"job-set.plotter-jobs.json"),loops:Math.max(1,+$("#jobLoops").value||1),autoReloadBetweenJobs:autoReloadBetweenJobs(),jobs,embeddedGcodes,exportedAt:new Date().toISOString()};
 }
 function refreshJobSetLibrary(){
   const select=$("#jobSetLibrary"); if(!select)return;
@@ -541,7 +564,7 @@ function applyJobSetDocument(doc,{saveLocal=false}={}){
     }
     if(changed){saveJSON("plotterflow.library",state.library);refreshLibrary();}
   }
-  $("#jobList").innerHTML="";doc.jobs.forEach(addJob);$("#jobLoops").value=Math.max(1,+doc.loops||1);$("#jobSetName").value=ensureJobSetExt(doc.name||"job-set.plotter-jobs.json");persistJobs();
+  $("#jobList").innerHTML="";doc.jobs.forEach(addJob);$("#jobLoops").value=Math.max(1,+doc.loops||1);$("#autoReloadBetweenJobs").checked=!!doc.autoReloadBetweenJobs;$("#jobSetName").value=ensureJobSetExt(doc.name||"job-set.plotter-jobs.json");persistJobs();
   if(saveLocal){state.currentJobSetId=null;saveCurrentJobSet();}
   else{state.currentJobSetId=null;$("#jobSetLibrary").value="";}
 }
@@ -569,6 +592,7 @@ async function runJobs() {
   clearOkWaiters("ジョブ開始");
   state.sending=true; state.stopped=false; state.jobStopped=false; state.paused=false;
   const resumePolling=!!state.statusPollTimer; if(resumePolling)stopStatusPolling();
+  const useAutoReload=autoReloadBetweenJobs();
   let total=loops*jobs.reduce((n,j)=>n+j.count,0), done=0;
   try{
     scheduleJobProgress(done,total);
@@ -584,6 +608,7 @@ async function runJobs() {
           await sendLines(cleanLines(jobGcode),{silent:true,stopPolling:false,onProgress:r=>scheduleJobProgress(done+r,total)});
           await sendJobCommandBlock(j.afterCommand,{label:"afterCommand"});
           if(j.afterDelay)await interruptibleDelay(j.afterDelay*1000);
+          if(useAutoReload)await sendAutoReloadStep({loop,loops,jobIndex:ji+1,jobTotal:jobs.length,run,runTotal:j.count});
           done++; scheduleJobProgress(done,total); flushSerialUi();
         }
       }
@@ -601,6 +626,12 @@ async function runJobs() {
 function ensureJobActive(){if(state.stopped||state.jobStopped)throw new Error("停止しました");}
 async function sendJobCommandBlock(code,{label=""}={}){
   const lines=cleanLines(code||""); if(!lines.length)return;
+  await sendLines(lines,{silent:true,stopPolling:false,onProgress:null});
+}
+async function sendAutoReloadStep(context={}){
+  const lines=cleanLines(state.settings.reloadGcode||""); if(!lines.length)return;
+  ensureJobActive();
+  $("#jobProgressText").textContent=`リロード動作 ${context.loop||""}/${context.loops||""}・ジョブ ${context.jobIndex||""}/${context.jobTotal||""}`;
   await sendLines(lines,{silent:true,stopPolling:false,onProgress:null});
 }
 function scheduleJobProgress(done,total){$("#jobProgress").value=total?done/total:0;}

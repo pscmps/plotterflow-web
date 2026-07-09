@@ -224,6 +224,7 @@
       </article>
       <article class="card">
         <div class="card-title"><h2>ジョブリスト</h2><button id="addJob" class="primary">ジョブ追加</button></div>
+        <label class="check"><input id="autoReloadBetweenJobs" type="checkbox">ジョブ間と最後にリロードを自動挿入</label>
         <div id="jobList" class="job-list"></div>
         <div class="inline job-footer"><label>全体ループ回数<input id="jobLoops" type="number" min="1" value="1"></label><button id="runJobs" class="primary">実行</button><button id="stopJobs" class="danger">停止</button></div>
         <div class="progress-row"><progress id="jobProgress" value="0" max="1"></progress><span id="jobProgressText">待機中</span></div>
