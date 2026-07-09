@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="drawing.css">
   <link rel="stylesheet" href="serial.css">
   <link rel="stylesheet" href="conversion.css">
+  <link rel="stylesheet" href="job-ui.css">
 </head>
 <body>
   <header class="app-header">
@@ -208,6 +209,13 @@
 
     <section id="tab-jobs" class="panel">
       <article class="card">
+        <div class="card-title"><h2>ジョブリスト</h2><button id="addJob" class="primary">ジョブ追加</button></div>
+        <label class="check"><input id="autoReloadBetweenJobs" type="checkbox">ジョブ間と最後にリロードを自動挿入</label>
+        <div id="jobList" class="job-list"></div>
+        <div class="inline job-footer"><label>全体ループ回数<input id="jobLoops" type="number" min="1" value="1"></label><button id="runJobs" class="primary">実行</button><button id="stopJobs" class="danger">停止</button></div>
+        <div class="progress-row"><progress id="jobProgress" value="0" max="1"></progress><span id="jobProgressText">待機中</span></div>
+      </article>
+      <article class="card">
         <div class="card-title"><h2>ジョブセット</h2><span class="muted">.plotter-jobs.json</span></div>
         <div class="inline">
           <label>名前<input id="jobSetName" value="job-set.plotter-jobs.json"></label>
@@ -221,13 +229,6 @@
         </div>
         <label class="file-drop compact-file-drop"><input id="jobSetFile" type="file" accept=".plotter-jobs.json,application/json"><strong>ジョブセットを開く</strong><span>.plotter-jobs.json</span></label>
         <p class="muted">ジョブ定義に加えて、参照している保存済みG-codeもスナップショットとして同梱します。別ブラウザで読み込む時も復元しやすい形式です。</p>
-      </article>
-      <article class="card">
-        <div class="card-title"><h2>ジョブリスト</h2><button id="addJob" class="primary">ジョブ追加</button></div>
-        <label class="check"><input id="autoReloadBetweenJobs" type="checkbox">ジョブ間と最後にリロードを自動挿入</label>
-        <div id="jobList" class="job-list"></div>
-        <div class="inline job-footer"><label>全体ループ回数<input id="jobLoops" type="number" min="1" value="1"></label><button id="runJobs" class="primary">実行</button><button id="stopJobs" class="danger">停止</button></div>
-        <div class="progress-row"><progress id="jobProgress" value="0" max="1"></progress><span id="jobProgressText">待機中</span></div>
       </article>
     </section>
 

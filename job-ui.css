@@ -1,0 +1,76 @@
+.job-row {
+  display: block;
+}
+
+.job-main {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) 76px 42px 42px;
+  gap: 8px;
+  align-items: end;
+}
+
+.job-move-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.job-move-buttons button,
+.toggle-job-options,
+.remove-job {
+  min-height: 38px;
+}
+
+.job-gcode-label,
+.job-count-label {
+  margin: 0;
+}
+
+.job-extra {
+  display: grid;
+  grid-template-columns: 110px 110px 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.job-extra[hidden] {
+  display: none;
+}
+
+.job-extra label {
+  margin: 0;
+}
+
+@media (max-width: 950px) {
+  .job-main {
+    grid-template-columns: auto minmax(140px, 1fr) 70px 38px 38px;
+  }
+
+  .job-extra {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .job-extra label:nth-child(n+3) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .job-main {
+    grid-template-columns: auto 1fr 64px 36px 36px;
+    gap: 6px;
+  }
+
+  .job-move-buttons {
+    flex-direction: column;
+  }
+
+  .job-main button {
+    padding: 7px 9px;
+  }
+
+  .job-extra {
+    grid-template-columns: 1fr;
+  }
+}

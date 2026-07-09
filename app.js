@@ -509,6 +509,7 @@ function bindJobs() {
     if(e.target.matches(".remove-job")) row.remove();
     if(e.target.matches(".move-up")&&index>0) row.parentElement.insertBefore(row,rows[index-1]);
     if(e.target.matches(".move-down")&&index<rows.length-1) row.parentElement.insertBefore(rows[index+1],row);
+    if(e.target.matches(".toggle-job-options")) toggleJobOptions(row);
     persistJobs();
   });
 }
@@ -516,8 +517,15 @@ function addJob(data={}) {
   const row=document.createElement("div"); row.className="job-row"; row.dataset.id=data.id||uid();
   const options=state.library.map(x=>`<option value="${x.id}" ${x.id===data.gcodeId?"selected":""}>${escapeHtml(x.name)}</option>`).join("");
   const reloadSelected = data.gcodeId === "__reload__" ? "selected" : "";
-  row.innerHTML=`<div><button class="move-up" title="上へ">↑</button><button class="move-down" title="下へ">↓</button></div><label>G-code<select class="job-gcode"><option value="">選択</option><option value="__reload__" ${reloadSelected}>リロード動作（設定）</option>${options}</select></label><label>回数<input class="job-count" type="number" min="1" value="${data.count||1}"></label><label>前delay (秒)<input class="job-before-delay" type="number" min="0" step="0.1" value="${data.beforeDelay||0}"></label><label>後delay (秒)<input class="job-after-delay" type="number" min="0" step="0.1" value="${data.afterDelay||0}"></label><label>前コマンド<input class="job-before-command" value="${escapeHtml(data.beforeCommand||"")}"></label><label>後コマンド<input class="job-after-command" value="${escapeHtml(data.afterCommand||"")}"></label><button class="remove-job danger" title="削除">×</button>`;
+  const hasOptions=!!(+data.beforeDelay||+data.afterDelay||data.beforeCommand||data.afterCommand);
+  row.classList.toggle("expanded",hasOptions);
+  row.innerHTML=`<div class="job-main"><div class="job-move-buttons"><button class="move-up" title="上へ">↑</button><button class="move-down" title="下へ">↓</button></div><label class="job-gcode-label">G-code<select class="job-gcode"><option value="">選択</option><option value="__reload__" ${reloadSelected}>リロード動作（設定）</option>${options}</select></label><label class="job-count-label">回数<input class="job-count" type="number" min="1" value="${data.count||1}"></label><button class="toggle-job-options" type="button" aria-expanded="${hasOptions}">${hasOptions?"−":"+"}</button><button class="remove-job danger" title="削除">×</button></div><div class="job-extra" ${hasOptions?"":"hidden"}><label>前delay (秒)<input class="job-before-delay" type="number" min="0" step="0.1" value="${data.beforeDelay||0}"></label><label>後delay (秒)<input class="job-after-delay" type="number" min="0" step="0.1" value="${data.afterDelay||0}"></label><label>前コマンド<input class="job-before-command" value="${escapeHtml(data.beforeCommand||"")}"></label><label>後コマンド<input class="job-after-command" value="${escapeHtml(data.afterCommand||"")}"></label></div>`;
   $("#jobList").append(row);
+}
+function toggleJobOptions(row){
+  const extra=$(".job-extra",row),button=$(".toggle-job-options",row); if(!extra||!button)return;
+  const expanded=extra.hasAttribute("hidden");
+  extra.toggleAttribute("hidden",!expanded); row.classList.toggle("expanded",expanded); button.textContent=expanded?"−":"+"; button.setAttribute("aria-expanded",String(expanded));
 }
 function getJobs() { return $$(".job-row").map(r=>({id:r.dataset.id,gcodeId:$(".job-gcode",r).value,count:+$(".job-count",r).value||1,beforeDelay:+$(".job-before-delay",r).value||0,afterDelay:+$(".job-after-delay",r).value||0,beforeCommand:$(".job-before-command",r).value,afterCommand:$(".job-after-command",r).value})); }
 function autoReloadBetweenJobs(){return !!$("#autoReloadBetweenJobs")?.checked;}
