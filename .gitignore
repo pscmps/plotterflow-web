@@ -1,1 +1,3 @@
 .server/
+.playwright-cli/
+output/playwright/

@@ -4,11 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>PlotterFlow - Pen Plotter Layout Editor</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="drawing.css">
   <link rel="stylesheet" href="serial.css">
   <link rel="stylesheet" href="conversion.css">
   <link rel="stylesheet" href="job-ui.css">
+  <link rel="stylesheet" href="simulation.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/three.module.min.js",
+        "three/addons/": "./vendor/three/addons/"
+      }
+    }
+  </script>
 </head>
 <body>
   <header class="app-header">
@@ -19,6 +29,7 @@
   <nav class="tabs" aria-label="メインメニュー">
     <button class="tab active" data-tab="drawing">編集</button>
     <button class="tab" data-tab="gcode">G-code</button>
+    <button class="tab" data-tab="simulation">3Dシミュレーション</button>
     <button class="tab" data-tab="jobs">ジョブ実行</button>
     <button class="tab" data-tab="serial">Serial</button>
     <button class="tab" data-tab="settings">設定</button>
@@ -232,6 +243,47 @@
       </article>
     </section>
 
+    <section id="tab-simulation" class="panel">
+      <div class="simulation-layout">
+        <section class="simulation-stage" aria-labelledby="simulationTitle">
+          <div class="simulation-toolbar">
+            <div>
+              <h2 id="simulationTitle">rackn_delta_assy</h2>
+              <p id="simulationModelStatus">Fusionアセンブリを読み込み中</p>
+            </div>
+            <div class="simulation-actions">
+              <button id="simulationResetView" type="button">視点を戻す</button>
+              <button id="simulationPlay" type="button" class="primary">G-codeを再生</button>
+              <button id="simulationStop" type="button" disabled>停止</button>
+            </div>
+          </div>
+          <div id="plotter3dViewport" class="simulation-viewport" aria-label="ペンプロッタ3D表示"></div>
+        </section>
+
+        <aside class="simulation-controls" aria-label="シミュレーション操作">
+          <div class="simulation-readout">
+            <span>X<strong id="simulationXValue">0.0 mm</strong></span>
+            <span>Y<strong id="simulationYValue">0.0 mm</strong></span>
+            <span>Z<strong id="simulationZValue">0.0 mm</strong></span>
+          </div>
+          <label>X軸<input id="simulationX" type="range" min="-40" max="40" step="0.1" value="0"></label>
+          <label>Y軸<input id="simulationY" type="range" min="-60" max="60" step="0.1" value="0"></label>
+          <label>Z軸<input id="simulationZ" type="range" min="0" max="8" step="0.1" value="0"></label>
+          <label>再生速度<input id="simulationSpeed" type="range" min="10" max="120" step="5" value="45"></label>
+          <div class="simulation-progress-row">
+            <progress id="simulationProgress" max="1" value="0"></progress>
+            <span id="simulationProgressText">待機中</span>
+          </div>
+          <div class="simulation-legend" aria-label="部品グループ">
+            <span><i class="fixed"></i>固定</span>
+            <span><i class="axis-x"></i>X</span>
+            <span><i class="axis-y"></i>Y</span>
+            <span><i class="axis-z"></i>Z・ペン</span>
+          </div>
+        </aside>
+      </div>
+    </section>
+
     <section id="tab-settings" class="panel">
       <form id="settingsForm" class="settings-grid">
         <article class="card"><h2>ペン・Delay</h2>
@@ -259,5 +311,6 @@
   <script src="app.js"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js"></script>
+  <script type="module" src="plotter-simulator.js"></script>
 </body>
 </html>

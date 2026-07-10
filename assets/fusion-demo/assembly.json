@@ -1,0 +1,1930 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-10T09:14:36.032637+00:00",
+  "source": {
+    "documentName": "rackn_delta_assy v34",
+    "dataFileId": "urn:adsk.wipprod:dm.lineage:Z0RzkoybQ1Smd0n6S2IlmA",
+    "isModifiedAtExport": false,
+    "fusionLengthUnit": "cm",
+    "webLengthUnit": "mm",
+    "cmToMm": 10
+  },
+  "matrixConvention": {
+    "field": "transformCmRowMajor",
+    "layout": "row-major 4x4",
+    "translationIndices": [
+      3,
+      7,
+      11
+    ],
+    "translationUnit": "cm",
+    "nestedOccurrenceRule": "For parentPath entries, compose parent world matrix with parent-local native transform"
+  },
+  "root": {
+    "name": "rackn_delta_assy v34",
+    "occurrenceCount": 33,
+    "jointCount": 27
+  },
+  "axisAssignments": {
+    "x": {
+      "jointName": "スライダ 4",
+      "type": "slider",
+      "occurrenceOne": "KGT_slider v2:2",
+      "occurrenceTwo": "KGT_MGN7H_100 v4:1",
+      "worldAxis": [
+        -1,
+        0,
+        0
+      ],
+      "status": "joint identified; G-code sign and travel pending calibration"
+    },
+    "y": {
+      "jointName": "スライダ 3",
+      "type": "slider",
+      "occurrenceOne": "KGT_MGN7H_200 v5:1",
+      "occurrenceTwo": "KGT_slider v2:1",
+      "worldAxis": [
+        0,
+        -1,
+        0
+      ],
+      "status": "joint identified; G-code sign and travel pending calibration"
+    },
+    "zCandidates": [
+      {
+        "jointName": "スライダ 14",
+        "worldAxis": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "jointName": "スライダ 15",
+        "worldAxis": [
+          0,
+          0,
+          1
+        ]
+      }
+    ],
+    "penServoCandidate": {
+      "sourceComponent": "SG90 v1",
+      "jointName": "回転 1",
+      "type": "revolute",
+      "worldAxis": [
+        0,
+        -1,
+        0
+      ]
+    }
+  },
+  "motionGroups": {
+    "probeMethod": "Drive Joint delta measurement; values restored and Fusion undo completed",
+    "x": {
+      "jointName": "スライダ 4",
+      "positiveJointDeltaCm": 0.1,
+      "measuredWorldDeltaCm": [
+        -0.1,
+        0,
+        0
+      ],
+      "occurrences": [
+        "rack100_X v7:1",
+        "KGT_slider v2:2",
+        "penholder_mount v18:1",
+        "LM3UU v3:1",
+        "LM3UU v3:2",
+        "fai3_30mm v1:1",
+        "fai3_30mm v1:2",
+        "pen_holder v20:1",
+        "pen v1:1",
+        "holder_rack v3:1+rack100_X v7:1",
+        "holder_rack v3:1+KGT_slider v2:1",
+        "holder_rack v3:1+penholder_mount v18:1",
+        "holder_rack v3:1"
+      ]
+    },
+    "y": {
+      "jointName": "スライダ 3",
+      "positiveJointDeltaCm": 0.1,
+      "measuredWorldDeltaCm": [
+        0,
+        -0.1,
+        0
+      ],
+      "occurrences": [
+        "KGT_MGN7H_200 v5:1",
+        "rack200_Y v17:1",
+        "lock_driver v11:1"
+      ]
+    },
+    "z": {
+      "jointName": "スライダ 14",
+      "positiveJointDeltaCm": 0.1,
+      "measuredWorldDeltaCm": [
+        0,
+        0,
+        0.1
+      ],
+      "occurrences": [
+        "fai3_30mm v1:1",
+        "fai3_30mm v1:2",
+        "pen_holder v20:1",
+        "pen v1:1"
+      ]
+    }
+  },
+  "occurrences": [
+    {
+      "name": "114mmΦ80 v2:1",
+      "fullPathName": "114mmΦ80 v2:1",
+      "componentName": "114mmΦ80 v2",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        -1.0269562474856731e-14,
+        -0.9999999999999848,
+        -3.896307570008126e-15,
+        11.789984442016848,
+        -0.9999999999999868,
+        1.2073675068543597e-14,
+        -8.755517480201626e-15,
+        7.996376086907061,
+        -2.775557561562673e-16,
+        3.4035271868968386e-15,
+        -0.9999999999999859,
+        6.511846420907552,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          0.38898444201684157,
+          -7.9983488381916725,
+          1.8581062936962045
+        ],
+        "maxCm": [
+          11.790984442016905,
+          12.03301914959365,
+          10.548489483594004
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:kv4CE4IYTbiJX2-VLL3kvw",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "KGT_MGN7H_200 v5:1",
+      "fullPathName": "KGT_MGN7H_200 v5:1",
+      "componentName": "KGT_MGN7H_200 v5",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        0.9999999999999745,
+        -4.149458554535171e-15,
+        -1.976005364850503e-15,
+        6.595911615079238,
+        -1.9748092050519413e-14,
+        -0.9999999999999667,
+        5.946834654207983e-16,
+        1.018430293023754,
+        -1.8813076096968406e-15,
+        -9.861637015979166e-16,
+        -0.9999999999999917,
+        1.3392523063538657,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          6.594911615079196,
+          -8.982569706975926,
+          0.8582523063538585
+        ],
+        "maxCm": [
+          7.296911615079262,
+          11.019430293023419,
+          1.3402523063538756
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:K3qAUjLiTyGZC7--56Gh5g",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "KGT_MGN7H_100 v4:1",
+      "fullPathName": "KGT_MGN7H_100 v4:1",
+      "componentName": "KGT_MGN7H_100 v4",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        3.4196569894483987e-15,
+        0.999999999999985,
+        1.5764453280899954e-15,
+        5.9974602573722695,
+        -0.9999999999999931,
+        6.123233995736725e-17,
+        9.860761315262648e-31,
+        -0.6912896588404127,
+        -2.2591039363868944e-15,
+        -1.5265566588596534e-16,
+        0.9999999999999964,
+        3.2192523063538725,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          0.9964602573723438,
+          -1.3922896588404083,
+          3.21825230635387
+        ],
+        "maxCm": [
+          10.998460257372198,
+          -0.6902896588404124,
+          3.7002523063538715
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:rXgvtLj-SJGwvg8E1iicbA",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "JK28HS32 v2:1",
+      "fullPathName": "JK28HS32 v2:1",
+      "componentName": "JK28HS32 v2",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        0.9999999999999898,
+        -5.472360219228389e-15,
+        -6.154798892765684e-15,
+        5.9985873238297325,
+        6.409494854920586e-31,
+        1.612449242147997e-29,
+        -0.99999999999999,
+        0.7587103411597051,
+        7.8981959861223e-15,
+        0.9999999999999953,
+        -6.258451110713143e-16,
+        6.2192523063538765,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          4.597587323829836,
+          -0.642289658840385,
+          4.2182523063538735
+        ],
+        "maxCm": [
+          7.399587323829854,
+          2.1597103411595873,
+          9.490252306353874
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:pQDwGbtkQOOViRDGfRC8IA",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "JK28HS32 v2:2",
+      "fullPathName": "JK28HS32 v2:2",
+      "componentName": "JK28HS32 v2",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        -1.1518563880485995e-15,
+        1.0000000000000004,
+        2.0707598762051574e-30,
+        2.2474602573723477,
+        2.733924198139453e-15,
+        6.288161268424326e-30,
+        -0.9999999999999998,
+        0.758710341159698,
+        -1.0000000000000007,
+        -1.2906342661267445e-15,
+        -2.733924198139449e-15,
+        -0.3807476936460021,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          0.24646025737234512,
+          -0.6422896588404097,
+          -1.7817476936461267
+        ],
+        "maxCm": [
+          5.51846025737235,
+          2.159710341159597,
+          1.0202523063538897
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:pQDwGbtkQOOViRDGfRC8IA",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "rack100_X v7:1",
+      "fullPathName": "rack100_X v7:1",
+      "componentName": "rack100_X v7",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": false,
+      "isVisible": false,
+      "transformCmRowMajor": [
+        0.9999999999999761,
+        -8.737396379005539e-16,
+        -1.7669825379324347e-15,
+        1.0120430729732004,
+        1.2246467991473653e-16,
+        -1.3820164950379215e-15,
+        0.9999999999999798,
+        -0.9412896588403963,
+        2.7207810846573948e-15,
+        -0.9999999999999679,
+        8.742742071798829e-16,
+        3.01925230635389,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          1.9536430729731769,
+          -0.9422896588403947,
+          4.018252306353861
+        ],
+        "maxCm": [
+          9.403977101741464,
+          0.28471034115958294,
+          5.020252306353849
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:91vXXuyER6SQ90JV0UCj_Q",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "12gear v2:1",
+      "fullPathName": "12gear v2:1",
+      "componentName": "12gear v2",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        1.195783831419504e-14,
+        -5.445127284836814e-16,
+        -0.9999999999999962,
+        1.3474602573723438,
+        0.18220582031118338,
+        0.9832604126296957,
+        1.4849232954361394e-15,
+        0.7587103411596958,
+        0.9832604126297012,
+        -0.18220582031118263,
+        1.2906342661267394e-15,
+        -0.3807476936460005,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          0.5464153076312076,
+          -0.0582814881318614,
+          -1.197739522937561
+        ],
+        "maxCm": [
+          1.9484602573723504,
+          1.5757021704512533,
+          0.4362441356455602
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:pVi3NUutR_eoQE4vKBneTQ",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "12gear v2:2",
+      "fullPathName": "12gear v2:2",
+      "componentName": "12gear v2",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        0.4215855219956842,
+        -0.9067886455197881,
+        5.9065572115731196e-15,
+        5.998587323829737,
+        -0.9067886455197868,
+        -0.4215855219956814,
+        -1.6476459284421648e-29,
+        0.7587103411597046,
+        4.877428484066244e-15,
+        -7.14167551457843e-15,
+        -0.9999999999999951,
+        5.019252306353883,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          5.067397032401387,
+          -0.17247995026863883,
+          4.218207356612749
+        ],
+        "maxCm": [
+          6.929777615258088,
+          1.689900632588048,
+          5.620252306353889
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:pVi3NUutR_eoQE4vKBneTQ",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "rack200_Y v17:1",
+      "fullPathName": "rack200_Y v17:1",
+      "componentName": "rack200_Y v17",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        -2.1116271854765638e-14,
+        -0.9999999999999749,
+        -1.2148423827978407e-14,
+        -0.5540883849205285,
+        -0.9999999999999667,
+        1.9686859710562052e-14,
+        5.946834654207983e-16,
+        11.198964321792015,
+        -1.0816132388808261e-15,
+        1.2359037404597117e-14,
+        -0.9999999999999917,
+        1.339252306353968,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          -0.05508838492098522,
+          -9.132569706976017,
+          0.11325230635380157
+        ],
+        "maxCm": [
+          11.946911615079163,
+          11.199964321792006,
+          1.8402523063539575
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:BZ6CuzGfRsy26UgYH8diCA",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "KGT_slider v2:1",
+      "fullPathName": "KGT_slider v2:1",
+      "componentName": "KGT_slider v2",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        0.9999999999999751,
+        -2.9143354396396215e-15,
+        -1.3580783352222281e-15,
+        6.095911615079269,
+        7.05354131307005e-30,
+        -0.9999999999999669,
+        7.667741331930289e-29,
+        2.355296314315119,
+        -1.8813076096968224e-15,
+        -9.861637015979941e-16,
+        -0.9999999999999913,
+        1.1692523063538696,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          6.094911615079259,
+          -0.7257036856847789,
+          0.518252306353869
+        ],
+        "maxCm": [
+          7.796911615079227,
+          2.3562963143151188,
+          1.1702523063538695
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:zw4qSAEYRA-S_KblAJ_31g",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "KGT_slider v2:2",
+      "fullPathName": "KGT_slider v2:2",
+      "componentName": "KGT_slider v2",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        -4.7796801946141606e-15,
+        -0.9999999999999766,
+        2.0695307281805446e-15,
+        7.218810087357293,
+        0.999999999999992,
+        -6.12323399573662e-17,
+        1.1599718901129284e-15,
+        -1.8912896588403925,
+        1.224646799147351e-16,
+        6.123233995736619e-17,
+        0.999999999999997,
+        3.369252306353872,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          4.137810087357358,
+          -1.8922896588403926,
+          3.368252306353872
+        ],
+        "maxCm": [
+          7.219810087357295,
+          -0.19028965884040527,
+          4.02025230635387
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:zw4qSAEYRA-S_KblAJ_31g",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "penholder_mount v18:1",
+      "fullPathName": "penholder_mount v18:1",
+      "componentName": "penholder_mount v18",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": false,
+      "isVisible": false,
+      "transformCmRowMajor": [
+        1.000000000000001,
+        -9.470910429910193e-17,
+        2.955615254527993e-16,
+        4.828810087357312,
+        1.2246467991473665e-16,
+        0.9999999999999996,
+        1.159971890112933e-15,
+        -2.0412896588403937,
+        1.533903402117979e-16,
+        -1.149392956336619e-15,
+        1.000000000000001,
+        4.019252306353867,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          3.727810087357312,
+          -3.242289658840394,
+          3.7308297507994563
+        ],
+        "maxCm": [
+          7.629810087357317,
+          -1.4402896588403922,
+          5.02025230635387
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:DneXDtZCROmyjQYan8Qihw",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "LM3UU v3:1",
+      "fullPathName": "LM3UU v3:1",
+      "componentName": "LM3UU v3",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        1.0,
+        -2.955615254527984e-16,
+        -1.2246467991472625e-16,
+        4.328810087357312,
+        1.2246467991473596e-16,
+        -1.1599718901129318e-15,
+        1.0,
+        -2.6412896588403925,
+        -2.9556152545280723e-16,
+        -1.0,
+        -1.1599718901129314e-15,
+        5.019252306353868,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          3.977810087357312,
+          -2.9922896588403938,
+          4.018252306353868
+        ],
+        "maxCm": [
+          4.679810087357312,
+          -2.2902896588403925,
+          5.020252306353869
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:FODpTwOoRPCQNy2EmOBnUw",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "LM3UU v3:2",
+      "fullPathName": "LM3UU v3:2",
+      "componentName": "LM3UU v3",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        1.0,
+        -2.955615254527984e-16,
+        -1.2246467991472617e-16,
+        7.028810087357314,
+        1.2246467991473596e-16,
+        -1.1599718901129318e-15,
+        1.0,
+        -2.6412896588403934,
+        -2.955615254528086e-16,
+        -1.0,
+        -1.1599718901129314e-15,
+        5.019252306353871,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          6.677810087357314,
+          -2.9922896588403947,
+          4.018252306353871
+        ],
+        "maxCm": [
+          7.379810087357314,
+          -2.2902896588403934,
+          5.020252306353871
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:FODpTwOoRPCQNy2EmOBnUw",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "サーボモータ:1",
+      "fullPathName": "SG90 v1:1+サーボモータ:1",
+      "componentName": "サーボモータ",
+      "parentPath": "SG90 v1:1",
+      "isReferencedComponent": false,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        1.0,
+        5.938414761157751e-16,
+        -5.2106469093831945e-17,
+        0.0,
+        5.2106469093831945e-17,
+        -2.21607535924248e-16,
+        1.0000000000000004,
+        3.814697240495473e-08,
+        5.938414761157751e-16,
+        -1.0000000000000004,
+        -2.2160753592424802e-16,
+        3.814697116994534e-08,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          -0.47100000000000103,
+          -0.0009999618530285657,
+          -1.2610000000000048
+        ],
+        "maxCm": [
+          2.7710000000000012,
+          2.9210000381469747,
+          0.0010000000000012221
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:YLoydMUlQWO35Fky2ARypw",
+      "childCount": 0,
+      "transformSpace": "parent-local-native"
+    },
+    {
+      "name": "サーボホーン:1",
+      "fullPathName": "SG90 v1:1+サーボホーン:1",
+      "componentName": "サーボホーン",
+      "parentPath": "SG90 v1:1",
+      "isReferencedComponent": false,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        0.9964928592495047,
+        0.08367784333231731,
+        -5.210646909383266e-17,
+        -0.046860119437985515,
+        7.046736504503894e-17,
+        -2.1647017014695694e-16,
+        1.0000000000000004,
+        3.814697245358488e-08,
+        0.08367784333231709,
+        -0.9964928592495046,
+        -2.216075359242481e-16,
+        -0.14195145902705947,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          0.04524400936133241,
+          2.6790000381469734,
+          -1.1137372207716176
+        ],
+        "maxCm": [
+          3.294755990697533,
+          3.101000038146975,
+          -0.1462627792283855
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:YLoydMUlQWO35Fky2ARypw",
+      "childCount": 0,
+      "transformSpace": "parent-local-native"
+    },
+    {
+      "name": "SG90 v1:1",
+      "fullPathName": "SG90 v1:1",
+      "componentName": "SG90 v1",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        0.9955038567577235,
+        -0.00033039187092166056,
+        0.09472044141425469,
+        -4.52378251489331,
+        0.09472033183849848,
+        -0.0003329111550117364,
+        -0.9955038663443583,
+        -2.3056909167801103,
+        0.0003604398764659382,
+        0.9999998900056837,
+        -0.00030011951112210054,
+        -0.00045897708240438915,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          -5.113132183645777,
+          -2.3523323873579356,
+          -0.0016290061267700152
+        ],
+        "maxCm": [
+          -1.2429686800600486,
+          -0.7382059462545596,
+          3.1031070131493546
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:YLoydMUlQWO35Fky2ARypw",
+      "childCount": 2,
+      "transformSpace": "root"
+    },
+    {
+      "name": "fai3_30mm v1:1",
+      "fullPathName": "fai3_30mm v1:1",
+      "componentName": "fai3_30mm v1",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        1.0,
+        -2.041381995241996e-16,
+        -1.2246467991473717e-16,
+        4.328810087357311,
+        1.2246467991473692e-16,
+        -1.159971890112932e-15,
+        1.0,
+        -2.641289658840392,
+        -2.0413819952419976e-16,
+        -1.0,
+        -1.159971890112932e-15,
+        6.350951070562551,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          4.177810087357311,
+          -2.7922896588403954,
+          3.349951070562551
+        ],
+        "maxCm": [
+          4.479810087357311,
+          -2.4902896588403918,
+          6.351951070562551
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:nXdmMRzMSkKBtrmM-RAGNA",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "fai3_30mm v1:2",
+      "fullPathName": "fai3_30mm v1:2",
+      "componentName": "fai3_30mm v1",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        1.0,
+        3.266028794389347e-16,
+        1.2246467991473714e-16,
+        7.028810087357309,
+        1.2246467991473678e-16,
+        1.159971890112932e-15,
+        -1.0,
+        -2.641289658840395,
+        -3.266028794389349e-16,
+        1.0,
+        1.159971890112932e-15,
+        3.350951070562552,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          6.877810087357309,
+          -2.7922896588403954,
+          3.3499510705625517
+        ],
+        "maxCm": [
+          7.17981008735731,
+          -2.4902896588403918,
+          6.351951070562552
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:nXdmMRzMSkKBtrmM-RAGNA",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "pen_holder v20:1",
+      "fullPathName": "pen_holder v20:1",
+      "componentName": "pen_holder v20",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        1.0,
+        -1.2246467991472953e-16,
+        1.429058595668419e-16,
+        4.328810087357311,
+        1.22464679914737e-16,
+        1.0,
+        1.159971890112932e-15,
+        -2.641289658840392,
+        -1.4290585956684259e-16,
+        -1.159971890112932e-15,
+        1.0,
+        6.350951070562551,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          1.827810087357311,
+          -3.142289658840393,
+          5.849951070562548
+        ],
+        "maxCm": [
+          9.529810087357312,
+          -0.7902896588403827,
+          10.351951070562553
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:2aOX6a0gSYqTPzoyRx40Og",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "pen v1:1",
+      "fullPathName": "pen v1:1",
+      "componentName": "pen v1",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        1.0,
+        -1.2246467991472953e-16,
+        2.3432918549544183e-16,
+        5.678810087357312,
+        1.224646799147346e-16,
+        1.0,
+        1.159971890112932e-15,
+        -2.5912896588404024,
+        -2.3432918549544237e-16,
+        -1.159971890112932e-15,
+        1.0,
+        2.3509510705625445,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          5.227810087357312,
+          -3.0422896588404025,
+          2.3499510705625437
+        ],
+        "maxCm": [
+          6.129810087357315,
+          -2.1402896588403872,
+          15.351951070562544
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:F2SDlVL7QMqw7qf4UK-uAw",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "rack100_X v7:1",
+      "fullPathName": "holder_rack v3:1+rack100_X v7:1",
+      "componentName": "rack100_X v7",
+      "parentPath": "holder_rack v3:1",
+      "isReferencedComponent": false,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        6.123233995736766e-17,
+        2.2204460492503126e-16,
+        -1.0,
+        0.7500000000000007,
+        -1.0,
+        1.3596310734468908e-32,
+        -6.123233995736766e-17,
+        6.206767014384232,
+        0.0,
+        1.0,
+        2.2204460492503126e-16,
+        2.65,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          -0.476,
+          -2.1851670143842306,
+          0.36157744444559015
+        ],
+        "maxCm": [
+          3.051000000000002,
+          5.2651670143842315,
+          1.6510000000000011
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:8MAHvu07RHqN_GPsgss3ag",
+      "childCount": 0,
+      "transformSpace": "parent-local-native"
+    },
+    {
+      "name": "KGT_slider v2:1",
+      "fullPathName": "holder_rack v3:1+KGT_slider v2:1",
+      "componentName": "KGT_slider v2",
+      "parentPath": "holder_rack v3:1",
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": false,
+      "isVisible": false,
+      "transformCmRowMajor": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          -0.001,
+          -0.001,
+          -0.001
+        ],
+        "maxCm": [
+          1.701,
+          3.081,
+          0.651
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:zw4qSAEYRA-S_KblAJ_31g",
+      "childCount": 0,
+      "transformSpace": "parent-local-native"
+    },
+    {
+      "name": "penholder_mount v18:1",
+      "fullPathName": "holder_rack v3:1+penholder_mount v18:1",
+      "componentName": "penholder_mount v18",
+      "parentPath": "holder_rack v3:1",
+      "isReferencedComponent": false,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        6.123233995736822e-17,
+        -1.0,
+        -9.637520108744182e-32,
+        1.8500000000000014,
+        1.000000000000009,
+        1.7225464241988532e-16,
+        3.902007383529352e-16,
+        0.6899999999999893,
+        -2.856859625741069e-32,
+        5.146460778374897e-16,
+        0.9999999999999994,
+        0.6499999999999999,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "maxCm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:8MAHvu07RHqN_GPsgss3ag",
+      "childCount": 0,
+      "transformSpace": "parent-local-native"
+    },
+    {
+      "name": "holder_rack v3:1",
+      "fullPathName": "holder_rack v3:1",
+      "componentName": "holder_rack v3",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        1.8369701987211557e-16,
+        1.0,
+        -3.705722893222958e-16,
+        4.1388100873573235,
+        -1.0,
+        1.8369701987210383e-16,
+        1.382016495037963e-15,
+        -0.1912896588403919,
+        1.3820164950379625e-15,
+        3.705722893222908e-16,
+        1.0,
+        3.3692523063538635,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          1.9536431408032158,
+          -3.2422896588403933,
+          3.7308298461668836
+        ],
+        "maxCm": [
+          9.403977169571679,
+          0.28471034115961213,
+          5.020252401721303
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:8MAHvu07RHqN_GPsgss3ag",
+      "childCount": 3,
+      "transformSpace": "root"
+    },
+    {
+      "name": "side_plate v50:1",
+      "fullPathName": "side_plate v50:1",
+      "componentName": "side_plate v50",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        -8.687495167691848e-15,
+        -0.9999999999999936,
+        -1.0395649092053003e-16,
+        13.247460257372355,
+        0.9999999999999933,
+        -8.978928711655954e-15,
+        -6.123233995736718e-17,
+        -0.641289658840412,
+        -1.6545612927250127e-15,
+        1.485618789644331e-29,
+        0.9999999999999896,
+        -2.280747693646109,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          -1.2535397426275559,
+          -15.642289658840442,
+          -2.781747693646106
+        ],
+        "maxCm": [
+          13.248460257372486,
+          -0.1402896588404161,
+          8.5202523063538
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:NVHZHwV9QYin2MKOgKwfRw",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "paper_holder v47:1",
+      "fullPathName": "paper_holder v47:1",
+      "componentName": "paper_holder v47",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        1.0,
+        -2.9490746587294444e-15,
+        -5.590298971878684e-16,
+        -0.6525397426275434,
+        2.9816577126691488e-15,
+        0.9974073763281192,
+        0.07196197361285937,
+        -15.664307527287418,
+        3.4535931026936285e-16,
+        -0.07196197361285937,
+        0.9974073763281192,
+        2.080358486254095,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          -0.6535397426275839,
+          -15.860077675727158,
+          -1.5913515537570762
+        ],
+        "maxCm": [
+          12.64846025737246,
+          -2.118484284167378,
+          3.0788352319321595
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:uOsNvLUqSyWjFGPpLgrMlg",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "paper_lock_mover v15:1",
+      "fullPathName": "paper_lock_mover v15:1",
+      "componentName": "paper_lock_mover v15",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        0.9999999999999994,
+        -8.539088432558673e-16,
+        -9.183542481247485e-15,
+        -0.6525397426274322,
+        8.979374366678341e-15,
+        -0.009998958514622229,
+        0.9999500091647632,
+        -14.10926799617604,
+        -3.664287353979774e-21,
+        -0.9999500091647581,
+        -0.009998958514621875,
+        1.9240918149384412,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          -0.6535397426274445,
+          -14.147274091647823,
+          -1.786732126453465
+        ],
+        "maxCm": [
+          12.64846025737256,
+          -13.108308038043479,
+          1.9251017639061205
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:mWUP6dOsSPusdDYHRQHXsg",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "lock_driver v11:1",
+      "fullPathName": "lock_driver v11:1",
+      "componentName": "lock_driver v11",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        -1.9686859710562526e-14,
+        1.0000000000000009,
+        1.976005364850557e-15,
+        6.545911615079211,
+        -1.0000000000000009,
+        -1.968685971056257e-14,
+        -5.946834654208032e-16,
+        -7.481569706975925,
+        -9.832615240395737e-16,
+        -2.3645834234693914e-15,
+        1.0,
+        0.8592523063538611,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          6.544911615079178,
+          -8.982569706975942,
+          -0.8779726159731442
+        ],
+        "maxCm": [
+          7.346911615079212,
+          -7.480569706975924,
+          0.860252306353861
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:xE1xD_abQtiium09XiV-0g",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "side_plate_back v20:1",
+      "fullPathName": "side_plate_back v20:1",
+      "componentName": "side_plate_back v20",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        -5.13478148889135e-15,
+        1.0000000000000002,
+        -6.661338147750938e-16,
+        -1.252539742627663,
+        -1.0000000000000002,
+        -5.13478148889135e-15,
+        6.123233995736767e-17,
+        2.158710341159592,
+        6.123233995736427e-17,
+        6.661338147750942e-16,
+        1.0,
+        -2.2807476936461235,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          -1.2535397426276735,
+          1.6577103411595173,
+          -2.781747693646125
+        ],
+        "maxCm": [
+          13.248460257372399,
+          13.159710341159595,
+          9.720252306353885
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:qhdA7nKTTMOGjL4ebW0QOA",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "m5dial v3:1",
+      "fullPathName": "m5dial v3:1",
+      "componentName": "m5dial v3",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": false,
+      "isVisible": false,
+      "transformCmRowMajor": [
+        0.9999999999999981,
+        -1.221245327087669e-15,
+        4.509725539177849e-15,
+        1.724305170742419,
+        -1.4710455076283316e-15,
+        0.9999999999999989,
+        -4.0259703629401145e-16,
+        2.166644769015335,
+        1.5352302762394845e-15,
+        3.747002708109928e-16,
+        1.0000000000000084,
+        10.70962172930002,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          -0.8266948292575873,
+          -0.3843552309846663,
+          8.9386217293
+        ],
+        "maxCm": [
+          4.275305170742424,
+          4.717644769015337,
+          12.170621729300038
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:3UpDgWSQTH2aPba6rlaRfA",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "kiban v2:1",
+      "fullPathName": "kiban v2:1",
+      "componentName": "kiban v2",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        1.0000000000000049,
+        3.719247228447229e-15,
+        -7.077671612413403e-16,
+        2.084728383275809,
+        1.6543612235749504e-22,
+        0.9999999999999988,
+        -5.551115123125418e-17,
+        3.3973405826407514,
+        -5.412337042388411e-16,
+        -2.3592239273284823e-16,
+        1.0000000000000049,
+        -2.547094587909443,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          2.083728383275807,
+          3.396340582640751,
+          -2.5480945879094494
+        ],
+        "maxCm": [
+          10.585728383275884,
+          12.398340582640738,
+          0.45390541209057167
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:wIL7uge_S1afeob1PFCw2Q",
+      "childCount": 0,
+      "transformSpace": "root"
+    },
+    {
+      "name": "SC0510CP4 v1:1",
+      "fullPathName": "SC0510CP4 v1:1",
+      "componentName": "SC0510CP4 v1",
+      "parentPath": null,
+      "isReferencedComponent": true,
+      "isGrounded": false,
+      "isLightBulbOn": true,
+      "isVisible": true,
+      "transformCmRowMajor": [
+        8.20177259441834e-15,
+        1.0000000000000002,
+        1.2906342661267439e-15,
+        -0.4525397426276463,
+        -1.0000000000000002,
+        8.201772594418344e-15,
+        -2.7951565380968187e-15,
+        0.7587103411596932,
+        -2.79515653809683e-15,
+        -1.2906342661267212e-15,
+        1.0,
+        -0.3807476936459988,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "boundingBoxCm": {
+        "minCm": [
+          -0.45353974262765673,
+          -0.34228965884031015,
+          -1.4817476936460032
+        ],
+        "maxCm": [
+          0.5484602573723644,
+          1.859710341159705,
+          0.7202523063540043
+        ]
+      },
+      "componentDataFileId": "urn:adsk.wipprod:dm.lineage:3vw4fpoNQIGwbhMxU7uJcQ",
+      "childCount": 0,
+      "transformSpace": "root"
+    }
+  ],
+  "joints": [
+    {
+      "name": "回転 1",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "JK28HS32 v2:2",
+      "occurrenceTwo": "12gear v2:1",
+      "type": "revolute",
+      "axis": [
+        -0.9999999999999962,
+        1.4849232954361394e-15,
+        1.2906342661267394e-15
+      ],
+      "valueRad": 6.099955946703698,
+      "limits": {
+        "minimumEnabled": false,
+        "maximumEnabled": false,
+        "minimumRad": 0.0,
+        "maximumRad": 0.0
+      }
+    },
+    {
+      "name": "回転 2",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "12gear v2:2",
+      "occurrenceTwo": "JK28HS32 v2:1",
+      "type": "revolute",
+      "axis": [
+        5.472360219228389e-15,
+        -1.612449242147997e-29,
+        -0.9999999999999953
+      ],
+      "valueRad": 4.277195867281688,
+      "limits": {
+        "minimumEnabled": false,
+        "maximumEnabled": false,
+        "minimumRad": 0.0,
+        "maximumRad": 0.0
+      }
+    },
+    {
+      "name": "スライダ 3",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "KGT_MGN7H_200 v5:1",
+      "occurrenceTwo": "KGT_slider v2:1",
+      "type": "slider",
+      "axis": [
+        -2.9143354396396215e-15,
+        -0.9999999999999669,
+        -9.861637015979941e-16
+      ],
+      "valueCm": -10.203133978708575,
+      "limits": {
+        "minimumEnabled": false,
+        "maximumEnabled": false,
+        "minimumCm": 0.0,
+        "maximumCm": 0.0
+      }
+    },
+    {
+      "name": "スライダ 4",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "KGT_slider v2:2",
+      "occurrenceTwo": "KGT_MGN7H_100 v4:1",
+      "type": "slider",
+      "axis": [
+        -0.999999999999985,
+        -6.123233995736725e-17,
+        1.5265566588596534e-16
+      ],
+      "valueCm": 0.3186501700150135,
+      "limits": {
+        "minimumEnabled": false,
+        "maximumEnabled": false,
+        "minimumCm": 0.0,
+        "maximumCm": 0.0
+      }
+    },
+    {
+      "name": "剛性 5",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "rack200_Y v17:1",
+      "occurrenceTwo": "KGT_MGN7H_200 v5:1",
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 6",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "KGT_slider v2:2",
+      "occurrenceTwo": "rack100_X v7:1",
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 7",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "JK28HS32 v2:2",
+      "occurrenceTwo": null,
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 8",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "KGT_slider v2:1",
+      "occurrenceTwo": null,
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 9",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "KGT_MGN7H_100 v4:1",
+      "occurrenceTwo": null,
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 10",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "JK28HS32 v2:1",
+      "occurrenceTwo": null,
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 11",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "KGT_slider v2:2",
+      "occurrenceTwo": "penholder_mount v18:1",
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 12",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "LM3UU v3:1",
+      "occurrenceTwo": "penholder_mount v18:1",
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 13",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "LM3UU v3:2",
+      "occurrenceTwo": "penholder_mount v18:1",
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "スライダ 14",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "fai3_30mm v1:1",
+      "occurrenceTwo": "LM3UU v3:1",
+      "type": "slider",
+      "axis": [
+        2.955615254527984e-16,
+        1.1599718901129318e-15,
+        1.0
+      ],
+      "valueCm": 2.3316987642086806,
+      "limits": {
+        "minimumEnabled": false,
+        "maximumEnabled": false,
+        "minimumCm": 0.0,
+        "maximumCm": 0.0
+      }
+    },
+    {
+      "name": "スライダ 15",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "fai3_30mm v1:2",
+      "occurrenceTwo": "LM3UU v3:2",
+      "type": "slider",
+      "axis": [
+        2.955615254527984e-16,
+        1.1599718901129318e-15,
+        1.0
+      ],
+      "valueCm": 1.3316987642086806,
+      "limits": {
+        "minimumEnabled": false,
+        "maximumEnabled": false,
+        "minimumCm": 0.0,
+        "maximumCm": 0.0
+      }
+    },
+    {
+      "name": "剛性 16",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "pen_holder v20:1",
+      "occurrenceTwo": "fai3_30mm v1:1",
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 17",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "fai3_30mm v1:2",
+      "occurrenceTwo": "pen_holder v20:1",
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 18",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "pen v1:1",
+      "occurrenceTwo": "pen_holder v20:1",
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 19",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "SG90 v1:1+サーボモータ:1",
+      "occurrenceTwo": null,
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 20",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "holder_rack v3:1+rack100_X v7:1",
+      "occurrenceTwo": "penholder_mount v18:1",
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 21",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "side_plate v50:1",
+      "occurrenceTwo": null,
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "回転 22",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "paper_holder v47:1",
+      "occurrenceTwo": "side_plate v50:1",
+      "type": "revolute",
+      "axis": [
+        0.9999999999999936,
+        8.978928711655954e-15,
+        -1.485618789644331e-29
+      ],
+      "valueRad": 6.211161078895347,
+      "limits": {
+        "minimumEnabled": false,
+        "maximumEnabled": false,
+        "minimumRad": 0.0,
+        "maximumRad": 0.0
+      }
+    },
+    {
+      "name": "回転 23",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "side_plate v50:1",
+      "occurrenceTwo": "paper_lock_mover v15:1",
+      "type": "revolute",
+      "axis": [
+        0.9999999999999994,
+        8.979374366678341e-15,
+        -3.664287353979774e-21
+      ],
+      "valueRad": 1.5807954519316132,
+      "limits": {
+        "minimumEnabled": false,
+        "maximumEnabled": false,
+        "minimumRad": 0.0,
+        "maximumRad": 0.0
+      }
+    },
+    {
+      "name": "剛性 24",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "lock_driver v11:1",
+      "occurrenceTwo": "KGT_MGN7H_200 v5:1",
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 25",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "side_plate_back v20:1",
+      "occurrenceTwo": null,
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "剛性 26",
+      "kind": "joint",
+      "sourceComponent": "rackn_delta_assy v34",
+      "isSuppressed": false,
+      "occurrenceOne": "SC0510CP4 v1:1",
+      "occurrenceTwo": "JK28HS32 v2:2",
+      "type": "rigid",
+      "axis": null
+    },
+    {
+      "name": "回転 1",
+      "kind": "asBuiltJoint",
+      "sourceComponent": "SG90 v1",
+      "isSuppressed": false,
+      "occurrenceOne": "サーボモータ:1",
+      "occurrenceTwo": "サーボホーン:1",
+      "type": "revolute",
+      "axis": [
+        5.2106469093832654e-17,
+        -1.0,
+        2.2160753592424787e-16
+      ],
+      "valueRad": 6.200058751317872,
+      "limits": {
+        "minimumEnabled": false,
+        "maximumEnabled": false,
+        "minimumRad": 0.0,
+        "maximumRad": 0.0
+      }
+    }
+  ]
+}

@@ -1,0 +1,332 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-10T11:08:49.315949+00:00",
+  "sourceDocument": "rackn_delta_assy v34",
+  "meshUnit": "mm",
+  "coordinateSpace": "component-local",
+  "transform": "occurrence transforms are local to parentPath and must be composed to root; rootBody uses identity",
+  "meshRefinement": "medium",
+  "items": [
+    {
+      "kind": "occurrence",
+      "fullPathName": "114mmΦ80 v2:1",
+      "componentName": "114mmΦ80 v2",
+      "file": "meshes/occurrence-01.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "KGT_MGN7H_200 v5:1",
+      "componentName": "KGT_MGN7H_200 v5",
+      "file": "meshes/occurrence-02.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "KGT_MGN7H_100 v4:1",
+      "componentName": "KGT_MGN7H_100 v4",
+      "file": "meshes/occurrence-03.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "JK28HS32 v2:1",
+      "componentName": "JK28HS32 v2",
+      "file": "meshes/occurrence-04.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "JK28HS32 v2:2",
+      "componentName": "JK28HS32 v2",
+      "file": "meshes/occurrence-05.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "rack100_X v7:1",
+      "componentName": "rack100_X v7",
+      "file": "meshes/occurrence-06.stl",
+      "isVisible": false,
+      "isLightBulbOn": false
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "12gear v2:1",
+      "componentName": "12gear v2",
+      "file": "meshes/occurrence-07.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "12gear v2:2",
+      "componentName": "12gear v2",
+      "file": "meshes/occurrence-08.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "rack200_Y v17:1",
+      "componentName": "rack200_Y v17",
+      "file": "meshes/occurrence-09.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "KGT_slider v2:1",
+      "componentName": "KGT_slider v2",
+      "file": "meshes/occurrence-10.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "KGT_slider v2:2",
+      "componentName": "KGT_slider v2",
+      "file": "meshes/occurrence-11.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "penholder_mount v18:1",
+      "componentName": "penholder_mount v18",
+      "file": "meshes/occurrence-12.stl",
+      "isVisible": false,
+      "isLightBulbOn": false
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "LM3UU v3:1",
+      "componentName": "LM3UU v3",
+      "file": "meshes/occurrence-13.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "LM3UU v3:2",
+      "componentName": "LM3UU v3",
+      "file": "meshes/occurrence-14.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "fai3_30mm v1:1",
+      "componentName": "fai3_30mm v1",
+      "file": "meshes/occurrence-16.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "fai3_30mm v1:2",
+      "componentName": "fai3_30mm v1",
+      "file": "meshes/occurrence-17.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "pen_holder v20:1",
+      "componentName": "pen_holder v20",
+      "file": "meshes/occurrence-18.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "pen v1:1",
+      "componentName": "pen v1",
+      "file": "meshes/occurrence-19.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "side_plate v50:1",
+      "componentName": "side_plate v50",
+      "file": "meshes/occurrence-21.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "paper_holder v47:1",
+      "componentName": "paper_holder v47",
+      "file": "meshes/occurrence-22.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "paper_lock_mover v15:1",
+      "componentName": "paper_lock_mover v15",
+      "file": "meshes/occurrence-23.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "lock_driver v11:1",
+      "componentName": "lock_driver v11",
+      "file": "meshes/occurrence-24.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "side_plate_back v20:1",
+      "componentName": "side_plate_back v20",
+      "file": "meshes/occurrence-25.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "m5dial v3:1",
+      "componentName": "m5dial v3",
+      "file": "meshes/occurrence-26.stl",
+      "isVisible": false,
+      "isLightBulbOn": false
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "kiban v2:1",
+      "componentName": "kiban v2",
+      "file": "meshes/occurrence-27.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "SC0510CP4 v1:1",
+      "componentName": "SC0510CP4 v1",
+      "file": "meshes/occurrence-28.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "SG90 v1:1+サーボモータ:1",
+      "componentName": "サーボモータ",
+      "file": "meshes/nested-01.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "SG90 v1:1+サーボホーン:1",
+      "componentName": "サーボホーン",
+      "file": "meshes/nested-02.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "holder_rack v3:1+rack100_X v7:1",
+      "componentName": "rack100_X v7",
+      "file": "meshes/nested-03.stl",
+      "isVisible": true,
+      "isLightBulbOn": true
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "holder_rack v3:1+KGT_slider v2:1",
+      "componentName": "KGT_slider v2",
+      "file": null,
+      "isVisible": false,
+      "isLightBulbOn": false
+    },
+    {
+      "kind": "rootBody",
+      "fullPathName": "__root__/ボディ1",
+      "componentName": "rackn_delta_assy v34",
+      "bodyName": "ボディ1",
+      "file": "meshes/root-body-01.stl",
+      "isVisible": true,
+      "isLightBulbOn": true,
+      "transformCmRowMajor": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "kind": "rootBody",
+      "fullPathName": "__root__/ボディ2",
+      "componentName": "rackn_delta_assy v34",
+      "bodyName": "ボディ2",
+      "file": "meshes/root-body-02.stl",
+      "isVisible": true,
+      "isLightBulbOn": true,
+      "transformCmRowMajor": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "kind": "rootBody",
+      "fullPathName": "__root__/ボディ4",
+      "componentName": "rackn_delta_assy v34",
+      "bodyName": "ボディ4",
+      "file": "meshes/root-body-03.stl",
+      "isVisible": true,
+      "isLightBulbOn": true,
+      "transformCmRowMajor": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    }
+  ]
+}

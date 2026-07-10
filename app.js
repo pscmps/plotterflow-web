@@ -189,7 +189,7 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
 }
 
 function generateFromLayoutPaths(paths, outputName = "") { return buildGcodeFromPaths(transformOutputPaths(paths), outputName, { normalizeYPreview: !!state.settings.yFlip }); }
-window.PlotterFlow = { generateFromPaths: generateFromLayoutPaths, switchTab, getSettings: () => state.settings };
+window.PlotterFlow = { generateFromPaths: generateFromLayoutPaths, switchTab, getSettings: () => state.settings, parseGcodeMoves };
 
 function setPreviewMode(mode) { state.previewMode = mode; $("#showSvgPreview").classList.toggle("active", mode === "svg"); $("#showGcodePreview").classList.toggle("active", mode === "gcode"); mode === "svg" ? renderSvgPreview() : renderGcodePreview(); }
 function renderSvgPreview() { if (!state.svgText) return; const svg = $("#previewSvg"); svg.style.display = "block"; }
