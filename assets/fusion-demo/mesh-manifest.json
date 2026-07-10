@@ -217,22 +217,6 @@
     },
     {
       "kind": "occurrence",
-      "fullPathName": "SG90 v1:1+サーボモータ:1",
-      "componentName": "サーボモータ",
-      "file": "meshes/nested-01.stl",
-      "isVisible": true,
-      "isLightBulbOn": true
-    },
-    {
-      "kind": "occurrence",
-      "fullPathName": "SG90 v1:1+サーボホーン:1",
-      "componentName": "サーボホーン",
-      "file": "meshes/nested-02.stl",
-      "isVisible": true,
-      "isLightBulbOn": true
-    },
-    {
-      "kind": "occurrence",
       "fullPathName": "holder_rack v3:1+rack100_X v7:1",
       "componentName": "rack100_X v7",
       "file": "meshes/nested-03.stl",
@@ -327,6 +311,16 @@
         0,
         1
       ]
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "SG90 v1:1",
+      "componentName": "SG90 v1",
+      "file": "meshes/occurrence-15.stl",
+      "isVisible": true,
+      "isLightBulbOn": true,
+      "meshStrategy": "assembled-parent-occurrence"
     }
-  ]
+  ],
+  "servoStrategy": "SG90 is exported as its assembled parent occurrence so internal child placement and joint rotation are baked into the STL"
 }
