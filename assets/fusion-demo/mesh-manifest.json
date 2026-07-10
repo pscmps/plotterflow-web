@@ -314,13 +314,22 @@
     },
     {
       "kind": "occurrence",
-      "fullPathName": "SG90 v1:1",
-      "componentName": "SG90 v1",
-      "file": "meshes/occurrence-15.stl",
+      "fullPathName": "SG90 v1:1+サーボモータ:1",
+      "componentName": "サーボモータ",
+      "file": "meshes/nested-01.stl",
       "isVisible": true,
       "isLightBulbOn": true,
-      "meshStrategy": "assembled-parent-occurrence"
+      "meshStrategy": "child-occurrence-with-root-proxy-transform"
+    },
+    {
+      "kind": "occurrence",
+      "fullPathName": "SG90 v1:1+サーボホーン:1",
+      "componentName": "サーボホーン",
+      "file": "meshes/nested-02.stl",
+      "isVisible": true,
+      "isLightBulbOn": true,
+      "meshStrategy": "child-occurrence-with-root-proxy-transform"
     }
   ],
-  "servoStrategy": "SG90 is exported as its assembled parent occurrence so internal child placement and joint rotation are baked into the STL"
+  "servoStrategy": "SG90 child STL files use Fusion assembly-context proxy transforms directly; this places the servo behind the pen"
 }

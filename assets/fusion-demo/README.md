@@ -12,7 +12,7 @@
 
 - Nested occurrence transforms are local to their parent occurrence and are recursively composed to the root assembly.
 - The three bodies created directly in the top assembly are exported as `root-body-*.stl` with an identity transform.
-- `SG90 v1:1` is exported as one assembled parent-occurrence STL. This bakes the motor/horn child placement and servo joint rotation exactly as Fusion exports them.
+- The SG90 motor and horn use Fusion assembly-context proxy transforms directly. In this linked component, those proxy transforms are the positions shown by Fusion and place the servo behind the pen.
 - `holder_rack v3:1` remains split into its body-owning child occurrences because those children participate in the measured X motion group.
 
 The web view now uses the exported STL geometry. Bounding boxes remain only as a fallback when an individual STL cannot be loaded.

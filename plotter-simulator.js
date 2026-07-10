@@ -150,6 +150,10 @@ function addMeshOccurrence(item, occurrence, geometry, worldMatrix) {
 function worldOccurrenceMatrix(occurrence, occurrences, cache) {
   if (cache.has(occurrence.fullPathName)) return cache.get(occurrence.fullPathName).clone();
   const local = occurrenceMatrix(occurrence.transformCmRowMajor);
+  if (occurrence.transformSpace === "root-proxy") {
+    cache.set(occurrence.fullPathName, local.clone());
+    return local;
+  }
   const parent = occurrence.parentPath ? occurrences.get(occurrence.parentPath) : null;
   const world = parent ? worldOccurrenceMatrix(parent, occurrences, cache).multiply(local) : local;
   cache.set(occurrence.fullPathName, world.clone());
