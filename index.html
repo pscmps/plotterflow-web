@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <title>PlotterFlow - Pen Plotter Layout Editor</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css">
@@ -250,7 +251,7 @@
             </div>
             <div class="simulation-actions">
               <button id="simulationResetView" type="button">視点を戻す</button>
-              <button id="simulationPlay" type="button" class="primary">G-codeを再生</button>
+              <button id="simulationPlay" type="button" class="primary" disabled>G-codeを再生</button>
               <button id="simulationStop" type="button" disabled>停止</button>
             </div>
           </div>
@@ -264,13 +265,13 @@
             <span>Z<strong id="simulationZValue">0.0 mm</strong></span>
           </div>
           <label>描画データ<select id="simulationGcodeSource"><option value="__demo__">サンプルの円</option></select></label>
-          <label>X軸<input id="simulationX" type="range" min="0" max="60" step="0.1" value="0"></label>
-          <label>Y軸<input id="simulationY" type="range" min="-60" max="60" step="0.1" value="0"></label>
-          <label>Z軸<input id="simulationZ" type="range" min="0" max="8" step="0.1" value="0"></label>
+          <label>X軸<input id="simulationX" type="range" min="0" max="60" step="0.1" value="0" disabled></label>
+          <label>Y軸<input id="simulationY" type="range" min="-60" max="60" step="0.1" value="0" disabled></label>
+          <label>Z軸<input id="simulationZ" type="range" min="0" max="8" step="0.1" value="0" disabled></label>
           <label>再生速度<input id="simulationSpeed" type="range" min="10" max="120" step="5" value="45"></label>
           <div class="simulation-paper-actions">
-            <button id="simulationReload" type="button" class="secondary">リロード動作</button>
-            <button id="simulationPaperReset" type="button">紙を戻す</button>
+            <button id="simulationReload" type="button" class="secondary" disabled>リロード動作</button>
+            <button id="simulationPaperReset" type="button" disabled>紙を戻す</button>
           </div>
           <div class="simulation-progress-row">
             <progress id="simulationProgress" max="1" value="0"></progress>
@@ -310,10 +311,10 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260711-3"></script>
+  <script src="app.js?v=20260711-4"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js"></script>
   <script>document.querySelector("#simulationLoadProgress").style.width="1%";document.querySelector("#simulationLoadText").textContent="JS読込中";</script>
-  <script type="module" src="plotter-simulator.js?v=20260711-3" onerror="document.querySelector('#simulationLoadText').textContent='JS読込失敗'"></script>
+  <script defer src="plotter-simulator.bundle.js?v=20260711-4" onerror="document.querySelector('#simulationLoadText').textContent='JS読込失敗'"></script>
 </body>
 </html>

@@ -563,6 +563,15 @@ function setLoadProgress(value, text) {
   controlsUi.loadRow.classList.toggle("is-complete", percent >= 100);
 }
 
+function setSimulationEnabled(enabled) {
+  controlsUi.play.disabled = !enabled;
+  controlsUi.reload.disabled = !enabled;
+  controlsUi.paperReset.disabled = !enabled;
+  controlsUi.x.disabled = !enabled;
+  controlsUi.y.disabled = !enabled;
+  controlsUi.z.disabled = !enabled;
+}
+
 async function fetchWithTimeout(url, timeoutMs = 30000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -711,6 +720,7 @@ async function loadAssembly() {
   controlsUi.status.textContent = `${assembly.source.documentName}・実形状${loaded}部品・${assembly.root.jointCount}ジョイント${failed ? `・代替表示${failed}` : ""}`;
   setLoadProgress(100, "100%");
   applyPosition(0, 0, 0);
+  setSimulationEnabled(true);
 }
 
 function animate(now) {
@@ -724,6 +734,7 @@ function animate(now) {
 
 bindControls();
 refreshGcodeSources();
+setSimulationEnabled(false);
 resetView();
 loadAssembly().catch(error => {
   controlsUi.status.textContent = `読み込み失敗: ${error.message}`;
