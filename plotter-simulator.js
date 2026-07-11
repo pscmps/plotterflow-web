@@ -18,6 +18,9 @@ const controlsUi = {
   resetView: document.querySelector("#simulationResetView"),
   progress: document.querySelector("#simulationProgress"),
   progressText: document.querySelector("#simulationProgressText"),
+  loadRow: document.querySelector("#simulationLoadRow"),
+  loadProgress: document.querySelector("#simulationLoadProgress"),
+  loadText: document.querySelector("#simulationLoadText"),
   status: document.querySelector("#simulationModelStatus")
 };
 
@@ -527,20 +530,68 @@ async function retry(operation, attempts = 3) {
   throw lastError;
 }
 
-function fetchAsset(url) {
-  return retry(async () => {
-    const response = await fetch(url, { cache: "no-store" });
+function setLoadProgress(value, text) {
+  const percent = Math.max(0, Math.min(100, Math.round(value)));
+  controlsUi.loadProgress.value = percent;
+  controlsUi.loadText.textContent = text || `${percent}%`;
+  controlsUi.loadRow.classList.toggle("is-complete", percent >= 100);
+}
+
+async function fetchWithTimeout(url, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { cache: "default", signal: controller.signal });
     if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
     return response;
-  });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function fetchAsset(url) {
+  return retry(() => fetchWithTimeout(url), 2);
+}
+
+async function fetchBundle(url, expectedBytes) {
+  const response = await fetchWithTimeout(url, 15000);
+  const total = +(response.headers.get("content-length") || expectedBytes || 0);
+  if (!response.body?.getReader) {
+    const buffer = await response.arrayBuffer();
+    setLoadProgress(70, "70%");
+    return buffer;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.byteLength;
+    const ratio = total ? received / total : 0;
+    const percent = Math.min(70, 5 + ratio * 65);
+    setLoadProgress(percent, total ? `${Math.round(percent)}%` : `${Math.round(received / 1024)} KB`);
+  }
+  const merged = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  setLoadProgress(70, "70%");
+  return merged.buffer;
 }
 
 async function loadAssembly() {
-  const [assemblyResponse, manifestResponse] = await Promise.all([
+  setLoadProgress(1, "1%");
+  const [assemblyResponse, manifestResponse, bundleMapResponse] = await Promise.all([
     fetchAsset("assets/fusion-demo/assembly.json"),
-    fetchAsset("assets/fusion-demo/mesh-manifest.json")
+    fetchAsset("assets/fusion-demo/mesh-manifest.json"),
+    fetchAsset("assets/fusion-demo/mesh-bundle.json")
   ]);
-  const [assembly, manifest] = await Promise.all([assemblyResponse.json(), manifestResponse.json()]);
+  const [assembly, manifest, bundleMap] = await Promise.all([assemblyResponse.json(), manifestResponse.json(), bundleMapResponse.json()]);
+  setLoadProgress(5, "5%");
   paperConfig = assembly.paperSimulation;
   if (paperConfig) createPaperExtension(paperConfig);
   for (const axis of ["x", "y", "z"]) {
@@ -563,31 +614,60 @@ async function loadAssembly() {
     const occurrence = occurrences.get(item.fullPathName);
     return item.isVisible && (item.kind === "rootBody" || occurrence);
   });
-  let nextItem = 0;
-  const loadNext = async () => {
-    while (nextItem < items.length) {
-      const item = items[nextItem];
-      nextItem += 1;
-      const occurrence = occurrences.get(item.fullPathName);
-    try {
-      const geometry = await retry(() => stlLoader.loadAsync(`assets/fusion-demo/${item.file}`));
+  let settled = 0;
+  const addItem = (item, occurrence, geometry) => {
       const transform = item.kind === "rootBody"
         ? occurrenceMatrix(item.transformCmRowMajor)
         : worldOccurrenceMatrix(occurrence, occurrences, worldMatrices);
       addMeshOccurrence(item, occurrence, geometry, transform);
       loaded += 1;
-      controlsUi.status.textContent = `Fusion STLを読み込み中・${loaded}部品`;
-    } catch (error) {
-      failed += 1;
-      if (occurrence) addProxyOccurrence(occurrence);
-      console.error(`STL load failed: ${item.file}`, error);
-    }
-    }
   };
-  await Promise.all(Array.from({ length: Math.min(4, items.length) }, loadNext));
+  const updateParseProgress = () => {
+    settled += 1;
+    const percent = 70 + settled / items.length * 30;
+    setLoadProgress(percent, `${Math.round(percent)}%`);
+    controlsUi.status.textContent = `Fusion STLを解析中・${settled}/${items.length}部品`;
+  };
+  try {
+    const bundleBuffer = await retry(() => fetchBundle(`assets/fusion-demo/${bundleMap.file}`, bundleMap.bytes), 2);
+    for (const item of items) {
+      const occurrence = occurrences.get(item.fullPathName);
+      const entry = bundleMap.items[item.file];
+      if (!entry) throw new Error(`bundle entry missing: ${item.file}`);
+      addItem(item, occurrence, stlLoader.parse(bundleBuffer.slice(entry.offset, entry.offset + entry.length)));
+      updateParseProgress();
+      if (settled % 4 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+    }
+  } catch (bundleError) {
+    console.warn("STL bundle load failed; using individual files", bundleError);
+    loaded = 0;
+    failed = 0;
+    settled = 0;
+    let nextItem = 0;
+    setLoadProgress(5, "個別読込");
+    const loadNext = async () => {
+      while (nextItem < items.length) {
+        const item = items[nextItem];
+        nextItem += 1;
+        const occurrence = occurrences.get(item.fullPathName);
+        try {
+          const response = await retry(() => fetchWithTimeout(`assets/fusion-demo/${item.file}`), 2);
+          addItem(item, occurrence, stlLoader.parse(await response.arrayBuffer()));
+        } catch (error) {
+          failed += 1;
+          if (occurrence) addProxyOccurrence(occurrence);
+          console.error(`STL load failed: ${item.file}`, error);
+        } finally {
+          updateParseProgress();
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(8, items.length) }, loadNext));
+  }
   modelBounds = new THREE.Box3().setFromObject(modelRoot);
   resetView();
   controlsUi.status.textContent = `${assembly.source.documentName}・実形状${loaded}部品・${assembly.root.jointCount}ジョイント${failed ? `・代替表示${failed}` : ""}`;
+  setLoadProgress(100, "100%");
   applyPosition(0, 0, 0);
 }
 
@@ -604,5 +684,6 @@ bindControls();
 resetView();
 loadAssembly().catch(error => {
   controlsUi.status.textContent = `読み込み失敗: ${error.message}`;
+  controlsUi.loadText.textContent = "失敗";
 });
 requestAnimationFrame(animate);

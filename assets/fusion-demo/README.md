@@ -18,3 +18,5 @@
 The web view now uses the exported STL geometry. Bounding boxes remain only as a fallback when an individual STL cannot be loaded.
 
 `paperSimulation` replaces the combined Fusion roll-and-sheet mesh with a fixed-diameter roll and one continuous simulated sheet. It also describes the initial paper extension, forward direction, and the Fusion revolute-joint pivot for the paper lock.
+
+`meshes.bundle.bin` combines the 32 rendered STL files into one cacheable request. `mesh-bundle.json` stores each STL byte range so the browser can parse the original geometries without issuing one request per part.

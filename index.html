@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="conversion.css">
   <link rel="stylesheet" href="job-ui.css">
   <link rel="stylesheet" href="simulation.css">
+  <link rel="stylesheet" href="simulation-load.css">
 </head>
 <body>
   <header class="app-header">
@@ -242,6 +243,10 @@
             <div>
               <h2 id="simulationTitle">rackn_delta_assy</h2>
               <p id="simulationModelStatus">Fusionアセンブリを読み込み中</p>
+              <div class="simulation-load-progress" id="simulationLoadRow">
+                <progress id="simulationLoadProgress" max="100" value="0"></progress>
+                <span id="simulationLoadText">0%</span>
+              </div>
             </div>
             <div class="simulation-actions">
               <button id="simulationResetView" type="button">視点を戻す</button>
