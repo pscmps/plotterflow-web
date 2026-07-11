@@ -16,3 +16,5 @@
 - `holder_rack v3:1` remains split into its body-owning child occurrences because those children participate in the measured X motion group.
 
 The web view now uses the exported STL geometry. Bounding boxes remain only as a fallback when an individual STL cannot be loaded.
+
+`paperSimulation` replaces the combined Fusion roll-and-sheet mesh with a fixed-diameter roll and one continuous simulated sheet. It also describes the initial paper extension, forward direction, and the Fusion revolute-joint pivot for the paper lock.

@@ -11,14 +11,6 @@
   <link rel="stylesheet" href="conversion.css">
   <link rel="stylesheet" href="job-ui.css">
   <link rel="stylesheet" href="simulation.css">
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "./vendor/three/three.module.min.js",
-        "three/addons/": "./vendor/three/addons/"
-      }
-    }
-  </script>
 </head>
 <body>
   <header class="app-header">
@@ -266,10 +258,14 @@
             <span>Y<strong id="simulationYValue">0.0 mm</strong></span>
             <span>Z<strong id="simulationZValue">0.0 mm</strong></span>
           </div>
-          <label>X軸<input id="simulationX" type="range" min="-40" max="40" step="0.1" value="0"></label>
+          <label>X軸<input id="simulationX" type="range" min="0" max="60" step="0.1" value="0"></label>
           <label>Y軸<input id="simulationY" type="range" min="-60" max="60" step="0.1" value="0"></label>
           <label>Z軸<input id="simulationZ" type="range" min="0" max="8" step="0.1" value="0"></label>
           <label>再生速度<input id="simulationSpeed" type="range" min="10" max="120" step="5" value="45"></label>
+          <div class="simulation-paper-actions">
+            <button id="simulationReload" type="button" class="secondary">リロード動作</button>
+            <button id="simulationPaperReset" type="button">紙を戻す</button>
+          </div>
           <div class="simulation-progress-row">
             <progress id="simulationProgress" max="1" value="0"></progress>
             <span id="simulationProgressText">待機中</span>

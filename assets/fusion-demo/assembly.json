@@ -79,6 +79,28 @@
       ]
     }
   },
+  "paperSimulation": {
+    "rollOccurrence": "114mmΦ80 v2:1",
+    "widthMinXmm": 3.8898444201684157,
+    "widthMaxXmm": 117.90984442016905,
+    "frontEdgeYmm": -79.98348838191673,
+    "sheetBackEdgeYmm": 115.94152083143339,
+    "topZmm": 21.2735075608534,
+    "thicknessMm": 2.682444624109066,
+    "defaultLengthMm": 80,
+    "frontDirection": [0, -1, 0],
+    "maxExtensionMm": 300,
+    "rollCenterMm": [60.89984442016854, 80.32019149593513, 65.47489483593984],
+    "rollRadiusMm": 40,
+    "rollWidthMm": 114,
+    "xOriginWorldMm": 20,
+    "xTravelMm": 60,
+    "lockOccurrence": "paper_lock_mover v15:1",
+    "lockPivotMm": [-6.525397426274395, -136.4128965884045, -12.807476936460958],
+    "lockAxis": [1, 0, 0],
+    "lockTravelRad": 0.2617993877991494,
+    "lockTransitionMs": 900
+  },
   "motionGroups": {
     "probeMethod": "Drive Joint delta measurement; values restored and Fusion undo completed",
     "x": {
