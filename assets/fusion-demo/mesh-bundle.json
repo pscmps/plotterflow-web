@@ -2,6 +2,8 @@
     "version":  1,
     "file":  "meshes.bundle.bin",
     "bytes":  2042088,
+    "gzipFile":  "meshes.bundle.bin.gz",
+    "gzipBytes":  414596,
     "items":  {
                   "meshes/occurrence-01.stl":  {
                                                    "offset":  0,

@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="conversion.css">
   <link rel="stylesheet" href="job-ui.css">
   <link rel="stylesheet" href="simulation.css">
-  <link rel="stylesheet" href="simulation-load.css">
+  <link rel="stylesheet" href="simulation-load.css?v=20260711-2">
 </head>
 <body>
   <header class="app-header">
@@ -263,6 +263,7 @@
             <span>Y<strong id="simulationYValue">0.0 mm</strong></span>
             <span>Z<strong id="simulationZValue">0.0 mm</strong></span>
           </div>
+          <label>描画データ<select id="simulationGcodeSource"><option value="__demo__">サンプルの円</option></select></label>
           <label>X軸<input id="simulationX" type="range" min="0" max="60" step="0.1" value="0"></label>
           <label>Y軸<input id="simulationY" type="range" min="-60" max="60" step="0.1" value="0"></label>
           <label>Z軸<input id="simulationZ" type="range" min="0" max="8" step="0.1" value="0"></label>
@@ -309,9 +310,10 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260711-2"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js"></script>
-  <script type="module" src="plotter-simulator.js"></script>
+  <script>document.querySelector("#simulationLoadProgress").value=1;document.querySelector("#simulationLoadText").textContent="1%";</script>
+  <script type="module" src="plotter-simulator.js?v=20260711-2"></script>
 </body>
 </html>

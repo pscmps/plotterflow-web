@@ -8,6 +8,7 @@ const controlsUi = {
   y: document.querySelector("#simulationY"),
   z: document.querySelector("#simulationZ"),
   speed: document.querySelector("#simulationSpeed"),
+  gcodeSource: document.querySelector("#simulationGcodeSource"),
   xValue: document.querySelector("#simulationXValue"),
   yValue: document.querySelector("#simulationYValue"),
   zValue: document.querySelector("#simulationZValue"),
@@ -380,6 +381,19 @@ function bindControls() {
   controlsUi.reload.addEventListener("click", () => window.PlotterFlow?.simulateReload?.());
   controlsUi.paperReset.addEventListener("click", resetPaper);
   window.addEventListener("plotterflow:reload-start", event => startPaperReload(event.detail?.gcode || ""));
+  window.addEventListener("plotterflow:gcode-library-changed", refreshGcodeSources);
+}
+
+function refreshGcodeSources() {
+  const selected = controlsUi.gcodeSource.value || "__demo__";
+  const options = [{ id: "__demo__", name: "サンプルの円" }, ...(window.PlotterFlow?.simulationGcodeOptions?.() || [])];
+  controlsUi.gcodeSource.replaceChildren(...options.map(item => {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = item.name;
+    return option;
+  }));
+  controlsUi.gcodeSource.value = options.some(item => item.id === selected) ? selected : "__demo__";
 }
 
 function demoMoves() {
@@ -395,9 +409,10 @@ function demoMoves() {
 }
 
 function getMoves() {
-  const code = document.querySelector("#gcodeEditor")?.value || "";
+  if (controlsUi.gcodeSource.value === "__demo__") return demoMoves();
+  const code = window.PlotterFlow?.simulationGcode?.(controlsUi.gcodeSource.value) || "";
   const parsed = window.PlotterFlow?.parseGcodeMoves?.(code) || [];
-  return parsed.length ? parsed : demoMoves();
+  return parsed;
 }
 
 function clearTrail() {
@@ -583,12 +598,24 @@ async function fetchBundle(url, expectedBytes) {
   return merged.buffer;
 }
 
+async function loadBundle(bundleMap) {
+  if (bundleMap.gzipFile && typeof DecompressionStream !== "undefined") {
+    const compressed = await fetchBundle(`assets/fusion-demo/${bundleMap.gzipFile}`, bundleMap.gzipBytes);
+    controlsUi.status.textContent = "Fusionメッシュを展開中";
+    const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream("gzip"));
+    const buffer = await new Response(stream).arrayBuffer();
+    if (buffer.byteLength !== bundleMap.bytes) throw new Error(`bundle size mismatch: ${buffer.byteLength}`);
+    return buffer;
+  }
+  return fetchBundle(`assets/fusion-demo/${bundleMap.file}`, bundleMap.bytes);
+}
+
 async function loadAssembly() {
   setLoadProgress(1, "1%");
   const [assemblyResponse, manifestResponse, bundleMapResponse] = await Promise.all([
     fetchAsset("assets/fusion-demo/assembly.json"),
     fetchAsset("assets/fusion-demo/mesh-manifest.json"),
-    fetchAsset("assets/fusion-demo/mesh-bundle.json")
+    fetchAsset("assets/fusion-demo/mesh-bundle.json?v=20260711-2")
   ]);
   const [assembly, manifest, bundleMap] = await Promise.all([assemblyResponse.json(), manifestResponse.json(), bundleMapResponse.json()]);
   setLoadProgress(5, "5%");
@@ -629,7 +656,7 @@ async function loadAssembly() {
     controlsUi.status.textContent = `Fusion STLを解析中・${settled}/${items.length}部品`;
   };
   try {
-    const bundleBuffer = await retry(() => fetchBundle(`assets/fusion-demo/${bundleMap.file}`, bundleMap.bytes), 2);
+    const bundleBuffer = await retry(() => loadBundle(bundleMap), 2);
     for (const item of items) {
       const occurrence = occurrences.get(item.fullPathName);
       const entry = bundleMap.items[item.file];
@@ -681,6 +708,7 @@ function animate(now) {
 }
 
 bindControls();
+refreshGcodeSources();
 resetView();
 loadAssembly().catch(error => {
   controlsUi.status.textContent = `読み込み失敗: ${error.message}`;

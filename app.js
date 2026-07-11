@@ -190,7 +190,9 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
 
 function generateFromLayoutPaths(paths, outputName = "") { return buildGcodeFromPaths(transformOutputPaths(paths), outputName, { normalizeYPreview: !!state.settings.yFlip }); }
 function notifyReloadSimulation(code = state.settings.reloadGcode) { window.dispatchEvent(new CustomEvent("plotterflow:reload-start", { detail: { gcode: code || "" } })); }
-window.PlotterFlow = { generateFromPaths: generateFromLayoutPaths, switchTab, getSettings: () => state.settings, parseGcodeMoves, simulateReload: notifyReloadSimulation };
+function simulationGcodeOptions() { return [{ id: "editor", name: "現在のエディタ" }, ...state.library.map(item => ({ id: item.id, name: item.name }))]; }
+function simulationGcode(id) { return id === "editor" ? $("#gcodeEditor").value : state.library.find(item => item.id === id)?.gcode || ""; }
+window.PlotterFlow = { generateFromPaths: generateFromLayoutPaths, switchTab, getSettings: () => state.settings, parseGcodeMoves, simulateReload: notifyReloadSimulation, simulationGcodeOptions, simulationGcode };
 
 function setPreviewMode(mode) { state.previewMode = mode; $("#showSvgPreview").classList.toggle("active", mode === "svg"); $("#showGcodePreview").classList.toggle("active", mode === "gcode"); mode === "svg" ? renderSvgPreview() : renderGcodePreview(); }
 function renderSvgPreview() { if (!state.svgText) return; const svg = $("#previewSvg"); svg.style.display = "block"; }
@@ -244,6 +246,7 @@ function refreshLibrary() {
   const options = state.library.sort((a,b) => b.updated-a.updated).map(x => `<option value="${x.id}">${escapeHtml(x.name)}</option>`).join("");
   select.innerHTML = `<option value="">未選択</option>${options}`; source.innerHTML = `<option value="editor">現在のエディタ</option><option value="__reload__">リロード動作（設定）</option>${options}`;
   if (state.currentId) select.value = state.currentId; renderJobs();
+  window.dispatchEvent(new CustomEvent("plotterflow:gcode-library-changed"));
 }
 function saveCurrentGcode() {
   const name = ensureExt($("#gcodeName").value.trim() || "untitled.gcode"), gcode = $("#gcodeEditor").value;
