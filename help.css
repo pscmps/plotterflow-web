@@ -1,0 +1,78 @@
+.help-panel {
+  display: none;
+}
+
+.help-panel.active {
+  display: block;
+}
+
+.help-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.help-hero h2 {
+  margin-bottom: 8px;
+}
+
+.help-hero p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.help-note {
+  flex: 0 0 auto;
+  border: 1px solid #b9d4d2;
+  border-radius: 999px;
+  background: var(--primary2);
+  color: var(--primary);
+  padding: 8px 14px;
+  font-weight: 700;
+}
+
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.help-card h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.help-card ol,
+.help-card ul {
+  margin: 0;
+  padding-left: 1.4em;
+}
+
+.help-card li + li {
+  margin-top: 7px;
+}
+
+.help-card code {
+  background: #edf3f4;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.help-checklist li {
+  margin-bottom: 6px;
+}
+
+@media (max-width: 800px) {
+  .help-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .help-grid {
+    grid-template-columns: 1fr;
+  }
+}

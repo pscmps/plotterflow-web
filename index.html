@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="job-ui.css">
   <link rel="stylesheet" href="simulation.css">
   <link rel="stylesheet" href="simulation-load.css?v=20260711-2">
+  <link rel="stylesheet" href="help.css">
 </head>
 <body>
   <header class="app-header">
@@ -27,6 +28,7 @@
     <button class="tab" data-tab="jobs">ジョブ実行</button>
     <button class="tab" data-tab="serial">Serial</button>
     <button class="tab" data-tab="settings">設定</button>
+    <button class="tab" data-tab="help">ヘルプ</button>
   </nav>
 
   <main>
@@ -287,6 +289,78 @@
       </div>
     </section>
 
+    <section id="tab-help" class="panel help-panel">
+      <article class="card help-hero">
+        <div>
+          <h2>PlotterFlow ヘルプ</h2>
+          <p>SVG・手書き・テキスト・スタンプを配置して、FluidNC向けG-codeを生成・保存・送信するペンプロッタ用ツールです。</p>
+        </div>
+        <div class="help-note">GitHub Pages / 静的サーバ / localhost 対応</div>
+      </article>
+
+      <div class="help-grid">
+        <article class="card help-card">
+          <h3>1. レイアウトを作る</h3>
+          <ol>
+            <li>「編集」タブでキャンバスサイズを選びます。</li>
+            <li>SVG読み込み、手書き、図形、テキスト、スタンプを配置します。</li>
+            <li>選択ツールで移動・複製・前面/背面・削除を調整します。</li>
+            <li>「G-code生成」でキャンバス全体を変換します。</li>
+          </ol>
+        </article>
+
+        <article class="card help-card">
+          <h3>2. G-codeを確認する</h3>
+          <ol>
+            <li>「G-code」タブでプレビューを確認します。</li>
+            <li>必要ならG-codeを直接編集します。</li>
+            <li>保存・ダウンロードして再利用できます。</li>
+            <li>上部の「Serialで送信」から現在のG-codeをすぐ送れます。</li>
+          </ol>
+        </article>
+
+        <article class="card help-card">
+          <h3>3. 実機へ送る</h3>
+          <ol>
+            <li>Chrome / Edgeで開きます。Web SerialはHTTPSまたはlocalhostが必要です。</li>
+            <li>「Serial」タブでBaudrateを確認して接続します。</li>
+            <li>ペンアップ/ダウン、XYジョグ、XY 0セットで動作確認します。</li>
+            <li>送信は1行ごとにFluidNCの <code>ok</code> を待って進みます。</li>
+          </ol>
+        </article>
+
+        <article class="card help-card">
+          <h3>4. 3Dシミュレーションで確認する</h3>
+          <ol>
+            <li>「3Dシミュレーション」タブでプロッタのモデルとG-code軌跡を確認します。</li>
+            <li>「G-codeを再生」で、現在のG-codeエディタ内容を3D上で再生できます。</li>
+            <li>再生速度、視点リセット、停止を使って、描画範囲や動作方向を事前に確認します。</li>
+            <li>実機送信前の向き・サイズ・移動範囲確認に使います。</li>
+          </ol>
+        </article>
+
+        <article class="card help-card">
+          <h3>5. 複数ジョブを流す</h3>
+          <ol>
+            <li>「ジョブ実行」タブでG-code、回数、ループ回数を設定します。</li>
+            <li>必要な行だけ「＋」で前後delay・前後コマンドを展開します。</li>
+            <li>「ジョブ間と最後にリロード」をONにすると、各実行後に設定のリロードG-codeを挿入します。</li>
+            <li>ジョブセットは保存・読み込み・ダウンロードできます。</li>
+          </ol>
+        </article>
+      </div>
+
+      <article class="card help-card">
+        <h3>Tips</h3>
+        <ul class="help-checklist">
+          <li>GitHub PagesではWeb Serial送信はHTTPS上でChrome/Edgeから確認してください。</li>
+          <li>フォント、スタンプ、シミュレーション用ファイルはすべてローカル配信です。CDNは不要です。</li>
+          <li>ブラウザのlocalStorageに設定・G-code・ジョブセットが保存されます。重要データはJSON/G-codeでダウンロードしてください。</li>
+          <li>実機で向きが逆の場合は「設定」のY軸反転・scale・offsetを確認してください。</li>
+          <li>引きずりが出る場合はペンアップdelay、移動前リフト待ち、overlap_up設定を調整してください。</li>
+        </ul>
+      </article>
+    </section>
     <section id="tab-settings" class="panel">
       <form id="settingsForm" class="settings-grid">
         <article class="card"><h2>ペン・Delay</h2>
