@@ -189,7 +189,10 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
 }
 
 function generateFromLayoutPaths(paths, outputName = "") { return buildGcodeFromPaths(transformOutputPaths(paths), outputName, { normalizeYPreview: !!state.settings.yFlip }); }
-window.PlotterFlow = { generateFromPaths: generateFromLayoutPaths, switchTab, getSettings: () => state.settings };
+function notifyReloadSimulation(code = state.settings.reloadGcode) { window.dispatchEvent(new CustomEvent("plotterflow:reload-start", { detail: { gcode: code || "" } })); }
+function simulationGcodeOptions() { return [{ id: "editor", name: "現在のエディタ" }, ...state.library.map(item => ({ id: item.id, name: item.name }))]; }
+function simulationGcode(id) { return id === "editor" ? $("#gcodeEditor").value : state.library.find(item => item.id === id)?.gcode || ""; }
+window.PlotterFlow = { generateFromPaths: generateFromLayoutPaths, switchTab, getSettings: () => state.settings, parseGcodeMoves, simulateReload: notifyReloadSimulation, simulationGcodeOptions, simulationGcode };
 
 function setPreviewMode(mode) { state.previewMode = mode; $("#showSvgPreview").classList.toggle("active", mode === "svg"); $("#showGcodePreview").classList.toggle("active", mode === "gcode"); mode === "svg" ? renderSvgPreview() : renderGcodePreview(); }
 function renderSvgPreview() { if (!state.svgText) return; const svg = $("#previewSvg"); svg.style.display = "block"; }
@@ -243,6 +246,7 @@ function refreshLibrary() {
   const options = state.library.sort((a,b) => b.updated-a.updated).map(x => `<option value="${x.id}">${escapeHtml(x.name)}</option>`).join("");
   select.innerHTML = `<option value="">未選択</option>${options}`; source.innerHTML = `<option value="editor">現在のエディタ</option><option value="__reload__">リロード動作（設定）</option>${options}`;
   if (state.currentId) select.value = state.currentId; renderJobs();
+  window.dispatchEvent(new CustomEvent("plotterflow:gcode-library-changed"));
 }
 function saveCurrentGcode() {
   const name = ensureExt($("#gcodeName").value.trim() || "untitled.gcode"), gcode = $("#gcodeEditor").value;
@@ -277,9 +281,9 @@ function bindSerial() {
   $$('[data-command]').forEach(b => b.addEventListener("click", () => sendRealtime(b.dataset.command + "\n")));
   $("#sendManual").addEventListener("click", () => { const c = $("#manualCommand").value; if (c) sendRealtime(c + "\n"); });
   $("#penUpButton").addEventListener("click", () => sendRealtime(state.settings.penUpCommand + "\n")); $("#penDownButton").addEventListener("click", () => sendRealtime(state.settings.penDownCommand + "\n"));
-  $("#reloadButton").addEventListener("click", () => startSending(state.settings.reloadGcode));
+  $("#reloadButton").addEventListener("click", () => { notifyReloadSimulation(); startSending(state.settings.reloadGcode); });
   $("#pauseSend").addEventListener("click", pauseSending); $("#resumeSend").addEventListener("click", resumeSending); $("#stopSend").addEventListener("click", stopSending); $("#resetController").addEventListener("click", resetController);
-  $("#startSend").addEventListener("click", () => { const id = $("#serialSource").value, code = id === "editor" ? $("#gcodeEditor").value : id === "__reload__" ? state.settings.reloadGcode : state.library.find(x => x.id === id)?.gcode; startSending(code || ""); });
+  $("#startSend").addEventListener("click", () => { const id = $("#serialSource").value, code = id === "editor" ? $("#gcodeEditor").value : id === "__reload__" ? state.settings.reloadGcode : state.library.find(x => x.id === id)?.gcode; if(id === "__reload__") notifyReloadSimulation(code); startSending(code || ""); });
   $("#clearLog").addEventListener("click", () => $("#serialLog").innerHTML = "");
 }
 async function connectSerial() {
@@ -613,6 +617,7 @@ async function runJobs() {
           $("#jobProgressText").textContent=`ループ ${loop}/${loops}・ジョブ ${ji+1}/${jobs.length}・実行 ${run}/${j.count}`;
           if(j.beforeDelay)await interruptibleDelay(j.beforeDelay*1000);
           await sendJobCommandBlock(j.beforeCommand,{label:"beforeCommand"});
+          if(j.gcodeId==="__reload__")notifyReloadSimulation(jobGcode);
           await sendLines(cleanLines(jobGcode),{silent:true,stopPolling:false,onProgress:r=>scheduleJobProgress(done+r,total)});
           await sendJobCommandBlock(j.afterCommand,{label:"afterCommand"});
           if(j.afterDelay)await interruptibleDelay(j.afterDelay*1000);
@@ -640,6 +645,7 @@ async function sendAutoReloadStep(context={}){
   const lines=cleanLines(state.settings.reloadGcode||""); if(!lines.length)return;
   ensureJobActive();
   $("#jobProgressText").textContent=`リロード動作 ${context.loop||""}/${context.loops||""}・ジョブ ${context.jobIndex||""}/${context.jobTotal||""}`;
+  notifyReloadSimulation(state.settings.reloadGcode);
   await sendLines(lines,{silent:true,stopPolling:false,onProgress:null});
 }
 function scheduleJobProgress(done,total){$("#jobProgress").value=total?done/total:0;}
