@@ -266,6 +266,7 @@ function resetPaper() {
   controlsUi.paperReset.disabled = false;
   setPaperLength(paperBaseLength);
   applyPosition(machinePosition.x, 0, machinePosition.z, 0);
+  clearAllTrails();
   controlsUi.progress.value = 0;
   controlsUi.progressText.textContent = "紙送り 0 mm";
 }
@@ -423,6 +424,15 @@ function clearTrail() {
   trail = null;
 }
 
+function clearAllTrails() {
+  for (const child of [...inkGroup.children]) {
+    inkGroup.remove(child);
+    child.geometry?.dispose();
+    child.material?.dispose();
+  }
+  trail = null;
+}
+
 function archiveTrail() {
   trail = null;
 }
@@ -547,7 +557,8 @@ async function retry(operation, attempts = 3) {
 
 function setLoadProgress(value, text) {
   const percent = Math.max(0, Math.min(100, Math.round(value)));
-  controlsUi.loadProgress.value = percent;
+  controlsUi.loadProgress.style.width = `${percent}%`;
+  controlsUi.loadProgress.parentElement.setAttribute("aria-valuenow", String(percent));
   controlsUi.loadText.textContent = text || `${percent}%`;
   controlsUi.loadRow.classList.toggle("is-complete", percent >= 100);
 }
@@ -564,8 +575,8 @@ async function fetchWithTimeout(url, timeoutMs = 30000) {
   }
 }
 
-function fetchAsset(url) {
-  return retry(() => fetchWithTimeout(url), 2);
+function fetchAsset(url, timeoutMs = 8000) {
+  return retry(() => fetchWithTimeout(url, timeoutMs), 2);
 }
 
 async function fetchBundle(url, expectedBytes) {
@@ -600,24 +611,28 @@ async function fetchBundle(url, expectedBytes) {
 
 async function loadBundle(bundleMap) {
   if (bundleMap.gzipFile && typeof DecompressionStream !== "undefined") {
-    const compressed = await fetchBundle(`assets/fusion-demo/${bundleMap.gzipFile}`, bundleMap.gzipBytes);
-    controlsUi.status.textContent = "Fusionメッシュを展開中";
-    const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream("gzip"));
-    const buffer = await new Response(stream).arrayBuffer();
-    if (buffer.byteLength !== bundleMap.bytes) throw new Error(`bundle size mismatch: ${buffer.byteLength}`);
-    return buffer;
+    try {
+      const compressed = await fetchBundle(`assets/fusion-demo/${bundleMap.gzipFile}`, bundleMap.gzipBytes);
+      controlsUi.status.textContent = "Fusionメッシュを展開中";
+      setLoadProgress(72, "展開中");
+      const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream("gzip"));
+      const decompression = new Response(stream).arrayBuffer();
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("gzip decompression timeout")), 8000));
+      const buffer = await Promise.race([decompression, timeout]);
+      if (buffer.byteLength !== bundleMap.bytes) throw new Error(`bundle size mismatch: ${buffer.byteLength}`);
+      return buffer;
+    } catch (error) {
+      console.warn("gzip bundle failed; using uncompressed bundle", error);
+      setLoadProgress(5, "通常読込");
+    }
   }
   return fetchBundle(`assets/fusion-demo/${bundleMap.file}`, bundleMap.bytes);
 }
 
 async function loadAssembly() {
-  setLoadProgress(1, "1%");
-  const [assemblyResponse, manifestResponse, bundleMapResponse] = await Promise.all([
-    fetchAsset("assets/fusion-demo/assembly.json"),
-    fetchAsset("assets/fusion-demo/mesh-manifest.json"),
-    fetchAsset("assets/fusion-demo/mesh-bundle.json?v=20260711-2")
-  ]);
-  const [assembly, manifest, bundleMap] = await Promise.all([assemblyResponse.json(), manifestResponse.json(), bundleMapResponse.json()]);
+  setLoadProgress(2, "定義読込");
+  const modelDataResponse = await fetchAsset("assets/fusion-demo/model-data-v3.json", 8000);
+  const { assembly, manifest, bundleMap } = await modelDataResponse.json();
   setLoadProgress(5, "5%");
   paperConfig = assembly.paperSimulation;
   if (paperConfig) createPaperExtension(paperConfig);
@@ -651,7 +666,7 @@ async function loadAssembly() {
   };
   const updateParseProgress = () => {
     settled += 1;
-    const percent = 70 + settled / items.length * 30;
+    const percent = 72 + settled / items.length * 28;
     setLoadProgress(percent, `${Math.round(percent)}%`);
     controlsUi.status.textContent = `Fusion STLを解析中・${settled}/${items.length}部品`;
   };
