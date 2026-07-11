@@ -314,7 +314,21 @@
   <script src="app.js?v=20260711-4"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js"></script>
-  <script>document.querySelector("#simulationLoadProgress").style.width="1%";document.querySelector("#simulationLoadText").textContent="JS読込中";</script>
-  <script defer src="plotter-simulator.bundle.js?v=20260711-4" onerror="document.querySelector('#simulationLoadText').textContent='JS読込失敗'"></script>
+  <script>
+    (() => {
+      let simulationStarted = false;
+      const startSimulation = () => {
+        if (simulationStarted) return;
+        simulationStarted = true;
+        document.querySelector("#simulationLoadProgress").style.width = "1%";
+        document.querySelector("#simulationLoadText").textContent = "JS読込中";
+        const script = document.createElement("script");
+        script.src = "plotter-simulator.bundle.js?v=20260711-4";
+        script.onerror = () => { document.querySelector("#simulationLoadText").textContent = "JS読込失敗"; };
+        document.body.appendChild(script);
+      };
+      document.querySelector('[data-tab="simulation"]').addEventListener("click", startSimulation, { once: true });
+    })();
+  </script>
 </body>
 </html>
