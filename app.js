@@ -1,6 +1,51 @@
 "use strict";
 
+const CONTROLLER_PROFILES = {
+  "grbl-fluidnc": {
+    label: "GRBL / FluidNC（標準）",
+    phase: "標準",
+    summary: "従来のGRBL / FluidNC互換設定です。既存のPlotterFlow動作を維持します。",
+    notes: [
+      "G21 / G90をG-codeヘッダへ出力します。",
+      "Stopはfeed hold（!）後にペンアップを送ります。",
+      "コマンドごとのok応答待ちは15秒です。"
+    ],
+    settings: {
+      baudrate: 115200, header: "G21\nG90", footer: "",
+      penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
+      okTimeoutMs: 15000, stopStrategy: "hold-pen-up",
+      initializeCommand: "", disconnectCommand: ""
+    }
+  },
+  "xl330-pio": {
+    label: "XL330 PIO / Pico・Pico 2（開発中）",
+    phase: "開発中",
+    summary: "PicoのPIOでXL330-M077-Tを直結し、X/Yを多回転制御する試作ファームウェア用です。",
+    notes: [
+      "Serial接続後、安全を確認して初期化（M17）を1回だけ実行します。M17時点がセッション原点です。",
+      "長い多回転移動に備えてok応答待ちを120秒へ延長します。",
+      "Stopは0x85で現在移動をキャンセルしてからペンアップを送ります。",
+      "切断時はM18を送り、3台のトルクを無効にします。",
+      "電源再投入後の多回転絶対位置は保持されないため、毎回原点確認が必要です。"
+    ],
+    settings: {
+      baudrate: 115200, header: "G21\nG90", footer: "",
+      penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
+      okTimeoutMs: 120000, stopStrategy: "cancel-pen-up",
+      initializeCommand: "M17", disconnectCommand: "M18"
+    }
+  },
+  custom: {
+    label: "カスタム（値を維持）",
+    phase: "手動設定",
+    summary: "現在の各設定値を維持し、個別に調整します。プロファイルによる上書きは行いません。",
+    notes: ["接続先の仕様に合わせて、出力・接続欄とペン命令を手動で設定してください。"],
+    settings: null
+  }
+};
+
 const DEFAULTS = {
+  controllerProfile: "grbl-fluidnc",
   penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
   penUpDelay: 0.1, penDownDelay: 0.1, penUpClearanceDelay: 0.1, upDelayMode: "fixed",
   longMoveThreshold: 100, penUpDelayShort: 0.1, penUpDelayLong: 0.3,
@@ -9,6 +54,7 @@ const DEFAULTS = {
   scale: 1, offsetX: 0, offsetY: 0, yFlip: true,
   optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1,
   baudrate: 115200, jogStep: 1, jogFeed: 1000, header: "G21\nG90", footer: "",
+  okTimeoutMs: 15000, stopStrategy: "hold-pen-up", initializeCommand: "", disconnectCommand: "",
   reloadGcode: `M3 S1600
 
 G1 X0 Y45 F500
@@ -264,11 +310,36 @@ function ensureExt(name) { return /\.(gcode|nc|tap)$/i.test(name) ? name : `${na
 function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 
 function bindSettings() {
-  $("#settingsForm").addEventListener("submit", e => { e.preventDefault(); readSettings(); saveJSON("plotterflow.settings", state.settings); $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; $("#settingsStatus").textContent = "保存しました。"; toast("設定を保存しました"); });
+  $("#settingsForm").addEventListener("submit", e => { e.preventDefault(); readSettings(); saveJSON("plotterflow.settings", state.settings); $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; updateSerialProfileDisplay(); $("#settingsStatus").textContent = "保存しました。"; toast("設定を保存しました"); });
+  $("#controllerProfile").addEventListener("change", event => applyControllerProfile(event.target.value));
   $("#resetSettings").addEventListener("click", () => { if (confirm("設定を初期値へ戻しますか？")) { state.settings = { ...DEFAULTS }; populateSettings(); saveJSON("plotterflow.settings", state.settings); } });
 }
-function populateSettings() { const f = $("#settingsForm"); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; }
+function populateSettings() { const f = $("#settingsForm"); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; renderControllerProfile(); updateSerialProfileDisplay(); }
 function readSettings() { const f = $("#settingsForm"); for (const k of Object.keys(DEFAULTS)) if (f.elements[k]) state.settings[k] = f.elements[k].type === "checkbox" ? f.elements[k].checked : f.elements[k].type === "number" ? +f.elements[k].value : f.elements[k].value; }
+function applyControllerProfile(profileId) {
+  const profile = CONTROLLER_PROFILES[profileId] || CONTROLLER_PROFILES.custom;
+  state.settings.controllerProfile = profileId;
+  if (profile.settings) Object.assign(state.settings, profile.settings);
+  populateSettings();
+  saveJSON("plotterflow.settings", state.settings);
+  $("#settingsStatus").textContent = `${profile.label}を反映しました。必要に応じて各値を調整して保存してください。`;
+  toast(`${profile.label}を反映しました`);
+}
+function activeControllerProfile() { return CONTROLLER_PROFILES[state.settings.controllerProfile] || CONTROLLER_PROFILES.custom; }
+function renderControllerProfile() {
+  const profile = activeControllerProfile(), host = $("#controllerProfileDescription");
+  if (!host) return;
+  host.innerHTML = `<div class="profile-description-heading"><strong>${escapeHtml(profile.label)}</strong><span>${escapeHtml(profile.phase)}</span></div><p>${escapeHtml(profile.summary)}</p><ul>${profile.notes.map(note => `<li>${escapeHtml(note)}</li>`).join("")}</ul>`;
+}
+function updateSerialProfileDisplay() {
+  const profile = activeControllerProfile(), badge = $("#serialControllerProfile"), button = $("#initializeController");
+  if (badge) badge.textContent = profile.label;
+  if (button) {
+    const command = String(state.settings.initializeCommand || "").trim();
+    button.hidden = !command;
+    button.textContent = command ? `初期化 (${command})` : "初期化";
+  }
+}
 
 function bindSerial() {
   $("#connectSerial").addEventListener("click", connectSerial); $("#disconnectSerial").addEventListener("click", disconnectSerial);
@@ -278,6 +349,7 @@ function bindSerial() {
   $$('[data-jog-axis]').forEach(button => button.addEventListener("click", () => sendJog(button.dataset.jogAxis, +button.dataset.jogSign)));
   $("#jogCancel").addEventListener("click", cancelJog); updateJogPreview();
   $("#setXyZero").addEventListener("click", setCurrentXyZero); updateSerialPositionDisplay();
+  $("#initializeController").addEventListener("click", initializeController);
   $$('[data-command]').forEach(b => b.addEventListener("click", () => sendRealtime(b.dataset.command + "\n")));
   $("#sendManual").addEventListener("click", () => { const c = $("#manualCommand").value; if (c) sendRealtime(c + "\n"); });
   $("#penUpButton").addEventListener("click", () => sendRealtime(state.settings.penUpCommand + "\n")); $("#penDownButton").addEventListener("click", () => sendRealtime(state.settings.penDownCommand + "\n"));
@@ -290,7 +362,7 @@ async function connectSerial() {
   if (!("serial" in navigator)) return toast("このブラウザはWeb Serialに対応していません");
   try {
     state.port = await navigator.serial.requestPort(); await state.port.open({ baudRate: +$("#serialBaud").value || 115200 }); state.writer = state.port.writable.getWriter();
-    $("#connectionBadge").textContent = "Serial: 接続済み"; $("#connectionBadge").classList.add("connected"); log("接続しました", "rx"); readSerial(); startStatusPolling();
+    $("#connectionBadge").textContent = "Serial: 接続済み"; $("#connectionBadge").classList.add("connected"); log(`接続しました / ${activeControllerProfile().label}`, "rx"); readSerial(); startStatusPolling(); updateSerialProfileDisplay();
   } catch (e) { log(`接続エラー: ${e.message}`, "rx"); }
 }
 async function readSerial() {
@@ -319,6 +391,15 @@ function handleSerialLine(line) {
 }
 async function disconnectSerial() {
   stopStatusPolling();
+  if (state.writer && state.settings.stopStrategy === "cancel-pen-up" && (state.sending || state.jogging)) {
+    try { await state.writer.write(new Uint8Array([0x85])); log("Motion cancel before disconnect (0x85)", "tx"); await sleep(250); }
+    catch (error) { log(`切断前キャンセル失敗: ${error.message}`, "rx"); }
+  }
+  const disconnectCommand = String(state.settings.disconnectCommand || "").trim();
+  if (state.writer && disconnectCommand) {
+    try { await rawWrite(disconnectCommand + "\n"); await sleep(150); }
+    catch (error) { log(`切断コマンド失敗: ${error.message}`, "rx"); }
+  }
   state.stopped = true; clearOkWaiters("切断");
   try { await state.reader?.cancel(); } catch {} try { state.writer?.releaseLock(); state.writer = null; await state.port?.close(); } catch (e) { log(`切断エラー: ${e.message}`, "rx"); }
   state.port = null; state.controllerState="未接続"; state.machinePosition=null; state.workPosition=null; state.workOffset=null; updateSerialPositionDisplay(); $("#connectionBadge").textContent = "Serial: 未接続"; $("#connectionBadge").classList.remove("connected"); log("切断しました", "rx");
@@ -329,6 +410,7 @@ function clearOkWaiters(reason = "キャンセル") {
   state.okWaiters.splice(0).forEach(w => w.reject(new Error(reason)));
 }
 function waitOk(timeout = 15000, meta = {}) {
+  timeout = Math.max(1000, +(timeout || state.settings.okTimeoutMs) || 15000);
   return new Promise((resolve,reject) => {
     const item = {
       ...meta,
@@ -345,11 +427,25 @@ function waitOk(timeout = 15000, meta = {}) {
   });
 }
 async function sendLineAndWait(line, trackPosition = true, meta = {}) {
-  const pending = waitOk(15000, { line, ...meta });
+  const pending = waitOk(null, { line, ...meta });
   state.lastSentLine = line; state.lastSendAt = Date.now();
   await rawWrite(line + "\n", false);
   await pending;
   if (trackPosition) updatePosition(line);
+}
+async function initializeController() {
+  if (!state.writer) return toast("先にSerial接続してください");
+  if (state.sending || state.jogging) return toast("送信・ジョグ中は初期化できません");
+  const commands = cleanLines(String(state.settings.initializeCommand || ""));
+  if (!commands.length) return toast("このプロファイルに初期化コマンドはありません");
+  try {
+    for (const command of commands) await sendLineAndWait(command, false);
+    await rawWrite("?", false);
+    toast("コントローラーを初期化しました");
+  } catch (error) {
+    log(`初期化エラー: ${error.message}`, "rx");
+    toast("コントローラーの初期化に失敗しました");
+  }
 }
 function saveJogSettings() {
   state.settings.jogStep = Math.max(.001, +$("#jogStep").value || 1); state.settings.jogFeed = Math.max(1, +$("#jogFeed").value || 1000);
@@ -459,7 +555,12 @@ function logOkTimeoutDebug(item, timeout) {
   log(`[timeout] waiters=${state.okWaiters.length} sending=${state.sending} paused=${state.paused} stopped=${state.stopped}`, "rx");
 }
 async function sendSafeStop(message = "停止しました") {
-  try { await rawWrite("!", false); } catch (error) { log(`停止リアルタイム送信失敗: ${error.message}`, "rx"); }
+  if (state.settings.stopStrategy === "cancel-pen-up") {
+    try { await state.writer.write(new Uint8Array([0x85])); log("Motion cancel (0x85)", "tx"); await sleep(250); }
+    catch (error) { log(`キャンセル送信失敗: ${error.message}`, "rx"); }
+  } else {
+    try { await rawWrite("!", false); } catch (error) { log(`停止リアルタイム送信失敗: ${error.message}`, "rx"); }
+  }
   const penUp = String(state.settings.penUpCommand || "").trim();
   if (penUp) {
     try { await rawWrite(penUp + "\n", false); }

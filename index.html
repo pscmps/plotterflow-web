@@ -6,7 +6,8 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <title>PlotterFlow - Pen Plotter Layout Editor</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260715-1">
+  <link rel="stylesheet" href="profile.css?v=20260715-1">
   <link rel="stylesheet" href="drawing.css">
   <link rel="stylesheet" href="serial.css">
   <link rel="stylesheet" href="conversion.css">
@@ -174,6 +175,7 @@
       <div class="grid two">
         <article class="card">
           <h2>接続・操作</h2>
+          <div class="serial-profile-strip"><div><small>コントローラープロファイル</small><strong id="serialControllerProfile">GRBL / FluidNC（標準）</strong></div><button id="initializeController" class="secondary" hidden>初期化</button></div>
           <div class="inline"><label>Baudrate<input id="serialBaud" type="number" value="115200"></label><button id="connectSerial" class="primary">接続</button><button id="disconnectSerial">切断</button></div>
           <div class="control-grid"><button data-command="?">?</button><button data-command="$$">$$</button><button data-command="$X">$X</button><button id="penUpButton">ペンアップ</button><button id="penDownButton">ペンダウン</button><button id="reloadButton" class="secondary">リロード</button><button id="pauseSend">Pause (!)</button><button id="resumeSend">Resume (~)</button><button id="stopSend" class="danger">Stop</button><button id="resetController" class="danger">Reset</button></div>
           <section class="jog-section" aria-labelledby="jogTitle">
@@ -363,6 +365,11 @@
     </section>
     <section id="tab-settings" class="panel">
       <form id="settingsForm" class="settings-grid">
+        <article class="card controller-profile-card">
+          <div class="development-heading"><div><span>開発中</span><h2>コントローラープロファイル</h2></div><p>選択すると関連する接続・出力設定をまとめて反映します。</p></div>
+          <label>プロファイル<select id="controllerProfile" name="controllerProfile"><option value="grbl-fluidnc">GRBL / FluidNC（標準）</option><option value="xl330-pio">XL330 PIO / Pico・Pico 2（開発中）</option><option value="custom">カスタム（値を維持）</option></select></label>
+          <div id="controllerProfileDescription" class="controller-profile-description" aria-live="polite"></div>
+        </article>
         <article class="card"><h2>ペン・Delay</h2>
           <label>ペンアップ command<input name="penUpCommand"></label><label>ペンダウン command<input name="penDownCommand"></label>
           <label>ペンアップ delay (秒)<input name="penUpDelay" type="number" min="0" step="0.01"></label><label>移動前リフト待ち (秒)<input name="penUpClearanceDelay" type="number" min="0" step="0.01"></label><label>ペンダウン delay (秒)<input name="penDownDelay" type="number" min="0" step="0.01"></label>
@@ -377,7 +384,10 @@
           <label>down lead距離 (mm)<input name="downLeadDistance" type="number" min="0" step="0.1"></label><label>必要down時間 (秒)<input name="requiredPenDownTime" type="number" min="0" step="0.01"></label>
         </article>
         <article class="card"><h2>出力・接続</h2>
-          <label>Baudrate<input name="baudrate" type="number"></label><label>ヘッダ<textarea name="header" rows="5"></textarea></label><label>フッタ<textarea name="footer" rows="5"></textarea></label>
+          <label>Baudrate<input name="baudrate" type="number"></label><label>ok応答 timeout (ms)<input name="okTimeoutMs" type="number" min="1000" step="1000"></label>
+          <label>停止方式<select name="stopStrategy"><option value="hold-pen-up">feed hold (!) → ペンアップ</option><option value="cancel-pen-up">motion cancel (0x85) → ペンアップ</option></select></label>
+          <label>初期化 command<input name="initializeCommand"></label><label>切断 command<input name="disconnectCommand"></label>
+          <label>ヘッダ<textarea name="header" rows="5"></textarea></label><label>フッタ<textarea name="footer" rows="5"></textarea></label>
           <label>リロード動作 G-code<textarea name="reloadGcode" class="code" rows="18" spellcheck="false"></textarea></label><p class="muted">Serialの「リロード」とジョブの「リロード動作（設定）」で共通使用します。</p>
           <button type="submit" class="primary">設定を保存</button><button type="button" id="resetSettings">初期値へ戻す</button><p id="settingsStatus" class="status"></p>
         </article>
@@ -385,7 +395,7 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260711-4"></script>
+  <script src="app.js?v=20260715-1"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js"></script>
   <script>
