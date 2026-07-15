@@ -367,7 +367,7 @@
       <form id="settingsForm" class="settings-grid">
         <article class="card controller-profile-card">
           <div class="development-heading"><div><span>開発中</span><h2>コントローラープロファイル</h2></div><p>選択すると関連する接続・出力設定をまとめて反映します。</p></div>
-          <label>プロファイル<select id="controllerProfile" name="controllerProfile"><option value="grbl-fluidnc">GRBL / FluidNC（標準）</option><option value="xl330-pio">XL330 PIO / Pico・Pico 2（開発中）</option><option value="custom">カスタム（値を維持）</option></select></label>
+          <label>プロファイル<select id="controllerProfile" name="controllerProfile"><option value="grbl-fluidnc">GRBL / FluidNC（標準）</option><option value="xl330-pio">XL330 PIO / Pico・Pico 2（開発中）</option><option value="pico2-tmc2209-planar">Pico 2 TMC2209 XY Planar（開発中）</option><option value="custom">カスタム（値を維持）</option></select></label>
           <div id="controllerProfileDescription" class="controller-profile-description" aria-live="polite"></div>
         </article>
         <article class="card"><h2>ペン・Delay</h2>
@@ -395,7 +395,7 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260715-1"></script>
+  <script src="app.js?v=20260715-2"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js"></script>
   <script>

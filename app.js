@@ -35,6 +35,26 @@ const CONTROLLER_PROFILES = {
       initializeCommand: "M17", disconnectCommand: "M18"
     }
   },
+  "pico2-tmc2209-planar": {
+    label: "Pico 2 TMC2209 XY Planar（開発中）",
+    phase: "開発中",
+    summary: "Pico 2とTMC2209 2個でA/B・C/D相のXY平面リニアステッパをG-code駆動する試作ファームウェア用です。",
+    notes: [
+      "初期キャンバスと確認範囲は30×30 mmを推奨します。0.1 mmジョグと低速feedから確認してください。",
+      "ジョブ送信時のヘッダでM17、G21、G90、G10 L20 P0 X0 Y0を送り、現在位置をワーク原点にします。",
+      "M3 S1400 / M3 S1000はペン互換コマンドとして維持します。実際のペン、電磁石、外部アクチュエータ割り当てはPico側で扱います。",
+      "Stopは0x85で現在移動をキャンセルしてからペンアップを送ります。",
+      "切断時はM18を送り、TMCドライバを無効にします。"
+    ],
+    settings: {
+      baudrate: 115200, header: "M17\nG21\nG90\nG10 L20 P0 X0 Y0", footer: "",
+      penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
+      okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
+      initializeCommand: "M17\nG21\nG90", disconnectCommand: "M18",
+      travelFeed: 500, drawFeed: 300, jogStep: 0.1, jogFeed: 300,
+      sampleInterval: 0.5, optimization: "safe", yFlip: true
+    }
+  },
   custom: {
     label: "カスタム（値を維持）",
     phase: "手動設定",
