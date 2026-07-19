@@ -31,8 +31,20 @@ const pfdbg=await evaluate(`(() => {
 })()`);
 const planarProfile=await evaluate(`({footer:CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.footer,initializeCommand:CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.initializeCommand,jogAutoDisable:CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.jogAutoDisable,grblFooter:CONTROLLER_PROFILES['grbl-fluidnc'].settings.footer,grblJogAutoDisable:CONTROLLER_PROFILES['grbl-fluidnc'].settings.jogAutoDisable})`);
 const planarJog=await evaluate(`(() => { applyControllerProfile('pico2-tmc2209-planar'); return {stateStep:state.settings.jogStep,stateFeed:state.settings.jogFeed,uiStep:document.querySelector('#jogStep').value,uiFeed:document.querySelector('#jogFeed').value,preview:document.querySelector('#jogCommandPreview').textContent}; })()`);
+const drvDebug=await evaluate(`(() => {
+  const log=document.querySelector('#serialLog');
+  log.innerHTML='';state.sending=true;state.settings.controllerProfile='pico2-drv8835-planar';
+  handleSerialLine('[MSG:DRV8835 armed=1 outputs=HiZ]');
+  handleSerialLine('[MSG:ordinary message]');
+  const lines=[...log.children].map(item=>item.textContent);
+  state.sending=false;
+  return lines;
+})()`);
+const drvProfile=await evaluate(`(() => { applyControllerProfile('pico2-drv8835-planar'); const profile=CONTROLLER_PROFILES['pico2-drv8835-planar']; return {header:profile.settings.header,footer:profile.settings.footer,initializeCommand:profile.settings.initializeCommand,jogAutoDisable:profile.settings.jogAutoDisable,stateStep:state.settings.jogStep,stateFeed:state.settings.jogFeed,uiStep:document.querySelector('#jogStep').value,uiFeed:document.querySelector('#jogFeed').value}; })()`);
 if(pfdbg.planar.length!==1||!pfdbg.planar[0].includes('[MSG:PFDBG END axis=X result=ok]'))throw new Error(`planar PFDBG log mismatch: ${JSON.stringify(pfdbg.planar)}`);
 if(pfdbg.grbl.length!==0)throw new Error(`PFDBG leaked into non-planar profile: ${JSON.stringify(pfdbg.grbl)}`);
 if(planarProfile.footer!=='M122 P\nM18'||planarProfile.initializeCommand!=='M18\nG21\nG90'||planarProfile.jogAutoDisable!==true||planarProfile.grblFooter!==''||planarProfile.grblJogAutoDisable!==undefined)throw new Error(`profile safety mismatch: ${JSON.stringify(planarProfile)}`);
 if(planarJog.stateStep!==40||planarJog.stateFeed!==2400||planarJog.uiStep!=='40'||planarJog.uiFeed!=='2400'||!planarJog.preview.includes('40 F2400'))throw new Error(`planar jog mismatch: ${JSON.stringify(planarJog)}`);
-console.log(JSON.stringify({derived,direct,zero,pfdbg,planarProfile,planarJog,exceptions},null,2));socket.close();
+if(drvDebug.length!==1||!drvDebug[0].includes('[MSG:DRV8835 armed=1 outputs=HiZ]'))throw new Error(`DRV8835 debug log mismatch: ${JSON.stringify(drvDebug)}`);
+if(drvProfile.header!=='M18\nM980 U8 X100 Y100 H500\nM17\nG21\nG90\nG10 L20 P0 X0 Y0'||drvProfile.footer!=='M122\nM18'||drvProfile.initializeCommand!=='M18\nM980 U8 X100 Y100 H500\nG21\nG90'||drvProfile.jogAutoDisable!==false||drvProfile.stateStep!==0.625||drvProfile.stateFeed!==300||drvProfile.uiStep!=='0.625'||drvProfile.uiFeed!=='300')throw new Error(`DRV8835 profile mismatch: ${JSON.stringify(drvProfile)}`);
+console.log(JSON.stringify({derived,direct,zero,pfdbg,planarProfile,planarJog,drvDebug,drvProfile,exceptions},null,2));socket.close();
