@@ -1,4 +1,4 @@
-const base = "http://127.0.0.1:9333";
+const base = process.env.PLOTTERFLOW_CDP_BASE || "http://127.0.0.1:9333";
 const appUrl = process.argv[2] || "http://127.0.0.1:8765/";
 const target = await (await fetch(`${base}/json/new?${encodeURIComponent(appUrl)}`, { method: "PUT" })).json();
 const socket = new WebSocket(target.webSocketDebuggerUrl);
@@ -29,6 +29,8 @@ const pfdbg=await evaluate(`(() => {
   state.sending=false;
   return {planar,grbl};
 })()`);
+const planarProfile=await evaluate(`({footer:CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.footer,grblFooter:CONTROLLER_PROFILES['grbl-fluidnc'].settings.footer})`);
 if(pfdbg.planar.length!==1||!pfdbg.planar[0].includes('[MSG:PFDBG END axis=X result=ok]'))throw new Error(`planar PFDBG log mismatch: ${JSON.stringify(pfdbg.planar)}`);
 if(pfdbg.grbl.length!==0)throw new Error(`PFDBG leaked into non-planar profile: ${JSON.stringify(pfdbg.grbl)}`);
-console.log(JSON.stringify({derived,direct,zero,pfdbg,exceptions},null,2));socket.close();
+if(planarProfile.footer!=='M122 P'||planarProfile.grblFooter!=='')throw new Error(`profile footer mismatch: ${JSON.stringify(planarProfile)}`);
+console.log(JSON.stringify({derived,direct,zero,pfdbg,planarProfile,exceptions},null,2));socket.close();

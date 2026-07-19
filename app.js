@@ -47,7 +47,7 @@ const CONTROLLER_PROFILES = {
       "切断時はM18を送り、TMCドライバを無効にします。"
     ],
     settings: {
-      baudrate: 115200, header: "M17\nG21\nG90\nG10 L20 P0 X0 Y0", footer: "",
+      baudrate: 115200, header: "M17\nG21\nG90\nG10 L20 P0 X0 Y0", footer: "M122 P",
       penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
       okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
       initializeCommand: "M17\nG21\nG90", disconnectCommand: "M18",
