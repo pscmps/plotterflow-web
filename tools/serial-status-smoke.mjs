@@ -17,4 +17,18 @@ const direct=await evaluate(`({x:document.querySelector('#serialXPosition').text
 await evaluate(`(() => { window.__serialWrites=[];state.writer={write:async bytes=>window.__serialWrites.push(new TextDecoder().decode(bytes))};document.querySelector('#setXyZero').click();setTimeout(()=>handleSerialLine('ok'),20);return true;})()`);
 await delay(100);
 const zero=await evaluate(`({writes:window.__serialWrites,x:document.querySelector('#serialXPosition').textContent,y:document.querySelector('#serialYPosition').textContent})`);
-console.log(JSON.stringify({derived,direct,zero,exceptions},null,2));socket.close();
+const pfdbg=await evaluate(`(() => {
+  const log=document.querySelector('#serialLog');
+  log.innerHTML='';state.sending=true;state.settings.controllerProfile='pico2-tmc2209-planar';
+  handleSerialLine('[MSG:PFDBG END axis=X result=ok]');
+  handleSerialLine('[MSG:ordinary message]');
+  const planar=[...log.children].map(item=>item.textContent);
+  log.innerHTML='';state.settings.controllerProfile='grbl-fluidnc';
+  handleSerialLine('[MSG:PFDBG END axis=X result=ok]');
+  const grbl=[...log.children].map(item=>item.textContent);
+  state.sending=false;
+  return {planar,grbl};
+})()`);
+if(pfdbg.planar.length!==1||!pfdbg.planar[0].includes('[MSG:PFDBG END axis=X result=ok]'))throw new Error(`planar PFDBG log mismatch: ${JSON.stringify(pfdbg.planar)}`);
+if(pfdbg.grbl.length!==0)throw new Error(`PFDBG leaked into non-planar profile: ${JSON.stringify(pfdbg.grbl)}`);
+console.log(JSON.stringify({derived,direct,zero,pfdbg,exceptions},null,2));socket.close();

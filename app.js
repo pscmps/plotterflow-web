@@ -407,7 +407,10 @@ function handleSerialLine(line) {
     state.okWaiters.shift()?.reject(new Error(text));
     return;
   }
-  if (!state.sending) log(text, "rx");
+  if (!state.sending || shouldLogPicoPlanarDebug(text)) log(text, "rx");
+}
+function shouldLogPicoPlanarDebug(text) {
+  return state.settings.controllerProfile === "pico2-tmc2209-planar" && /^\[MSG:PFDBG(?:\s|\])/i.test(text);
 }
 async function disconnectSerial() {
   stopStatusPolling();
