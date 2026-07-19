@@ -29,10 +29,10 @@ const pfdbg=await evaluate(`(() => {
   state.sending=false;
   return {planar,grbl};
 })()`);
-const planarProfile=await evaluate(`({footer:CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.footer,grblFooter:CONTROLLER_PROFILES['grbl-fluidnc'].settings.footer})`);
+const planarProfile=await evaluate(`({footer:CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.footer,initializeCommand:CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.initializeCommand,jogAutoDisable:CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.jogAutoDisable,grblFooter:CONTROLLER_PROFILES['grbl-fluidnc'].settings.footer,grblJogAutoDisable:CONTROLLER_PROFILES['grbl-fluidnc'].settings.jogAutoDisable})`);
 const planarJog=await evaluate(`(() => { applyControllerProfile('pico2-tmc2209-planar'); return {stateStep:state.settings.jogStep,stateFeed:state.settings.jogFeed,uiStep:document.querySelector('#jogStep').value,uiFeed:document.querySelector('#jogFeed').value,preview:document.querySelector('#jogCommandPreview').textContent}; })()`);
 if(pfdbg.planar.length!==1||!pfdbg.planar[0].includes('[MSG:PFDBG END axis=X result=ok]'))throw new Error(`planar PFDBG log mismatch: ${JSON.stringify(pfdbg.planar)}`);
 if(pfdbg.grbl.length!==0)throw new Error(`PFDBG leaked into non-planar profile: ${JSON.stringify(pfdbg.grbl)}`);
-if(planarProfile.footer!=='M122 P'||planarProfile.grblFooter!=='')throw new Error(`profile footer mismatch: ${JSON.stringify(planarProfile)}`);
+if(planarProfile.footer!=='M122 P\nM18'||planarProfile.initializeCommand!=='M18\nG21\nG90'||planarProfile.jogAutoDisable!==true||planarProfile.grblFooter!==''||planarProfile.grblJogAutoDisable!==undefined)throw new Error(`profile safety mismatch: ${JSON.stringify(planarProfile)}`);
 if(planarJog.stateStep!==0.625||planarJog.stateFeed!==30||planarJog.uiStep!=='0.625'||planarJog.uiFeed!=='30'||!planarJog.preview.includes('0.625 F30'))throw new Error(`planar jog mismatch: ${JSON.stringify(planarJog)}`);
 console.log(JSON.stringify({derived,direct,zero,pfdbg,planarProfile,planarJog,exceptions},null,2));socket.close();

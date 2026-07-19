@@ -47,10 +47,10 @@ const CONTROLLER_PROFILES = {
       "切断時はM18を送り、TMCドライバを無効にします。"
     ],
     settings: {
-      baudrate: 115200, header: "M17\nG21\nG90\nG10 L20 P0 X0 Y0", footer: "M122 P",
+      baudrate: 115200, header: "M17\nG21\nG90\nG10 L20 P0 X0 Y0", footer: "M122 P\nM18",
       penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
       okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
-      initializeCommand: "M17\nG21\nG90", disconnectCommand: "M18",
+      initializeCommand: "M18\nG21\nG90", disconnectCommand: "M18", jogAutoDisable: true,
       travelFeed: 500, drawFeed: 300, jogStep: 0.625, jogFeed: 30,
       sampleInterval: 0.5, optimization: "safe", yFlip: true
     }
@@ -73,7 +73,7 @@ const DEFAULTS = {
   travelFeed: 500, drawFeed: 500, sampleInterval: 0.5,
   scale: 1, offsetX: 0, offsetY: 0, yFlip: true,
   optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1,
-  baudrate: 115200, jogStep: 1, jogFeed: 1000, header: "G21\nG90", footer: "",
+  baudrate: 115200, jogStep: 1, jogFeed: 1000, jogAutoDisable: false, header: "G21\nG90", footer: "",
   okTimeoutMs: 15000, stopStrategy: "hold-pen-up", initializeCommand: "", disconnectCommand: "",
   reloadGcode: `M3 S1600
 
@@ -492,7 +492,13 @@ async function sendJog(axis, sign) {
   state.jogging=true;
   try { await sendLineAndWait(command, false); toast(`${axis} ${distance>0?"+":""}${fmt(distance)} mm`); }
   catch (error) { log(`ジョグエラー: ${error.message}`, "rx"); }
-  finally { state.jogging=false; }
+  finally {
+    if (state.settings.jogAutoDisable && state.writer) {
+      try { await sendLineAndWait("M18", false); }
+      catch (error) { log(`ジョグ後のM18失敗: ${error.message}`, "rx"); }
+    }
+    state.jogging=false;
+  }
 }
 async function cancelJog() {
   if (!state.writer) return toast("先にSerial接続してください");
