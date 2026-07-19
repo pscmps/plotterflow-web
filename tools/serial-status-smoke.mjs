@@ -34,5 +34,5 @@ const planarJog=await evaluate(`(() => { applyControllerProfile('pico2-tmc2209-p
 if(pfdbg.planar.length!==1||!pfdbg.planar[0].includes('[MSG:PFDBG END axis=X result=ok]'))throw new Error(`planar PFDBG log mismatch: ${JSON.stringify(pfdbg.planar)}`);
 if(pfdbg.grbl.length!==0)throw new Error(`PFDBG leaked into non-planar profile: ${JSON.stringify(pfdbg.grbl)}`);
 if(planarProfile.footer!=='M122 P\nM18'||planarProfile.initializeCommand!=='M18\nG21\nG90'||planarProfile.jogAutoDisable!==true||planarProfile.grblFooter!==''||planarProfile.grblJogAutoDisable!==undefined)throw new Error(`profile safety mismatch: ${JSON.stringify(planarProfile)}`);
-if(planarJog.stateStep!==40||planarJog.stateFeed!==30||planarJog.uiStep!=='40'||planarJog.uiFeed!=='30'||!planarJog.preview.includes('40 F30'))throw new Error(`planar jog mismatch: ${JSON.stringify(planarJog)}`);
+if(planarJog.stateStep!==40||planarJog.stateFeed!==2400||planarJog.uiStep!=='40'||planarJog.uiFeed!=='2400'||!planarJog.preview.includes('40 F2400'))throw new Error(`planar jog mismatch: ${JSON.stringify(planarJog)}`);
 console.log(JSON.stringify({derived,direct,zero,pfdbg,planarProfile,planarJog,exceptions},null,2));socket.close();
