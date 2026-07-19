@@ -51,7 +51,7 @@ const CONTROLLER_PROFILES = {
       penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
       okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
       initializeCommand: "M17\nG21\nG90", disconnectCommand: "M18",
-      travelFeed: 500, drawFeed: 300, jogStep: 0.1, jogFeed: 300,
+      travelFeed: 500, drawFeed: 300, jogStep: 0.625, jogFeed: 30,
       sampleInterval: 0.5, optimization: "safe", yFlip: true
     }
   },
@@ -334,7 +334,7 @@ function bindSettings() {
   $("#controllerProfile").addEventListener("change", event => applyControllerProfile(event.target.value));
   $("#resetSettings").addEventListener("click", () => { if (confirm("設定を初期値へ戻しますか？")) { state.settings = { ...DEFAULTS }; populateSettings(); saveJSON("plotterflow.settings", state.settings); } });
 }
-function populateSettings() { const f = $("#settingsForm"); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; renderControllerProfile(); updateSerialProfileDisplay(); }
+function populateSettings() { const f = $("#settingsForm"); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; populateJogSettings(); renderControllerProfile(); updateSerialProfileDisplay(); }
 function readSettings() { const f = $("#settingsForm"); for (const k of Object.keys(DEFAULTS)) if (f.elements[k]) state.settings[k] = f.elements[k].type === "checkbox" ? f.elements[k].checked : f.elements[k].type === "number" ? +f.elements[k].value : f.elements[k].value; }
 function applyControllerProfile(profileId) {
   const profile = CONTROLLER_PROFILES[profileId] || CONTROLLER_PROFILES.custom;
@@ -364,7 +364,7 @@ function updateSerialProfileDisplay() {
 function bindSerial() {
   $("#connectSerial").addEventListener("click", connectSerial); $("#disconnectSerial").addEventListener("click", disconnectSerial);
   $("#serialBaud").addEventListener("change", e => { state.settings.baudrate = +e.target.value || 115200; saveJSON("plotterflow.settings", state.settings); });
-  $("#jogStep").value = String(state.settings.jogStep || 1); $("#jogFeed").value = state.settings.jogFeed || 1000;
+  populateJogSettings();
   $("#jogStep").addEventListener("change", saveJogSettings); $("#jogFeed").addEventListener("input", updateJogPreview); $("#jogFeed").addEventListener("change", saveJogSettings);
   $$('[data-jog-axis]').forEach(button => button.addEventListener("click", () => sendJog(button.dataset.jogAxis, +button.dataset.jogSign)));
   $("#jogCancel").addEventListener("click", cancelJog); updateJogPreview();
@@ -473,6 +473,15 @@ async function initializeController() {
 function saveJogSettings() {
   state.settings.jogStep = Math.max(.001, +$("#jogStep").value || 1); state.settings.jogFeed = Math.max(1, +$("#jogFeed").value || 1000);
   saveJSON("plotterflow.settings", state.settings); updateJogPreview();
+}
+function populateJogSettings() {
+  const stepSelect = $("#jogStep"), step = String(state.settings.jogStep || 1);
+  if (![...stepSelect.options].some(option => option.value === step)) {
+    stepSelect.add(new Option(`${step} mm`, step), 0);
+  }
+  stepSelect.value = step;
+  $("#jogFeed").value = state.settings.jogFeed || 1000;
+  updateJogPreview();
 }
 function updateJogPreview() { const step=+$("#jogStep").value||1,feed=+$("#jogFeed").value||1000;$("#jogCommandPreview").textContent=`$J=G91 G21 X±${fmt(step)} F${fmt(feed)}`; }
 async function sendJog(axis, sign) {
