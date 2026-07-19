@@ -9,7 +9,7 @@ function send(method,params={}){const id=++sequence;return new Promise((resolve,
 async function evaluate(expression){const response=await send("Runtime.evaluate",{expression,returnByValue:true,awaitPromise:true});if(response.exceptionDetails)throw new Error(response.exceptionDetails.exception?.description||response.exceptionDetails.text);return response.result.value;}
 const delay=milliseconds=>new Promise(resolve=>setTimeout(resolve,milliseconds));
 await send("Runtime.enable");await send("Page.enable");
-for(let attempt=0;attempt<40;attempt++){if(await evaluate(`document.querySelector('#setXyZero')!==null`))break;await delay(100);}
+for(let attempt=0;attempt<40;attempt++){if(await evaluate(`document.querySelector('#setXyZero')!==null&&typeof handleSerialLine==='function'`))break;await delay(100);}
 await evaluate(`handleSerialLine('<Idle|MPos:12.500,-3.000,0.000|WCO:2.500,-1.000,0.000>')`);
 const derived=await evaluate(`({x:document.querySelector('#serialXPosition').textContent,y:document.querySelector('#serialYPosition').textContent,status:document.querySelector('#machineState').textContent,source:document.querySelector('#positionSource').textContent})`);
 await evaluate(`handleSerialLine('<Jog|WPos:4.250,5.500,0.000>')`);
@@ -34,5 +34,5 @@ const planarJog=await evaluate(`(() => { applyControllerProfile('pico2-tmc2209-p
 if(pfdbg.planar.length!==1||!pfdbg.planar[0].includes('[MSG:PFDBG END axis=X result=ok]'))throw new Error(`planar PFDBG log mismatch: ${JSON.stringify(pfdbg.planar)}`);
 if(pfdbg.grbl.length!==0)throw new Error(`PFDBG leaked into non-planar profile: ${JSON.stringify(pfdbg.grbl)}`);
 if(planarProfile.footer!=='M122 P\nM18'||planarProfile.initializeCommand!=='M18\nG21\nG90'||planarProfile.jogAutoDisable!==true||planarProfile.grblFooter!==''||planarProfile.grblJogAutoDisable!==undefined)throw new Error(`profile safety mismatch: ${JSON.stringify(planarProfile)}`);
-if(planarJog.stateStep!==0.625||planarJog.stateFeed!==30||planarJog.uiStep!=='0.625'||planarJog.uiFeed!=='30'||!planarJog.preview.includes('0.625 F30'))throw new Error(`planar jog mismatch: ${JSON.stringify(planarJog)}`);
+if(planarJog.stateStep!==40||planarJog.stateFeed!==30||planarJog.uiStep!=='40'||planarJog.uiFeed!=='30'||!planarJog.preview.includes('40 F30'))throw new Error(`planar jog mismatch: ${JSON.stringify(planarJog)}`);
 console.log(JSON.stringify({derived,direct,zero,pfdbg,planarProfile,planarJog,exceptions},null,2));socket.close();

@@ -51,7 +51,7 @@ const CONTROLLER_PROFILES = {
       penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
       okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
       initializeCommand: "M18\nG21\nG90", disconnectCommand: "M18", jogAutoDisable: true,
-      travelFeed: 500, drawFeed: 300, jogStep: 0.625, jogFeed: 30,
+      travelFeed: 500, drawFeed: 300, jogStep: 40, jogFeed: 30,
       sampleInterval: 0.5, optimization: "safe", yFlip: true
     }
   },
