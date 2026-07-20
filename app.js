@@ -60,18 +60,18 @@ const CONTROLLER_PROFILES = {
     phase: "開発中",
     summary: "Pico 2とDRV8835 2個でXY平面リニアステッパを標準G-code駆動する試作ファームウェア用です。",
     notes: [
-      "ジョブ開始前にM18で出力を止め、M980で8分割・XYピーク100%・停止後500ms保持を設定します。",
+      "ジョブ開始前にM18で出力を止め、M980で8分割・XYピーク100%・停止後500ms保持・移動軸だけ励磁を設定します。",
       "G0/G1と$Jジョグを使用し、診断用M974～M978は通常運転では送りません。",
       "Stopは0x85で現在移動をキャンセルし、切断時はM18で全DRV8835入力をLowへ戻します。",
       "VM 3V、電源制限1.5A、各相1.5Ω直列抵抗から実機確認してください。"
     ],
     settings: {
       baudrate: 115200,
-      header: "M18\nM980 U8 X100 Y100 H500\nM17\nG21\nG90\nG10 L20 P0 X0 Y0",
+      header: "M18\nM980 U8 X100 Y100 H500 A1\nM17\nG21\nG90\nG10 L20 P0 X0 Y0",
       footer: "M122\nM18",
       penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
       okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
-      initializeCommand: "M18\nM980 U8 X100 Y100 H500\nG21\nG90",
+      initializeCommand: "M18\nM980 U8 X100 Y100 H500 A1\nG21\nG90",
       disconnectCommand: "M18", jogAutoDisable: false,
       travelFeed: 500, drawFeed: 300, jogStep: 0.625, jogFeed: 300,
       sampleInterval: 0.5, optimization: "safe", yFlip: true
