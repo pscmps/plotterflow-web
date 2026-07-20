@@ -125,11 +125,23 @@ function loadJSON(key, fallback) {
   } catch { return Array.isArray(fallback) ? [...fallback] : { ...fallback }; }
 }
 function saveJSON(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+function migrateDrv8835AxisMode() {
+  if (state.settings.controllerProfile !== "pico2-drv8835-planar") return;
+  const addActiveAxisMode = command => String(command || "").replace(/^M980([^\r\n]*)$/m, (line, args) =>
+    /(?:^|\s)A[01](?:\s|$)/i.test(args) ? line : `M980${args} A1`);
+  const header = addActiveAxisMode(state.settings.header);
+  const initializeCommand = addActiveAxisMode(state.settings.initializeCommand);
+  if (header === state.settings.header && initializeCommand === state.settings.initializeCommand) return;
+  state.settings.header = header;
+  state.settings.initializeCommand = initializeCommand;
+  saveJSON("plotterflow.settings", state.settings);
+}
 function toast(message) { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2200); }
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
 function switchTab(name) { $$(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === name)); $$(".panel").forEach(x => x.classList.toggle("active", x.id === `tab-${name}`)); }
 
 function init() {
+  migrateDrv8835AxisMode();
   if (!localStorage.getItem("plotterflow.svgOrientationV1")) { state.settings.yFlip = true; saveJSON("plotterflow.settings", state.settings); localStorage.setItem("plotterflow.svgOrientationV1", "1"); }
   $$(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
   bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindJobs();
