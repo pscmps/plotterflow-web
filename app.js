@@ -60,20 +60,21 @@ const CONTROLLER_PROFILES = {
     phase: "開発中",
     summary: "Pico 2とDRV8835 2個でXY平面リニアステッパを標準G-code駆動する試作ファームウェア用です。",
     notes: [
-      "ジョブ開始前にM18で出力を止め、M980で8分割・XYピーク100%・停止後500ms保持・移動軸だけ励磁を設定します。",
+      "ジョブ開始前にM18で出力を止め、M980で単相U1・XYピーク100%・停止後500ms保持・初期捕捉100ms・移動軸だけ励磁を設定します。",
+      "滑らか動作を試す場合はカスタム設定でU8へ変更できますが、通常運転は動作確認済みの単相励磁を優先します。",
       "G0/G1と$Jジョグを使用し、診断用M974～M978は通常運転では送りません。",
       "Stopは0x85で現在移動をキャンセルし、切断時はM18で全DRV8835入力をLowへ戻します。",
       "VM 3V、電源制限1.5A、各相1.5Ω直列抵抗から実機確認してください。"
     ],
     settings: {
       baudrate: 115200,
-      header: "M18\nM980 U8 X100 Y100 H500 A1\nM17\nG21\nG90\nG10 L20 P0 X0 Y0",
+      header: "M18\nM980 U1 X100 Y100 H500 A1 C100\nM17\nG21\nG90\nG10 L20 P0 X0 Y0",
       footer: "M122\nM18",
       penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
       okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
-      initializeCommand: "M18\nM980 U8 X100 Y100 H500 A1\nG21\nG90",
+      initializeCommand: "M18\nM980 U1 X100 Y100 H500 A1 C100\nG21\nG90",
       disconnectCommand: "M18", jogAutoDisable: false,
-      travelFeed: 500, drawFeed: 300, jogStep: 0.625, jogFeed: 300,
+      travelFeed: 500, drawFeed: 300, jogStep: 2.5, jogFeed: 300,
       sampleInterval: 0.5, optimization: "safe", yFlip: true
     }
   },
@@ -125,23 +126,26 @@ function loadJSON(key, fallback) {
   } catch { return Array.isArray(fallback) ? [...fallback] : { ...fallback }; }
 }
 function saveJSON(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
-function migrateDrv8835AxisMode() {
-  if (state.settings.controllerProfile !== "pico2-drv8835-planar") return;
-  const addActiveAxisMode = command => String(command || "").replace(/^M980([^\r\n]*)$/m, (line, args) =>
-    /(?:^|\s)A[01](?:\s|$)/i.test(args) ? line : `M980${args} A1`);
-  const header = addActiveAxisMode(state.settings.header);
-  const initializeCommand = addActiveAxisMode(state.settings.initializeCommand);
-  if (header === state.settings.header && initializeCommand === state.settings.initializeCommand) return;
-  state.settings.header = header;
-  state.settings.initializeCommand = initializeCommand;
-  saveJSON("plotterflow.settings", state.settings);
+function migrateDrv8835RobustMode() {
+  const migrationKey = "plotterflow.drv8835RobustModeV1";
+  if (localStorage.getItem(migrationKey)) return;
+  if (state.settings.controllerProfile === "pico2-drv8835-planar") {
+    const robustCommand = command => String(command || "").replace(/^M980[^\r\n]*$/m,
+      "M980 U1 X100 Y100 H500 A1 C100");
+    state.settings.header = robustCommand(state.settings.header);
+    state.settings.initializeCommand = robustCommand(state.settings.initializeCommand);
+    state.settings.jogStep = 2.5;
+    state.settings.jogFeed = 300;
+    saveJSON("plotterflow.settings", state.settings);
+  }
+  localStorage.setItem(migrationKey, "1");
 }
 function toast(message) { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2200); }
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
 function switchTab(name) { $$(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === name)); $$(".panel").forEach(x => x.classList.toggle("active", x.id === `tab-${name}`)); }
 
 function init() {
-  migrateDrv8835AxisMode();
+  migrateDrv8835RobustMode();
   if (!localStorage.getItem("plotterflow.svgOrientationV1")) { state.settings.yFlip = true; saveJSON("plotterflow.settings", state.settings); localStorage.setItem("plotterflow.svgOrientationV1", "1"); }
   $$(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
   bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindJobs();
