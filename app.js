@@ -110,7 +110,7 @@ const state = {
   library: loadJSON("plotterflow.library", []), jobSets: loadJSON("plotterflow.jobSets", []), currentId: null, currentJobSetId: null, port: null, reader: null, writer: null,
   serialLogLimit: 200, lastSentLine: "", lastReceivedLine: "", lastOkAt: 0, lastSendAt: 0,
   serialUiTimer: null, pendingSerialProgress: null, pendingPositionDisplay: false, pendingJobProgress: null,
-  readBuffer: "", okWaiters: [], sending: false, jogging: false, paused: false, stopped: false, jobStopped: false,
+  readBuffer: "", okWaiters: [], sending: false, jogging: false, keyboardJogEnabled: false, paused: false, stopped: false, jobStopped: false,
   previewMode: "svg", previewNormalizeY: false, position: null, machinePosition: null, workPosition: null, workOffset: null, controllerState: "未接続", statusPollTimer: null
 };
 
@@ -151,6 +151,7 @@ function init() {
   bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindJobs();
   populateSettings(); refreshLibrary(); updateEditorStats(); renderJobs();
   if (!("serial" in navigator)) log("Web SerialはChrome/EdgeのHTTPSまたはlocalhostで利用できます。", "rx");
+  document.documentElement.dataset.plotterflowReady = "true";
 }
 
 function bindSvg() {
@@ -405,6 +406,8 @@ function bindSerial() {
   populateJogSettings();
   $("#jogStep").addEventListener("change", saveJogSettings); $("#jogFeed").addEventListener("input", updateJogPreview); $("#jogFeed").addEventListener("change", saveJogSettings);
   $$('[data-jog-axis]').forEach(button => button.addEventListener("click", () => sendJog(button.dataset.jogAxis, +button.dataset.jogSign)));
+  $("#keyboardJogToggle").addEventListener("change", event => setKeyboardJogEnabled(event.target.checked));
+  document.addEventListener("keydown", handleKeyboardJog);
   $("#jogCancel").addEventListener("click", cancelJog); updateJogPreview();
   $("#setXyZero").addEventListener("click", setCurrentXyZero); updateSerialPositionDisplay();
   $("#initializeController").addEventListener("click", initializeController);
@@ -526,6 +529,42 @@ function populateJogSettings() {
   updateJogPreview();
 }
 function updateJogPreview() { const step=+$("#jogStep").value||1,feed=+$("#jogFeed").value||1000;$("#jogCommandPreview").textContent=`$J=G91 G21 X±${fmt(step)} F${fmt(feed)}`; }
+const KEYBOARD_JOG_DIRECTIONS = {
+  ArrowUp: { axis: "Y", sign: -1 },
+  ArrowDown: { axis: "Y", sign: 1 },
+  ArrowLeft: { axis: "X", sign: 1 },
+  ArrowRight: { axis: "X", sign: -1 }
+};
+function setKeyboardJogEnabled(enabled) {
+  state.keyboardJogEnabled = !!enabled;
+  const toggle = $("#keyboardJogToggle");
+  toggle.checked = state.keyboardJogEnabled;
+  $("#keyboardJogState").textContent = state.keyboardJogEnabled ? "ON" : "OFF";
+  toast(`矢印キージョグ: ${state.keyboardJogEnabled ? "ON" : "OFF"}`);
+}
+function isKeyboardJogEditingTarget(target) {
+  if (!(target instanceof Element)) return false;
+  if (target.closest("textarea, select, [contenteditable='true']")) return true;
+  const input = target.closest("input");
+  return !!input && !["button", "checkbox", "radio"].includes(input.type);
+}
+function flashKeyboardJogButton(axis, sign) {
+  const button = $(`[data-jog-axis="${axis}"][data-jog-sign="${sign}"]`);
+  if (!button) return;
+  button.classList.add("keyboard-active");
+  clearTimeout(button.keyboardActiveTimer);
+  button.keyboardActiveTimer = setTimeout(() => button.classList.remove("keyboard-active"), 160);
+}
+function handleKeyboardJog(event) {
+  const direction = KEYBOARD_JOG_DIRECTIONS[event.key];
+  if (!state.keyboardJogEnabled || !direction || event.repeat || event.defaultPrevented) return;
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  if (!$("#tab-serial").classList.contains("active") || document.querySelector("dialog[open]")) return;
+  if (isKeyboardJogEditingTarget(event.target)) return;
+  event.preventDefault();
+  flashKeyboardJogButton(direction.axis, direction.sign);
+  void sendJog(direction.axis, direction.sign);
+}
 async function sendJog(axis, sign) {
   if (!state.writer) return toast("先にSerial接続してください");
   if (state.sending) return toast("G-code送信中はジョグできません");

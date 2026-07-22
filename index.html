@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="styles.css?v=20260715-1">
   <link rel="stylesheet" href="profile.css?v=20260715-1">
   <link rel="stylesheet" href="drawing.css">
-  <link rel="stylesheet" href="serial.css">
+  <link rel="stylesheet" href="serial.css?v=20260722-1">
   <link rel="stylesheet" href="conversion.css">
   <link rel="stylesheet" href="job-ui.css">
   <link rel="stylesheet" href="simulation.css">
@@ -179,7 +179,17 @@
           <div class="inline"><label>Baudrate<input id="serialBaud" type="number" value="115200"></label><button id="connectSerial" class="primary">接続</button><button id="disconnectSerial">切断</button></div>
           <div class="control-grid"><button data-command="?">?</button><button data-command="$$">$$</button><button data-command="$X">$X</button><button id="penUpButton">ペンアップ</button><button id="penDownButton">ペンダウン</button><button id="reloadButton" class="secondary">リロード</button><button id="pauseSend">Pause (!)</button><button id="resumeSend">Resume (~)</button><button id="stopSend" class="danger">Stop</button><button id="resetController" class="danger">Reset</button></div>
           <section class="jog-section" aria-labelledby="jogTitle">
-            <div class="jog-heading"><div><h3 id="jogTitle">XYジョグ</h3><p>1タップで選択距離だけ移動</p></div><span class="jog-unit">mm</span></div>
+            <div class="jog-heading">
+              <div><h3 id="jogTitle">XYジョグ</h3><p>1タップで選択距離だけ移動</p></div>
+              <div class="jog-heading-actions">
+                <span class="jog-unit">mm</span>
+                <label class="keyboard-jog-toggle" title="PCの矢印キーでXYジョグ">
+                  <input id="keyboardJogToggle" type="checkbox">
+                  <span class="keyboard-jog-switch" aria-hidden="true"></span>
+                  <span>矢印キー</span><strong id="keyboardJogState">OFF</strong>
+                </label>
+              </div>
+            </div>
             <div class="coordinate-readout" aria-live="polite">
               <div class="coordinate-status"><i id="machineStateDot"></i><span id="machineState">未接続</span><small id="positionSource">ワーク座標</small></div>
               <div class="coordinate-axis"><span>X</span><strong id="serialXPosition">—</strong><small>mm</small></div>
@@ -395,7 +405,7 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260720-3"></script>
+  <script src="app.js?v=20260722-1"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js"></script>
   <script>
