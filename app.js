@@ -58,21 +58,23 @@ const CONTROLLER_PROFILES = {
   "pico2-drv8835-planar": {
     label: "Pico 2 DRV8835 XY Planar（開発中）",
     phase: "開発中",
-    summary: "Pico 2とDRV8835 2個でXY平面リニアステッパを標準G-code駆動する試作ファームウェア用です。",
+    summary: "Pico 2とDRV8835 4個でXY平面リニアステッパを駆動し、GP12のPWMサーボでZ上下する試作ファームウェア用です。",
     notes: [
-      "ジョブ開始前にM18で出力を止め、M980で単相U1・XYピーク100%・停止後500ms保持・初期捕捉100ms・移動軸だけ励磁を設定します。",
+      "ジョブ開始前にM18で出力を止め、M281でGP12サーボを上1400us・下1000us・待機150msへ設定します。",
+      "M980で単相U1・XYピーク100%・停止後500ms保持・初期捕捉100ms・移動軸だけ励磁を設定します。",
       "滑らか動作を試す場合はカスタム設定でU8へ変更できますが、通常運転は動作確認済みの単相励磁を優先します。",
+      "ペン上はG0 Z1、ペン下はG1 Z0です。DYNAMIXELプロファイルのM3 S1400/S1000は変更しません。",
       "G0/G1と$Jジョグを使用し、診断用M974～M978は通常運転では送りません。",
-      "Stopは0x85で現在移動をキャンセルし、切断時はM18で全DRV8835入力をLowへ戻します。",
+      "Stopは0x85で現在移動をキャンセルしてペンを上げ、切断時はM18で全DRV8835入力をLowへ戻します。",
       "VM 3V、電源制限1.5A、各相1.5Ω直列抵抗から実機確認してください。"
     ],
     settings: {
       baudrate: 115200,
-      header: "M18\nM980 U1 X100 Y100 H500 A1 C100\nM17\nG21\nG90\nG10 L20 P0 X0 Y0",
+      header: "M18\nM281 U1400 D1000 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nM17\nG21\nG90\nG10 L20 P0 X0 Y0 Z1",
       footer: "M122\nM18",
-      penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
+      penUpCommand: "G0 Z1", penDownCommand: "G1 Z0",
       okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
-      initializeCommand: "M18\nM980 U1 X100 Y100 H500 A1 C100\nG21\nG90",
+      initializeCommand: "M18\nM281 U1400 D1000 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nG21\nG90",
       disconnectCommand: "M18", jogAutoDisable: false,
       travelFeed: 500, drawFeed: 300, jogStep: 2.5, jogFeed: 300,
       sampleInterval: 0.5, optimization: "safe", yFlip: true
