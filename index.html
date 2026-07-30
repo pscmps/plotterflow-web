@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="styles.css?v=20260715-1">
   <link rel="stylesheet" href="profile.css?v=20260715-1">
   <link rel="stylesheet" href="drawing.css">
-  <link rel="stylesheet" href="serial.css?v=20260730-1">
+  <link rel="stylesheet" href="serial.css?v=20260730-2">
   <link rel="stylesheet" href="conversion.css">
   <link rel="stylesheet" href="job-ui.css">
   <link rel="stylesheet" href="simulation.css">
@@ -216,12 +216,22 @@
           <hr>
           <label>送信対象<select id="serialSource"><option value="editor">現在のエディタ</option></select></label>
           <div id="serialDestinationGroup" class="serial-destination" hidden>
-            <label>送信先<select id="serialDestination"><option value="execute">コントローラーで実行</option><option value="sd">M5Stack SDカードへ保存</option></select></label>
+            <label>M5Stack操作モード<select id="m5OperationMode"><option value="normal">通常操作</option><option value="sd-manager">SDカード管理</option></select></label>
+            <label id="serialDestinationLabel">送信先<select id="serialDestination"><option value="execute">コントローラーで実行</option><option value="sd">M5Stack SDカードへ保存</option></select></label>
             <label id="sdFilenameLabel" hidden>SDファイル名<input id="sdFilename" value="untitled.gcode" maxlength="48" inputmode="latin" spellcheck="false"></label>
             <p id="sdTransferHint" class="muted" hidden>M5StackをUSB SERIALモードにして転送します。完了後、SD CARDモードから実行できます。</p>
           </div>
-          <button id="startSend" class="primary wide">送信開始</button>
-          <div class="progress-row"><progress id="sendProgress" value="0" max="1"></progress><span id="sendProgressText">0 / 0 (0%)</span></div>
+          <div id="serialTransferControls">
+            <button id="startSend" class="primary wide">送信開始</button>
+            <div class="progress-row"><progress id="sendProgress" value="0" max="1"></progress><span id="sendProgressText">0 / 0 (0%)</span></div>
+          </div>
+          <section id="sdManager" class="sd-manager" hidden aria-labelledby="sdManagerTitle">
+            <div class="sd-manager-heading">
+              <div><h3 id="sdManagerTitle">SDカード内のG-code</h3><p id="sdManagerStatus">管理モードを開始してください</p></div>
+              <div class="actions"><button id="refreshSdFiles">再同期</button><button id="closeSdManager">管理終了</button></div>
+            </div>
+            <div id="sdFileList" class="sd-file-list" aria-live="polite"></div>
+          </section>
         </article>
         <article class="card">
           <h2>通信ログ</h2>
@@ -410,7 +420,7 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260730-1"></script>
+  <script src="app.js?v=20260730-2"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js"></script>
   <script>

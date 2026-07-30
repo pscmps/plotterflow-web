@@ -2,6 +2,18 @@
 .serial-destination{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:12px 0;padding:12px;border:1px solid #b9d0d1;border-radius:8px;background:#f3f8f8}
 .serial-destination[hidden],.serial-destination [hidden]{display:none}
 .serial-destination label{margin:0}.serial-destination p{grid-column:1/-1;margin:0}
+.sd-manager{margin-top:16px;padding-top:16px;border-top:1px solid #c8d7d8}
+.sd-manager[hidden]{display:none}
+.sd-manager-heading{display:flex;align-items:start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sd-manager-heading h3{margin:0;font-size:16px;color:#17363c}
+.sd-manager-heading p{margin:3px 0 0;font-size:12px;color:var(--muted)}
+.sd-manager-heading .actions{display:flex;gap:8px;margin:0;flex-wrap:wrap}
+.sd-file-list{display:grid;gap:7px}
+.sd-file-list>p{margin:4px 0}
+.sd-file-row{display:grid;grid-template-columns:minmax(150px,1fr) 72px auto auto;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #dce6e7}
+.sd-file-row input{min-width:0;margin:0;font-family:ui-monospace,monospace}
+.sd-file-row button{white-space:nowrap}
+.sd-file-size{color:var(--muted);font-size:12px;text-align:right}
 .jog-heading{display:flex;align-items:start;justify-content:space-between;margin-bottom:14px}
 .jog-heading h3{margin:0;font-size:16px;color:#17363c}
 .jog-heading p{margin:2px 0 0;font-size:12px;color:var(--muted)}
@@ -32,5 +44,5 @@
 .jog-center{left:79px;top:79px;width:62px;height:62px;border-radius:50%;background:linear-gradient(145deg,#fff,#dfe9ea);color:#9c3030;border:1px solid #becfd1}
 .jog-center:hover{background:#fff4f4}.jog-center:active{transform:scale(.94)}.jog-center span{font-size:16px}.jog-center small{font-size:8px;font-weight:800;margin-top:2px}
 .jog-options{display:grid;gap:10px;min-width:130px}.jog-options label{position:relative;margin:0}.jog-options label>span{position:absolute;right:9px;bottom:8px;color:var(--muted);font-size:10px}.jog-options input{padding-right:50px}.jog-command-preview{max-width:160px;padding:7px 9px;border-radius:6px;background:#16343a;color:#c5e3df;font:10px/1.4 ui-monospace,monospace;overflow-wrap:anywhere}
-@media(max-width:560px){.serial-destination{grid-template-columns:1fr}.jog-section{padding:14px 10px}.keyboard-jog-toggle{display:none}.coordinate-readout{grid-template-columns:1fr 1fr}.coordinate-status{grid-column:1}.zero-button{grid-column:2;grid-row:1}.jog-controller{gap:12px}.jog-pad{flex-basis:190px;width:190px;height:190px}.jog-button{width:52px;height:52px;border-radius:16px}.jog-up{left:69px;top:9px}.jog-down{left:69px;bottom:9px}.jog-left{left:9px;top:69px}.jog-right{right:9px;top:69px}.jog-center{left:66px;top:66px;width:58px;height:58px}.jog-options{min-width:105px}.jog-command-preview{display:none}}
+@media(max-width:560px){.serial-destination{grid-template-columns:1fr}.sd-manager-heading{display:block}.sd-manager-heading .actions{margin-top:10px}.sd-file-row{grid-template-columns:minmax(0,1fr) auto auto}.sd-file-size{display:none}.jog-section{padding:14px 10px}.keyboard-jog-toggle{display:none}.coordinate-readout{grid-template-columns:1fr 1fr}.coordinate-status{grid-column:1}.zero-button{grid-column:2;grid-row:1}.jog-controller{gap:12px}.jog-pad{flex-basis:190px;width:190px;height:190px}.jog-button{width:52px;height:52px;border-radius:16px}.jog-up{left:69px;top:9px}.jog-down{left:69px;bottom:9px}.jog-left{left:9px;top:69px}.jog-right{right:9px;top:69px}.jog-center{left:66px;top:66px;width:58px;height:58px}.jog-options{min-width:105px}.jog-command-preview{display:none}}
 @media(max-width:390px){.jog-controller{flex-direction:column}.jog-options{width:100%;grid-template-columns:1fr 1fr}.jog-options label{min-width:0}}

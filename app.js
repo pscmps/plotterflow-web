@@ -83,15 +83,16 @@ const CONTROLLER_PROFILES = {
   "m5stack-drv8835-planar": {
     label: "M5Stack Basic DRV8835 XY Planar（開発中）",
     phase: "開発中",
-    summary: "M5Stack BasicとDRV8835 4個でXY平面リニアステッパとPWMサーボを制御し、USB実行とmicroSD保存に対応する試作ファームウェア用です。",
+    summary: "M5Stack BasicとDRV8835 4個でXY平面リニアステッパとPWMサーボを制御し、USB実行、microSD保存、SDファイル管理に対応する試作ファームウェア用です。",
     notes: [
       "M5Stack起動時にUSB SERIALを選択すると、通常実行とmicroSDへのG-code転送をPlotterFlowから切り替えられます。",
       "SD転送はM28/M29を使い、完了時だけ正式な.gcodeファイルとして確定します。",
       "転送中はG-codeを実行せずDRV8835出力をLowへ戻します。",
       "転送後はM5StackをSD CARDモードへ戻し、本体ボタンからファイルを選択して実行します。",
-      "停止・切断・転送失敗時は未完成ファイルを破棄します。"
+      "停止・切断・転送失敗時は未完成ファイルを破棄します。",
+      "SDカード管理ではPCからモードを指定し、一覧同期、名前変更、削除ができます。"
     ],
-    capabilities: { sdUpload: true },
+    capabilities: { sdUpload: true, sdManagement: true },
     settings: {
       baudrate: 115200,
       header: "M18\nM281 U1400 D1000 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nM17\nG21\nG90\nG10 L20 P0 X0 Y0 Z1",
@@ -137,7 +138,7 @@ const state = {
   library: loadJSON("plotterflow.library", []), jobSets: loadJSON("plotterflow.jobSets", []), currentId: null, currentJobSetId: null, port: null, reader: null, writer: null,
   serialLogLimit: 200, lastSentLine: "", lastReceivedLine: "", lastOkAt: 0, lastSendAt: 0,
   serialUiTimer: null, pendingSerialProgress: null, pendingPositionDisplay: false, pendingJobProgress: null,
-  readBuffer: "", okWaiters: [], sending: false, sdUploading: false, jogging: false, keyboardJogEnabled: false, paused: false, stopped: false, jobStopped: false,
+  readBuffer: "", okWaiters: [], sending: false, sdUploading: false, sdManagementActive: false, sdFiles: [], sdListReceiving: false, jogging: false, keyboardJogEnabled: false, paused: false, stopped: false, jobStopped: false,
   previewMode: "svg", previewNormalizeY: false, position: null, machinePosition: null, workPosition: null, workOffset: null, controllerState: "未接続", statusPollTimer: null
 };
 
@@ -407,6 +408,10 @@ function bindSettings() {
 function populateSettings() { const f = $("#settingsForm"); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; populateJogSettings(); renderControllerProfile(); updateSerialProfileDisplay(); }
 function readSettings() { const f = $("#settingsForm"); for (const k of Object.keys(DEFAULTS)) if (f.elements[k]) state.settings[k] = f.elements[k].type === "checkbox" ? f.elements[k].checked : f.elements[k].type === "number" ? +f.elements[k].value : f.elements[k].value; }
 function applyControllerProfile(profileId) {
+  if (state.sdManagementActive && profileId !== state.settings.controllerProfile) {
+    $("#controllerProfile").value = state.settings.controllerProfile;
+    return toast("SDカード管理を終了してからプロファイルを変更してください");
+  }
   const profile = CONTROLLER_PROFILES[profileId] || CONTROLLER_PROFILES.custom;
   state.settings.controllerProfile = profileId;
   if (profile.settings) Object.assign(state.settings, profile.settings);
@@ -434,6 +439,9 @@ function updateSerialProfileDisplay() {
 
 function supportsSdUpload() {
   return activeControllerProfile().capabilities?.sdUpload === true;
+}
+function supportsSdManagement() {
+  return activeControllerProfile().capabilities?.sdManagement === true;
 }
 function effectiveSerialDestination() {
   return supportsSdUpload() && state.settings.serialDestination === "sd" ? "sd" : "execute";
@@ -465,14 +473,21 @@ function updateSerialDestinationUi() {
   if (!group) return;
   const supported = supportsSdUpload();
   group.hidden = !supported;
+  const mode = $("#m5OperationMode");
+  if (!supportsSdManagement()) mode.value = "normal";
+  const managerSelected = supportsSdManagement() && mode.value === "sd-manager";
   const destination = $("#serialDestination");
   destination.value = supported && state.settings.serialDestination === "sd" ? "sd" : "execute";
-  const sdSelected = supported && destination.value === "sd";
+  const sdSelected = supported && !managerSelected && destination.value === "sd";
+  $("#serialDestinationLabel").hidden = managerSelected;
   $("#sdFilenameLabel").hidden = !sdSelected;
   $("#sdTransferHint").hidden = !sdSelected;
+  $("#serialTransferControls").hidden = managerSelected;
+  $("#sdManager").hidden = !managerSelected;
   $("#startSend").textContent = sdSelected ? "SDカードへ転送" : "送信開始";
   $("#sendFromEditor").textContent = sdSelected ? "SDカードへ転送" : "Serialで送信";
   if (sdSelected) updateSdFilenameFromSource(false);
+  renderSdFileList();
 }
 
 function bindSerial() {
@@ -481,6 +496,20 @@ function bindSerial() {
   $("#serialDestination").addEventListener("change", event => {
     state.settings.serialDestination = event.target.value === "sd" ? "sd" : "execute";
     saveJSON("plotterflow.settings", state.settings);
+    updateSerialDestinationUi();
+  });
+  $("#m5OperationMode").addEventListener("change", async event => {
+    if (event.target.value === "sd-manager") {
+      await enterSdManagement();
+    } else {
+      await exitSdManagement();
+    }
+    updateSerialDestinationUi();
+  });
+  $("#refreshSdFiles").addEventListener("click", refreshSdFiles);
+  $("#closeSdManager").addEventListener("click", async () => {
+    $("#m5OperationMode").value = "normal";
+    await exitSdManagement();
     updateSerialDestinationUi();
   });
   $("#serialSource").addEventListener("change", () => updateSdFilenameFromSource(true));
@@ -523,6 +552,29 @@ function handleSerialLine(line) {
   if (!text) return;
   state.lastReceivedLine = text;
   if (/^<.*>$/.test(text)) { parseControllerStatus(text); return; }
+  if (text === "[SDLIST:BEGIN]") {
+    state.sdFiles = [];
+    state.sdListReceiving = true;
+    renderSdFileList();
+    return;
+  }
+  const sdFile = text.match(/^\[SDLIST:FILE name=([A-Za-z0-9._-]+) size=(\d+)\]$/);
+  if (sdFile) {
+    state.sdFiles.push({ name: sdFile[1], size: Number(sdFile[2]) });
+    return;
+  }
+  const sdListEnd = text.match(/^\[SDLIST:END count=(\d+)\]$/);
+  if (sdListEnd) {
+    state.sdListReceiving = false;
+    renderSdFileList();
+    return;
+  }
+  const sdMode = text.match(/^\[MSG:SDMODE active=([01])\]$/);
+  if (sdMode) {
+    state.sdManagementActive = sdMode[1] === "1";
+    $("#sdManagerStatus").textContent = state.sdManagementActive ? "接続済み・同期できます" : "管理モードを終了しました";
+    return;
+  }
   if (/^ok\b/i.test(text)) {
     state.lastOkAt = Date.now();
     state.okWaiters.shift()?.resolve(text);
@@ -544,7 +596,7 @@ function shouldLogPicoPlanarDebug(text) {
     return /^\[MSG:(?:DRV8835|M980)(?:\s|\])/i.test(text);
   }
   return state.settings.controllerProfile === "m5stack-drv8835-planar" &&
-    /^\[MSG:(?:DRV8835|M980|SDUPLOAD)(?:\s|\])/i.test(text);
+    /^\[MSG:(?:DRV8835|M980|SDUPLOAD|SDMODE|SDFILE)(?:\s|\])/i.test(text);
 }
 async function disconnectSerial() {
   stopStatusPolling();
@@ -556,6 +608,10 @@ async function disconnectSerial() {
     try { await state.writer.write(new Uint8Array([0x85])); log("Motion cancel before disconnect (0x85)", "tx"); await sleep(250); }
     catch (error) { log(`切断前キャンセル失敗: ${error.message}`, "rx"); }
   }
+  if (state.writer && state.sdManagementActive) {
+    try { await rawWrite("M22\n", false); await sleep(100); }
+    catch (error) { log(`切断前SD管理終了失敗: ${error.message}`, "rx"); }
+  }
   const disconnectCommand = String(state.settings.disconnectCommand || "").trim();
   if (state.writer && disconnectCommand) {
     try { await rawWrite(disconnectCommand + "\n"); await sleep(150); }
@@ -563,12 +619,15 @@ async function disconnectSerial() {
   }
   state.stopped = true; clearOkWaiters("切断");
   try { await state.reader?.cancel(); } catch {} try { state.writer?.releaseLock(); state.writer = null; await state.port?.close(); } catch (e) { log(`切断エラー: ${e.message}`, "rx"); }
-  state.port = null; state.sdUploading=false; state.controllerState="未接続"; state.machinePosition=null; state.workPosition=null; state.workOffset=null; updateSerialPositionDisplay(); $("#connectionBadge").textContent = "Serial: 未接続"; $("#connectionBadge").classList.remove("connected"); log("切断しました", "rx");
+  state.port = null; state.sdUploading=false; state.sdManagementActive=false; state.sdFiles=[]; state.sdListReceiving=false; $("#m5OperationMode").value="normal"; updateSerialDestinationUi(); state.controllerState="未接続"; state.machinePosition=null; state.workPosition=null; state.workOffset=null; updateSerialPositionDisplay(); $("#connectionBadge").textContent = "Serial: 未接続"; $("#connectionBadge").classList.remove("connected"); log("切断しました", "rx");
 }
 async function rawWrite(text, shouldLog = true) { if (!state.writer) throw new Error("Serial未接続です"); await state.writer.write(new TextEncoder().encode(text)); if (shouldLog) log(text.replace(/[\r\n]+$/, "") || "Ctrl-X", "tx"); }
 async function sendRealtime(text) {
   if (state.sdUploading && text !== "\x18" && text !== "\x85") {
     return toast("SD転送中は停止以外の手動コマンドを送信できません");
+  }
+  if (state.sdManagementActive && text !== "\x18" && text !== "\x85") {
+    return toast("SDカード管理中は通常コマンドを送信できません");
   }
   try { await rawWrite(text); } catch (e) { toast(e.message); }
 }
@@ -599,8 +658,180 @@ async function sendLineAndWait(line, trackPosition = true, meta = {}) {
   await pending;
   if (trackPosition) updatePosition(line);
 }
+function formatSdFileSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+function renderSdFileList() {
+  const list = $("#sdFileList");
+  if (!list) return;
+  list.replaceChildren();
+  if (state.sdListReceiving) {
+    const loading = document.createElement("p");
+    loading.className = "muted";
+    loading.textContent = "SDカードを読み込み中...";
+    list.append(loading);
+    return;
+  }
+  if (!state.sdFiles.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = state.sdManagementActive ? "対応するG-codeファイルはありません" : "SDカード管理モードを選ぶと一覧を同期します";
+    list.append(empty);
+    return;
+  }
+  for (const file of state.sdFiles) {
+    const row = document.createElement("div");
+    row.className = "sd-file-row";
+    const name = document.createElement("input");
+    name.value = file.name;
+    name.maxLength = 48;
+    name.inputMode = "latin";
+    name.spellcheck = false;
+    name.setAttribute("aria-label", `${file.name}の新しいファイル名`);
+    const size = document.createElement("span");
+    size.className = "sd-file-size";
+    size.textContent = formatSdFileSize(file.size);
+    const rename = document.createElement("button");
+    rename.textContent = "名前変更";
+    rename.addEventListener("click", () => renameSdFile(file.name, name.value));
+    const remove = document.createElement("button");
+    remove.className = "danger";
+    remove.textContent = "削除";
+    remove.addEventListener("click", () => deleteSdFile(file.name));
+    row.append(name, size, rename, remove);
+    list.append(row);
+  }
+}
+async function synchronizeSdFileList() {
+  state.sdListReceiving = true;
+  state.sdFiles = [];
+  renderSdFileList();
+  await sendLineAndWait("M20", false);
+  state.sdListReceiving = false;
+  renderSdFileList();
+  $("#sdManagerStatus").textContent = `${state.sdFiles.length}件を同期しました`;
+}
+async function enterSdManagement() {
+  if (!supportsSdManagement()) return toast("このプロファイルはSDカード管理に対応していません");
+  if (!state.writer) {
+    $("#m5OperationMode").value = "normal";
+    updateSerialDestinationUi();
+    return toast("先にSerial接続してください");
+  }
+  if (state.sending || state.jogging) {
+    $("#m5OperationMode").value = "normal";
+    updateSerialDestinationUi();
+    return toast("送信・ジョグ中はSDカード管理へ切り替えられません");
+  }
+  stopStatusPolling();
+  clearOkWaiters("SD管理開始");
+  state.sending = true;
+  $("#sdManagerStatus").textContent = "M5StackをSDカード管理へ切替中...";
+  updateSerialDestinationUi();
+  try {
+    await sendLineAndWait("M21", false);
+    state.sdManagementActive = true;
+    await synchronizeSdFileList();
+    toast("SDカードの一覧を同期しました");
+  } catch (error) {
+    state.sdListReceiving = false;
+    log(`SD管理開始エラー: ${error.message}`, "rx");
+    $("#sdManagerStatus").textContent = `同期失敗: ${error.message}`;
+    if (!state.sdManagementActive) $("#m5OperationMode").value = "normal";
+  } finally {
+    state.sending = false;
+    clearOkWaiters("SD管理開始終了");
+    updateSerialDestinationUi();
+  }
+}
+async function refreshSdFiles() {
+  if (!state.writer) return toast("先にSerial接続してください");
+  if (!state.sdManagementActive) return enterSdManagement();
+  if (state.sending) return toast("別のSerial処理が完了するまで待ってください");
+  clearOkWaiters("SD再同期");
+  state.sending = true;
+  try {
+    await synchronizeSdFileList();
+    toast("SDカードの一覧を再同期しました");
+  } catch (error) {
+    state.sdListReceiving = false;
+    log(`SD再同期エラー: ${error.message}`, "rx");
+    $("#sdManagerStatus").textContent = `同期失敗: ${error.message}`;
+  } finally {
+    state.sending = false;
+    clearOkWaiters("SD再同期終了");
+    renderSdFileList();
+  }
+}
+async function exitSdManagement() {
+  if (!state.sdManagementActive) {
+    state.sdFiles = [];
+    state.sdListReceiving = false;
+    renderSdFileList();
+    return;
+  }
+  if (!state.writer || state.sending) return;
+  clearOkWaiters("SD管理終了");
+  state.sending = true;
+  try {
+    await sendLineAndWait("M22", false);
+    state.sdManagementActive = false;
+    state.sdFiles = [];
+    $("#sdManagerStatus").textContent = "管理モードを終了しました";
+  } catch (error) {
+    log(`SD管理終了エラー: ${error.message}`, "rx");
+    toast("SDカード管理を終了できませんでした");
+  } finally {
+    state.sending = false;
+    clearOkWaiters("SD管理終了完了");
+    renderSdFileList();
+    if (!state.sdManagementActive && state.port && state.writer) startStatusPolling();
+  }
+}
+async function renameSdFile(oldName, requestedName) {
+  if (!state.sdManagementActive || state.sending) return;
+  const newName = sanitizeSdFilename(requestedName);
+  if (newName === oldName) return toast("ファイル名は変更されていません");
+  clearOkWaiters("SDファイル名変更");
+  state.sending = true;
+  try {
+    await sendLineAndWait(`M993 ${oldName} ${newName}`, false);
+    await synchronizeSdFileList();
+    toast(`${oldName}を${newName}へ変更しました`);
+  } catch (error) {
+    state.sdListReceiving = false;
+    log(`SD名前変更エラー: ${error.message}`, "rx");
+    toast("SDファイル名を変更できませんでした");
+  } finally {
+    state.sending = false;
+    clearOkWaiters("SDファイル名変更終了");
+    renderSdFileList();
+  }
+}
+async function deleteSdFile(name) {
+  if (!state.sdManagementActive || state.sending) return;
+  if (!confirm(`${name}をSDカードから削除しますか？`)) return;
+  clearOkWaiters("SDファイル削除");
+  state.sending = true;
+  try {
+    await sendLineAndWait(`M30 ${name}`, false);
+    await synchronizeSdFileList();
+    toast(`${name}を削除しました`);
+  } catch (error) {
+    state.sdListReceiving = false;
+    log(`SD削除エラー: ${error.message}`, "rx");
+    toast("SDファイルを削除できませんでした");
+  } finally {
+    state.sending = false;
+    clearOkWaiters("SDファイル削除終了");
+    renderSdFileList();
+  }
+}
 async function initializeController() {
   if (!state.writer) return toast("先にSerial接続してください");
+  if (state.sdManagementActive) return toast("SDカード管理を終了してから初期化してください");
   if (state.sending || state.jogging) return toast("送信・ジョグ中は初期化できません");
   const commands = cleanLines(String(state.settings.initializeCommand || ""));
   if (!commands.length) return toast("このプロファイルに初期化コマンドはありません");
@@ -665,6 +896,7 @@ function handleKeyboardJog(event) {
 }
 async function sendJog(axis, sign) {
   if (!state.writer) return toast("先にSerial接続してください");
+  if (state.sdManagementActive) return toast("SDカード管理を終了してからジョグしてください");
   if (state.sending) return toast("G-code送信中はジョグできません");
   if (state.jogging) return;
   saveJogSettings(); const distance=sign*state.settings.jogStep,command=`$J=G91 G21 ${axis}${fmt(distance)} F${fmt(state.settings.jogFeed)}`;
@@ -686,7 +918,7 @@ async function cancelJog() {
 }
 function startStatusPolling() {
   stopStatusPolling();
-  const poll=()=>{if(state.writer&&!state.sending&&!state.jobStopped)rawWrite("?",false).catch(()=>{});};poll();state.statusPollTimer=setInterval(poll,750);
+  const poll=()=>{if(state.writer&&!state.sending&&!state.jobStopped&&!state.sdManagementActive)rawWrite("?",false).catch(()=>{});};poll();state.statusPollTimer=setInterval(poll,750);
 }
 function stopStatusPolling(){if(state.statusPollTimer){clearInterval(state.statusPollTimer);state.statusPollTimer=null;}}
 function parseControllerStatus(line) {
@@ -709,13 +941,13 @@ function updateSerialPositionDisplay() {
   $("#positionSource").textContent=actual?"ワーク座標 WPos":position?"送信値からの推定":"ワーク座標";
 }
 async function setCurrentXyZero() {
-  if(!state.writer)return toast("先にSerial接続してください");if(state.sending)return toast("G-code送信中は0点を変更できません");
+  if(!state.writer)return toast("先にSerial接続してください");if(state.sdManagementActive)return toast("SDカード管理を終了してから0点を変更してください");if(state.sending)return toast("G-code送信中は0点を変更できません");
   try{await sendLineAndWait("G10 L20 P0 X0 Y0",false);state.workPosition={x:0,y:0,z:state.workPosition?.z||0};state.position={x:0,y:0};updateSerialPositionDisplay();await rawWrite("?",false);toast("現在位置をXY=0に設定しました");}
   catch(error){log(`0点設定エラー: ${error.message}`,"rx");toast("XYの0点設定に失敗しました");}
 }
 function cleanLines(code) { return code.split(/\r?\n/).map(x => x.trim()).filter(x => x && !x.startsWith(";") && !x.startsWith("(")); }
 async function startSending(code, options = {}) {
-  if (!state.writer) return toast("先にSerial接続してください"); if (state.sending) return toast("すでに送信中です");
+  if (!state.writer) return toast("先にSerial接続してください"); if (state.sdManagementActive) return toast("SDカード管理を終了してから送信してください"); if (state.sending) return toast("すでに送信中です");
   const lines = cleanLines(code); if (!lines.length) return toast("送信するG-codeがありません");
   clearOkWaiters("新しい送信を開始");
   state.sending = true; state.stopped = false; state.jobStopped = false; state.paused = false;
@@ -741,6 +973,7 @@ function sdUploadLines(code) {
 async function startSdUpload(code, requestedName) {
   if (!supportsSdUpload()) return toast("このプロファイルはSD転送に対応していません");
   if (!state.writer) return toast("先にSerial接続してください");
+  if (state.sdManagementActive) return toast("SDカード管理を終了してから転送してください");
   if (state.sending) return toast("すでに送信中です");
   let lines;
   try { lines = sdUploadLines(code); }
@@ -993,7 +1226,7 @@ function deleteJobSet(){
   state.jobSets=state.jobSets.filter(x=>x.id!==state.currentJobSetId);state.currentJobSetId=null;saveJSON("plotterflow.jobSets",state.jobSets);refreshJobSetLibrary();$("#jobSetName").value="job-set.plotter-jobs.json";toast("ジョブセットを削除しました");
 }
 async function runJobs() {
-  if(!state.writer)return toast("先にSerial接続してください"); if(state.sending)return toast("Serial送信中です");
+  if(!state.writer)return toast("先にSerial接続してください"); if(state.sdManagementActive)return toast("SDカード管理を終了してからジョブを実行してください"); if(state.sending)return toast("Serial送信中です");
   const jobs=getJobs().filter(j=>j.gcodeId), loops=Math.max(1,+$("#jobLoops").value||1); if(!jobs.length)return toast("実行するジョブを追加してください");
   clearOkWaiters("ジョブ開始");
   state.sending=true; state.stopped=false; state.jobStopped=false; state.paused=false;

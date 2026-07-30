@@ -100,6 +100,63 @@ const sdUpload=await evaluate(`(async () => {
     sanitized:sanitizeSdFilename('日本語 name?.gcode')
   };
 })()`);
+const sdManagement=await evaluate(`(async () => {
+  applyControllerProfile('m5stack-drv8835-planar');
+  window.__sdManagerWrites=[];
+  let listRound=0;
+  const decoder=new TextDecoder();
+  state.writer={write:async bytes=>{
+    const text=decoder.decode(bytes);
+    window.__sdManagerWrites.push(text);
+    setTimeout(()=>{
+      if(text==='M21\\n'){
+        handleSerialLine('[MSG:SDMODE active=1]');
+      }else if(text==='M20\\n'){
+        handleSerialLine('[SDLIST:BEGIN]');
+        const files=listRound===0
+          ? [['alpha.gcode',120],['beta.nc',2048]]
+          : listRound===1
+            ? [['renamed.gcode',120],['beta.nc',2048]]
+            : [['beta.nc',2048]];
+        for(const file of files)handleSerialLine(\`[SDLIST:FILE name=\${file[0]} size=\${file[1]}]\`);
+        handleSerialLine(\`[SDLIST:END count=\${files.length}]\`);
+        listRound++;
+      }else if(text.startsWith('M993 ')){
+        handleSerialLine('[MSG:SDFILE renamed from=alpha.gcode to=renamed.gcode]');
+      }else if(text.startsWith('M30 ')){
+        handleSerialLine('[MSG:SDFILE deleted name=renamed.gcode]');
+      }else if(text==='M22\\n'){
+        handleSerialLine('[MSG:SDMODE active=0]');
+      }
+      handleSerialLine('ok');
+    },0);
+  }};
+  document.querySelector('#m5OperationMode').value='sd-manager';
+  updateSerialDestinationUi();
+  await enterSdManagement();
+  const entered={
+    active:state.sdManagementActive,
+    cardHidden:document.querySelector('#sdManager').hidden,
+    transferHidden:document.querySelector('#serialTransferControls').hidden,
+    files:state.sdFiles.map(file=>file.name),
+    rows:document.querySelectorAll('.sd-file-row').length
+  };
+  await renameSdFile('alpha.gcode','renamed.gcode');
+  const renamed=state.sdFiles.map(file=>file.name);
+  window.confirm=()=>true;
+  await deleteSdFile('renamed.gcode');
+  const deleted=state.sdFiles.map(file=>file.name);
+  await exitSdManagement();
+  stopStatusPolling();
+  const exited={active:state.sdManagementActive,files:state.sdFiles.length};
+  applyControllerProfile('grbl-fluidnc');
+  return {
+    writes:window.__sdManagerWrites,
+    entered,renamed,deleted,exited,
+    capability:CONTROLLER_PROFILES['m5stack-drv8835-planar'].capabilities?.sdManagement,
+    hiddenForGrbl:document.querySelector('#serialDestinationGroup').hidden
+  };
+})()`);
 if(pfdbg.planar.length!==1||!pfdbg.planar[0].includes('[MSG:PFDBG END axis=X result=ok]'))throw new Error(`planar PFDBG log mismatch: ${JSON.stringify(pfdbg.planar)}`);
 if(pfdbg.grbl.length!==0)throw new Error(`PFDBG leaked into non-planar profile: ${JSON.stringify(pfdbg.grbl)}`);
 if(planarProfile.footer!=='M122 P\nM18'||planarProfile.initializeCommand!=='M18\nG21\nG90'||planarProfile.jogAutoDisable!==true||planarProfile.grblFooter!==''||planarProfile.grblJogAutoDisable!==undefined)throw new Error(`profile safety mismatch: ${JSON.stringify(planarProfile)}`);
@@ -110,4 +167,7 @@ if(!keyboardJog.handled||keyboardJog.afterJog!==1||keyboardJog.afterIgnored!==1|
 if(keyboardJog.directions.ArrowUp.axis!=="Y"||keyboardJog.directions.ArrowUp.sign!==-1||keyboardJog.directions.ArrowLeft.axis!=="X"||keyboardJog.directions.ArrowLeft.sign!==1)throw new Error(`keyboard direction mismatch: ${JSON.stringify(keyboardJog.directions)}`);
 if(sdUpload.capability!==true||sdUpload.m5Ui.groupHidden||sdUpload.m5Ui.filenameHidden||sdUpload.m5Ui.startText!=='SDカードへ転送'||sdUpload.m5Ui.filename!=='file.gcode'||sdUpload.busy||sdUpload.uploading||!sdUpload.hiddenForGrbl||sdUpload.progress!=='3 / 3 (100%)'||sdUpload.sanitized!=='name.gcode')throw new Error(`SD upload UI mismatch: ${JSON.stringify(sdUpload)}`);
 if(JSON.stringify(sdUpload.writes)!==JSON.stringify(['M28 file.gcode\n','; keep ? comment\n','G21\n','G1 X1 Y2 F300\n','M29\n']))throw new Error(`SD upload protocol mismatch: ${JSON.stringify(sdUpload.writes)}`);
-console.log(JSON.stringify({derived,direct,zero,pfdbg,planarProfile,planarJog,drvDebug,drvProfile,keyboardJog,sdUpload,exceptions},null,2));socket.close();
+if(sdManagement.capability!==true||!sdManagement.entered.active||sdManagement.entered.cardHidden||!sdManagement.entered.transferHidden||sdManagement.entered.rows!==2||JSON.stringify(sdManagement.entered.files)!==JSON.stringify(['alpha.gcode','beta.nc']))throw new Error(`SD management enter mismatch: ${JSON.stringify(sdManagement)}`);
+if(JSON.stringify(sdManagement.renamed)!==JSON.stringify(['renamed.gcode','beta.nc'])||JSON.stringify(sdManagement.deleted)!==JSON.stringify(['beta.nc'])||sdManagement.exited.active||sdManagement.exited.files!==0||!sdManagement.hiddenForGrbl)throw new Error(`SD management mutation mismatch: ${JSON.stringify(sdManagement)}`);
+if(JSON.stringify(sdManagement.writes)!==JSON.stringify(['M21\n','M20\n','M993 alpha.gcode renamed.gcode\n','M20\n','M30 renamed.gcode\n','M20\n','M22\n']))throw new Error(`SD management protocol mismatch: ${JSON.stringify(sdManagement.writes)}`);
+console.log(JSON.stringify({derived,direct,zero,pfdbg,planarProfile,planarJog,drvDebug,drvProfile,keyboardJog,sdUpload,sdManagement,exceptions},null,2));socket.close();

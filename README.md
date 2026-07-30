@@ -207,6 +207,21 @@ SD転送の選択肢はこのM5Stackプロファイルでだけ表示されま�
 従来どおり接続先でG-codeを即時実行します。SDへ保存される内容には、エディタ内の
 ヘッダ、ペン命令、移動命令、フッタがすべて含まれます。
 
+同じSerial画面の`M5Stack操作モード`を`SDカード管理`へ変更すると、PlotterFlowが
+`M21`でPC管理モードを指定し、続けて`M20`でmicroSD内のG-code一覧を同期します。
+M5Stackが起動直後のモード選択画面でも、PCからこの操作を行えば本体ボタンで
+`USB SERIAL`を選び直す必要はありません。
+
+一覧では48文字以内のASCII名を入力して`名前変更`を押すか、確認ダイアログ後に
+`削除`できます。使用するコマンドは`M993 old.gcode new.gcode`と
+`M30 filename.gcode`です。管理終了時は`M22`を送り、通常操作へ戻ります。
+
+- 対象はmicroSDルート直下の`.gcode`、`.gc`、`.nc`、`.tap`です。
+- サブフォルダと安全なASCII名規則に合わないファイルは表示・変更しません。
+- 改名先の同名ファイルは上書きしません。
+- SD管理中はジョグ、通常送信、ジョブ実行を無効にします。
+- この管理UIもM5Stack DRV8835プロファイルだけに表示します。
+
 ### XL330 PIO / Pico・Pico 2（開発中）
 
 [DYNAMIXEL XL330-M077-T direct half-duplex with Pico PIO](https://github.com/pscmps/dynamixel-pio-xl330-m077-t-rp2040) のMicroPythonファームウェアを、PlotterFlowのUSBシリアルから操作するためのプロファイルです。X/YのXL330はExtended Position Control Modeで符号付き多回転位置を扱い、ID 3はペンサーボとして使用します。
