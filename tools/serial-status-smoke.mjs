@@ -68,12 +68,46 @@ const keyboardJog=await evaluate(`new Promise(resolve => {
     resolve({handled,writes:window.__serialWrites,afterJog,afterIgnored,enabled,disabled:{checked:toggle.checked,label:document.querySelector('#keyboardJogState').textContent,state:state.keyboardJogEnabled},directions:KEYBOARD_JOG_DIRECTIONS});
   },100);
 })`);
+const sdUpload=await evaluate(`(async () => {
+  applyControllerProfile('m5stack-drv8835-planar');
+  state.settings.serialDestination='sd';
+  updateSerialDestinationUi();
+  document.querySelector('#sdFilename').value=sanitizeSdFilename('テスト file.gcode');
+  window.__sdWrites=[];
+  const decoder=new TextDecoder();
+  state.writer={write:async bytes=>{
+    const text=decoder.decode(bytes);
+    window.__sdWrites.push(text);
+    if(text.endsWith('\\n'))setTimeout(()=>handleSerialLine('ok'),0);
+  }};
+  await startSdUpload('; keep ? comment\\nG21\\nG1 X1 Y2 F300','テスト file.gcode');
+  const m5Ui={
+    groupHidden:document.querySelector('#serialDestinationGroup').hidden,
+    filenameHidden:document.querySelector('#sdFilenameLabel').hidden,
+    startText:document.querySelector('#startSend').textContent,
+    filename:document.querySelector('#sdFilename').value
+  };
+  const profile=CONTROLLER_PROFILES['m5stack-drv8835-planar'];
+  applyControllerProfile('grbl-fluidnc');
+  return {
+    writes:window.__sdWrites,
+    m5Ui,
+    capability:profile.capabilities?.sdUpload,
+    busy:state.sending,
+    uploading:state.sdUploading,
+    progress:document.querySelector('#sendProgressText').textContent,
+    hiddenForGrbl:document.querySelector('#serialDestinationGroup').hidden,
+    sanitized:sanitizeSdFilename('日本語 name?.gcode')
+  };
+})()`);
 if(pfdbg.planar.length!==1||!pfdbg.planar[0].includes('[MSG:PFDBG END axis=X result=ok]'))throw new Error(`planar PFDBG log mismatch: ${JSON.stringify(pfdbg.planar)}`);
 if(pfdbg.grbl.length!==0)throw new Error(`PFDBG leaked into non-planar profile: ${JSON.stringify(pfdbg.grbl)}`);
 if(planarProfile.footer!=='M122 P\nM18'||planarProfile.initializeCommand!=='M18\nG21\nG90'||planarProfile.jogAutoDisable!==true||planarProfile.grblFooter!==''||planarProfile.grblJogAutoDisable!==undefined)throw new Error(`profile safety mismatch: ${JSON.stringify(planarProfile)}`);
 if(planarJog.stateStep!==40||planarJog.stateFeed!==2400||planarJog.uiStep!=='40'||planarJog.uiFeed!=='2400'||!planarJog.preview.includes('40 F2400'))throw new Error(`planar jog mismatch: ${JSON.stringify(planarJog)}`);
 if(drvDebug.length!==1||!drvDebug[0].includes('[MSG:DRV8835 armed=1 outputs=HiZ]'))throw new Error(`DRV8835 debug log mismatch: ${JSON.stringify(drvDebug)}`);
-if(drvProfile.header!=='M18\nM980 U1 X100 Y100 H500 A1 C100\nM17\nG21\nG90\nG10 L20 P0 X0 Y0'||drvProfile.footer!=='M122\nM18'||drvProfile.initializeCommand!=='M18\nM980 U1 X100 Y100 H500 A1 C100\nG21\nG90'||drvProfile.jogAutoDisable!==false||drvProfile.stateStep!==2.5||drvProfile.stateFeed!==300||drvProfile.uiStep!=='2.5'||drvProfile.uiFeed!=='300')throw new Error(`DRV8835 profile mismatch: ${JSON.stringify(drvProfile)}`);
+if(drvProfile.header!=='M18\nM281 U1400 D1000 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nM17\nG21\nG90\nG10 L20 P0 X0 Y0 Z1'||drvProfile.footer!=='M122\nM18'||drvProfile.initializeCommand!=='M18\nM281 U1400 D1000 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nG21\nG90'||drvProfile.jogAutoDisable!==false||drvProfile.stateStep!==2.5||drvProfile.stateFeed!==300||drvProfile.uiStep!=='2.5'||drvProfile.uiFeed!=='300')throw new Error(`DRV8835 profile mismatch: ${JSON.stringify(drvProfile)}`);
 if(!keyboardJog.handled||keyboardJog.afterJog!==1||keyboardJog.afterIgnored!==1||keyboardJog.writes[0]!=="$J=G91 G21 X2.5 F300\n"||!keyboardJog.enabled.checked||keyboardJog.enabled.label!=="ON"||!keyboardJog.enabled.state||keyboardJog.disabled.checked||keyboardJog.disabled.label!=="OFF"||keyboardJog.disabled.state)throw new Error(`keyboard jog mismatch: ${JSON.stringify(keyboardJog)}`);
 if(keyboardJog.directions.ArrowUp.axis!=="Y"||keyboardJog.directions.ArrowUp.sign!==-1||keyboardJog.directions.ArrowLeft.axis!=="X"||keyboardJog.directions.ArrowLeft.sign!==1)throw new Error(`keyboard direction mismatch: ${JSON.stringify(keyboardJog.directions)}`);
-console.log(JSON.stringify({derived,direct,zero,pfdbg,planarProfile,planarJog,drvDebug,drvProfile,keyboardJog,exceptions},null,2));socket.close();
+if(sdUpload.capability!==true||sdUpload.m5Ui.groupHidden||sdUpload.m5Ui.filenameHidden||sdUpload.m5Ui.startText!=='SDカードへ転送'||sdUpload.m5Ui.filename!=='file.gcode'||sdUpload.busy||sdUpload.uploading||!sdUpload.hiddenForGrbl||sdUpload.progress!=='3 / 3 (100%)'||sdUpload.sanitized!=='name.gcode')throw new Error(`SD upload UI mismatch: ${JSON.stringify(sdUpload)}`);
+if(JSON.stringify(sdUpload.writes)!==JSON.stringify(['M28 file.gcode\n','; keep ? comment\n','G21\n','G1 X1 Y2 F300\n','M29\n']))throw new Error(`SD upload protocol mismatch: ${JSON.stringify(sdUpload.writes)}`);
+console.log(JSON.stringify({derived,direct,zero,pfdbg,planarProfile,planarJog,drvDebug,drvProfile,keyboardJog,sdUpload,exceptions},null,2));socket.close();

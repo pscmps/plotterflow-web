@@ -80,6 +80,30 @@ const CONTROLLER_PROFILES = {
       sampleInterval: 0.5, optimization: "safe", yFlip: true
     }
   },
+  "m5stack-drv8835-planar": {
+    label: "M5Stack Basic DRV8835 XY Planar（開発中）",
+    phase: "開発中",
+    summary: "M5Stack BasicとDRV8835 4個でXY平面リニアステッパとPWMサーボを制御し、USB実行とmicroSD保存に対応する試作ファームウェア用です。",
+    notes: [
+      "M5Stack起動時にUSB SERIALを選択すると、通常実行とmicroSDへのG-code転送をPlotterFlowから切り替えられます。",
+      "SD転送はM28/M29を使い、完了時だけ正式な.gcodeファイルとして確定します。",
+      "転送中はG-codeを実行せずDRV8835出力をLowへ戻します。",
+      "転送後はM5StackをSD CARDモードへ戻し、本体ボタンからファイルを選択して実行します。",
+      "停止・切断・転送失敗時は未完成ファイルを破棄します。"
+    ],
+    capabilities: { sdUpload: true },
+    settings: {
+      baudrate: 115200,
+      header: "M18\nM281 U1400 D1000 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nM17\nG21\nG90\nG10 L20 P0 X0 Y0 Z1",
+      footer: "M122\nM18",
+      penUpCommand: "G0 Z1", penDownCommand: "G1 Z0",
+      okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
+      initializeCommand: "M18\nM281 U1400 D1000 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nG21\nG90",
+      disconnectCommand: "M18", jogAutoDisable: false,
+      travelFeed: 500, drawFeed: 300, jogStep: 2.5, jogFeed: 300,
+      sampleInterval: 0.5, optimization: "safe", yFlip: true
+    }
+  },
   custom: {
     label: "カスタム（値を維持）",
     phase: "手動設定",
@@ -100,6 +124,7 @@ const DEFAULTS = {
   optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1,
   baudrate: 115200, jogStep: 1, jogFeed: 1000, jogAutoDisable: false, header: "G21\nG90", footer: "",
   okTimeoutMs: 15000, stopStrategy: "hold-pen-up", initializeCommand: "", disconnectCommand: "",
+  serialDestination: "execute",
   reloadGcode: `M3 S1600
 
 G1 X0 Y45 F500
@@ -112,7 +137,7 @@ const state = {
   library: loadJSON("plotterflow.library", []), jobSets: loadJSON("plotterflow.jobSets", []), currentId: null, currentJobSetId: null, port: null, reader: null, writer: null,
   serialLogLimit: 200, lastSentLine: "", lastReceivedLine: "", lastOkAt: 0, lastSendAt: 0,
   serialUiTimer: null, pendingSerialProgress: null, pendingPositionDisplay: false, pendingJobProgress: null,
-  readBuffer: "", okWaiters: [], sending: false, jogging: false, keyboardJogEnabled: false, paused: false, stopped: false, jobStopped: false,
+  readBuffer: "", okWaiters: [], sending: false, sdUploading: false, jogging: false, keyboardJogEnabled: false, paused: false, stopped: false, jobStopped: false,
   previewMode: "svg", previewNormalizeY: false, position: null, machinePosition: null, workPosition: null, workOffset: null, controllerState: "未接続", statusPollTimer: null
 };
 
@@ -254,7 +279,10 @@ function generateGcode(options = {}) {
 }
 async function generateAndSendSvg() {
   const code = generateGcode({ stayOnCurrentTab: true });
-  if (code) await startSending(code);
+  if (code) {
+    $("#sdFilename").value = sanitizeSdFilename($("#gcodeName").value);
+    await startConfiguredTransfer(code, $("#gcodeName").value);
+  }
 }
 function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
   const s = state.settings, lines = [], moves = [];
@@ -334,12 +362,13 @@ function parseGcodeMoves(code) {
 
 function bindEditor() {
   $("#gcodeEditor").addEventListener("input", () => { state.previewNormalizeY = false; updateEditorStats(); if (state.previewMode === "gcode") renderGcodePreview(); });
+  $("#gcodeName").addEventListener("input", () => updateSdFilenameFromSource(true));
   $("#saveGcode").addEventListener("click", saveCurrentGcode); $("#downloadGcode").addEventListener("click", downloadGcode);
   $("#newGcode").addEventListener("click", () => loadEditor(null)); $("#duplicateGcode").addEventListener("click", duplicateGcode);
   $("#renameGcode").addEventListener("click", renameGcode); $("#deleteGcode").addEventListener("click", deleteGcode);
   $("#gcodeLibrary").addEventListener("change", e => loadEditor(e.target.value));
   $("#gcodeFile").addEventListener("change", event => event.target.files[0] && loadGcodeFile(event.target.files[0]));
-  $("#sendFromEditor").addEventListener("click", () => { switchTab("serial"); startSending($("#gcodeEditor").value); });
+  $("#sendFromEditor").addEventListener("click", () => { switchTab("serial"); $("#sdFilename").value = sanitizeSdFilename($("#gcodeName").value); startConfiguredTransfer($("#gcodeEditor").value, $("#gcodeName").value); });
 }
 async function loadGcodeFile(file) {
   if (!/\.(gcode|nc|tap|txt)$/i.test(file.name)) return toast("G-codeファイルを選択してください");
@@ -362,7 +391,7 @@ function saveCurrentGcode() {
   else { item = { id: uid(), name, gcode, settings: { ...state.settings }, updated: Date.now() }; state.library.push(item); state.currentId = item.id; }
   saveJSON("plotterflow.library", state.library); refreshLibrary(); toast("G-codeを保存しました");
 }
-function loadEditor(id) { const item = state.library.find(x => x.id === id); state.currentId = item?.id || null; state.previewNormalizeY = false; $("#gcodeName").value = item?.name || "untitled.gcode"; $("#gcodeEditor").value = item?.gcode || ""; updateEditorStats(); renderGcodePreview(); }
+function loadEditor(id) { const item = state.library.find(x => x.id === id); state.currentId = item?.id || null; state.previewNormalizeY = false; $("#gcodeName").value = item?.name || "untitled.gcode"; $("#gcodeEditor").value = item?.gcode || ""; updateEditorStats(); updateSdFilenameFromSource(true); renderGcodePreview(); }
 function duplicateGcode() { const item = state.library.find(x => x.id === state.currentId); if (!item) return toast("複製するG-codeを選択してください"); state.currentId = null; $("#gcodeName").value = item.name.replace(/(\.gcode)?$/, "-copy.gcode"); saveCurrentGcode(); }
 function renameGcode() { const item = state.library.find(x => x.id === state.currentId); if (!item) return toast("名前を変更する項目を選択してください"); const name = prompt("新しい名前", item.name); if (name) { item.name = ensureExt(name); item.updated = Date.now(); saveJSON("plotterflow.library", state.library); refreshLibrary(); $("#gcodeName").value = item.name; } }
 function deleteGcode() { if (!state.currentId || !confirm("選択中のG-codeを削除しますか？")) return; state.library = state.library.filter(x => x.id !== state.currentId); saveJSON("plotterflow.library", state.library); loadEditor(null); refreshLibrary(); }
@@ -400,11 +429,62 @@ function updateSerialProfileDisplay() {
     button.hidden = !command;
     button.textContent = command ? `初期化 (${command})` : "初期化";
   }
+  updateSerialDestinationUi();
+}
+
+function supportsSdUpload() {
+  return activeControllerProfile().capabilities?.sdUpload === true;
+}
+function effectiveSerialDestination() {
+  return supportsSdUpload() && state.settings.serialDestination === "sd" ? "sd" : "execute";
+}
+function sanitizeSdFilename(name) {
+  const source = String(name || "").split(/[\\/]/).pop();
+  const extensionMatch = source.match(/\.(gcode|gc|nc|tap)$/i);
+  const extension = extensionMatch ? `.${extensionMatch[1].toLowerCase()}` : ".gcode";
+  const rawStem = extensionMatch ? source.slice(0, -extensionMatch[0].length) : source;
+  const stem = rawStem.normalize("NFKD").replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^[._-]+|[._-]+$/g, "") || "plot";
+  return `${stem.slice(0, 48 - extension.length)}${extension}`;
+}
+function selectedSerialPayload() {
+  const id = $("#serialSource").value;
+  if (id === "editor") return { code: $("#gcodeEditor").value, name: $("#gcodeName").value };
+  if (id === "__reload__") return { code: state.settings.reloadGcode, name: "reload.gcode", reload: true };
+  const item = state.library.find(entry => entry.id === id);
+  return { code: item?.gcode || "", name: item?.name || "plot.gcode" };
+}
+function updateSdFilenameFromSource(force = false) {
+  const input = $("#sdFilename");
+  if (!input) return;
+  const suggested = sanitizeSdFilename(selectedSerialPayload().name);
+  if (force || !input.value) input.value = suggested;
+}
+function updateSerialDestinationUi() {
+  const group = $("#serialDestinationGroup");
+  if (!group) return;
+  const supported = supportsSdUpload();
+  group.hidden = !supported;
+  const destination = $("#serialDestination");
+  destination.value = supported && state.settings.serialDestination === "sd" ? "sd" : "execute";
+  const sdSelected = supported && destination.value === "sd";
+  $("#sdFilenameLabel").hidden = !sdSelected;
+  $("#sdTransferHint").hidden = !sdSelected;
+  $("#startSend").textContent = sdSelected ? "SDカードへ転送" : "送信開始";
+  $("#sendFromEditor").textContent = sdSelected ? "SDカードへ転送" : "Serialで送信";
+  if (sdSelected) updateSdFilenameFromSource(false);
 }
 
 function bindSerial() {
   $("#connectSerial").addEventListener("click", connectSerial); $("#disconnectSerial").addEventListener("click", disconnectSerial);
   $("#serialBaud").addEventListener("change", e => { state.settings.baudrate = +e.target.value || 115200; saveJSON("plotterflow.settings", state.settings); });
+  $("#serialDestination").addEventListener("change", event => {
+    state.settings.serialDestination = event.target.value === "sd" ? "sd" : "execute";
+    saveJSON("plotterflow.settings", state.settings);
+    updateSerialDestinationUi();
+  });
+  $("#serialSource").addEventListener("change", () => updateSdFilenameFromSource(true));
+  $("#sdFilename").addEventListener("change", event => { event.target.value = sanitizeSdFilename(event.target.value); });
   populateJogSettings();
   $("#jogStep").addEventListener("change", saveJogSettings); $("#jogFeed").addEventListener("input", updateJogPreview); $("#jogFeed").addEventListener("change", saveJogSettings);
   $$('[data-jog-axis]').forEach(button => button.addEventListener("click", () => sendJog(button.dataset.jogAxis, +button.dataset.jogSign)));
@@ -418,7 +498,11 @@ function bindSerial() {
   $("#penUpButton").addEventListener("click", () => sendRealtime(state.settings.penUpCommand + "\n")); $("#penDownButton").addEventListener("click", () => sendRealtime(state.settings.penDownCommand + "\n"));
   $("#reloadButton").addEventListener("click", () => { notifyReloadSimulation(); startSending(state.settings.reloadGcode); });
   $("#pauseSend").addEventListener("click", pauseSending); $("#resumeSend").addEventListener("click", resumeSending); $("#stopSend").addEventListener("click", stopSending); $("#resetController").addEventListener("click", resetController);
-  $("#startSend").addEventListener("click", () => { const id = $("#serialSource").value, code = id === "editor" ? $("#gcodeEditor").value : id === "__reload__" ? state.settings.reloadGcode : state.library.find(x => x.id === id)?.gcode; if(id === "__reload__") notifyReloadSimulation(code); startSending(code || ""); });
+  $("#startSend").addEventListener("click", () => {
+    const payload = selectedSerialPayload();
+    if (payload.reload && effectiveSerialDestination() === "execute") notifyReloadSimulation(payload.code);
+    startConfiguredTransfer(payload.code, payload.name);
+  });
   $("#clearLog").addEventListener("click", () => $("#serialLog").innerHTML = "");
 }
 async function connectSerial() {
@@ -456,12 +540,19 @@ function shouldLogPicoPlanarDebug(text) {
   if (state.settings.controllerProfile === "pico2-tmc2209-planar") {
     return /^\[MSG:PFDBG(?:\s|\])/i.test(text);
   }
-  return state.settings.controllerProfile === "pico2-drv8835-planar" &&
-    /^\[MSG:(?:DRV8835|M980)(?:\s|\])/i.test(text);
+  if (state.settings.controllerProfile === "pico2-drv8835-planar") {
+    return /^\[MSG:(?:DRV8835|M980)(?:\s|\])/i.test(text);
+  }
+  return state.settings.controllerProfile === "m5stack-drv8835-planar" &&
+    /^\[MSG:(?:DRV8835|M980|SDUPLOAD)(?:\s|\])/i.test(text);
 }
 async function disconnectSerial() {
   stopStatusPolling();
-  if (state.writer && state.settings.stopStrategy === "cancel-pen-up" && (state.sending || state.jogging)) {
+  if (state.writer && state.sdUploading) {
+    try { await rawWrite("\x18", false); log("SD upload cancel before disconnect (Ctrl-X)", "tx"); await sleep(100); }
+    catch (error) { log(`切断前SD転送中止失敗: ${error.message}`, "rx"); }
+  }
+  if (state.writer && !state.sdUploading && state.settings.stopStrategy === "cancel-pen-up" && (state.sending || state.jogging)) {
     try { await state.writer.write(new Uint8Array([0x85])); log("Motion cancel before disconnect (0x85)", "tx"); await sleep(250); }
     catch (error) { log(`切断前キャンセル失敗: ${error.message}`, "rx"); }
   }
@@ -472,10 +563,15 @@ async function disconnectSerial() {
   }
   state.stopped = true; clearOkWaiters("切断");
   try { await state.reader?.cancel(); } catch {} try { state.writer?.releaseLock(); state.writer = null; await state.port?.close(); } catch (e) { log(`切断エラー: ${e.message}`, "rx"); }
-  state.port = null; state.controllerState="未接続"; state.machinePosition=null; state.workPosition=null; state.workOffset=null; updateSerialPositionDisplay(); $("#connectionBadge").textContent = "Serial: 未接続"; $("#connectionBadge").classList.remove("connected"); log("切断しました", "rx");
+  state.port = null; state.sdUploading=false; state.controllerState="未接続"; state.machinePosition=null; state.workPosition=null; state.workOffset=null; updateSerialPositionDisplay(); $("#connectionBadge").textContent = "Serial: 未接続"; $("#connectionBadge").classList.remove("connected"); log("切断しました", "rx");
 }
 async function rawWrite(text, shouldLog = true) { if (!state.writer) throw new Error("Serial未接続です"); await state.writer.write(new TextEncoder().encode(text)); if (shouldLog) log(text.replace(/[\r\n]+$/, "") || "Ctrl-X", "tx"); }
-async function sendRealtime(text) { try { await rawWrite(text); } catch (e) { toast(e.message); } }
+async function sendRealtime(text) {
+  if (state.sdUploading && text !== "\x18" && text !== "\x85") {
+    return toast("SD転送中は停止以外の手動コマンドを送信できません");
+  }
+  try { await rawWrite(text); } catch (e) { toast(e.message); }
+}
 function clearOkWaiters(reason = "キャンセル") {
   state.okWaiters.splice(0).forEach(w => w.reject(new Error(reason)));
 }
@@ -627,10 +723,86 @@ async function startSending(code, options = {}) {
   catch (e) { if (!state.stopped) log(`送信停止: ${e.message}`, "rx"); }
   finally { state.sending = false; state.paused = false; state.stopped = false; state.jobStopped = false; clearOkWaiters("送信終了"); flushSerialUi(); }
 }
-async function pauseSending() { state.paused = true; await sendRealtime("!"); log("一時停止", "rx"); }
-async function resumeSending() { state.paused = false; await sendRealtime("~"); log("再開", "rx"); }
-async function stopSending() { state.stopped = true; state.paused = false; clearOkWaiters("停止"); await sendSafeStop("送信キューを停止しました"); }
-async function resetController() { state.stopped = true; state.paused = false; clearOkWaiters("リセット"); await sendRealtime("\x18"); }
+async function startConfiguredTransfer(code, suggestedName = "plot.gcode") {
+  return effectiveSerialDestination() === "sd"
+    ? startSdUpload(code, $("#sdFilename").value || suggestedName)
+    : startSending(code);
+}
+function sdUploadLines(code) {
+  const lines = String(code || "").replace(/\r\n?/g, "\n").split("\n").filter(line => line.length > 0);
+  const encoder = new TextEncoder();
+  for (const line of lines) {
+    if (/^\s*M29\s*$/i.test(line)) throw new Error("G-code内に転送終了命令M29を含められません");
+    if (line.includes("\0")) throw new Error("G-codeにNUL文字を含められません");
+    if (encoder.encode(line).length >= 192) throw new Error("192 bytes以上のG-code行はSDへ転送できません");
+  }
+  return lines;
+}
+async function startSdUpload(code, requestedName) {
+  if (!supportsSdUpload()) return toast("このプロファイルはSD転送に対応していません");
+  if (!state.writer) return toast("先にSerial接続してください");
+  if (state.sending) return toast("すでに送信中です");
+  let lines;
+  try { lines = sdUploadLines(code); }
+  catch (error) { return toast(error.message); }
+  if (!lines.length) return toast("転送するG-codeがありません");
+  const filename = sanitizeSdFilename(requestedName);
+  $("#sdFilename").value = filename;
+  clearOkWaiters("新しいSD転送を開始");
+  state.sending = true; state.sdUploading = true; state.stopped = false; state.paused = false;
+  const resumePolling = !!state.statusPollTimer;
+  if (resumePolling) stopStatusPolling();
+  log(`SD転送開始: ${filename} / ${lines.length}行`, "rx");
+  try {
+    scheduleSendProgress(0, lines.length);
+    await sendLineAndWait(`M28 ${filename}`, false, { line: "M28", index: 0, total: lines.length });
+    for (let index = 0; index < lines.length; index++) {
+      if (state.stopped) throw new Error("停止しました");
+      await sendLineAndWait(lines[index], false, { index: index + 1, total: lines.length });
+      scheduleSendProgress(index + 1, lines.length);
+    }
+    await sendLineAndWait("M29", false, { line: "M29", index: lines.length, total: lines.length });
+    flushSerialUi();
+    log(`SD転送完了: ${filename}`, "rx");
+    toast("SDカードへの転送が完了しました");
+  } catch (error) {
+    if (!state.stopped && state.writer) {
+      try { await rawWrite("\x18", false); await sleep(100); }
+      catch {}
+    }
+    if (!state.stopped) {
+      log(`SD転送停止: ${error.message}`, "rx");
+      toast("SDカードへの転送に失敗しました");
+    }
+  } finally {
+    state.sdUploading = false; state.sending = false; state.paused = false; state.stopped = false;
+    clearOkWaiters("SD転送終了");
+    if (resumePolling && state.port && state.writer) startStatusPolling();
+    flushSerialUi();
+  }
+}
+async function pauseSending() {
+  if (state.sdUploading) return toast("SD転送は一時停止できません。停止で破棄できます");
+  state.paused = true; await sendRealtime("!"); log("一時停止", "rx");
+}
+async function resumeSending() {
+  if (state.sdUploading) return toast("SD転送中です");
+  state.paused = false; await sendRealtime("~"); log("再開", "rx");
+}
+async function stopSending() {
+  state.stopped = true; state.paused = false; clearOkWaiters("停止");
+  if (state.sdUploading) {
+    try { await rawWrite("\x18", false); log("SD upload cancel (Ctrl-X)", "tx"); }
+    catch (error) { log(`SD転送中止失敗: ${error.message}`, "rx"); }
+    toast("SD転送を中止し、未完成ファイルを破棄しました");
+    return;
+  }
+  await sendSafeStop("送信キューを停止しました");
+}
+async function resetController() {
+  if (state.sdUploading) return stopSending();
+  state.stopped = true; state.paused = false; clearOkWaiters("リセット"); await sendRealtime("\x18");
+}
 function updatePosition(line) {
   const xm=line.match(/\bX(-?\d*\.?\d+)/i), ym=line.match(/\bY(-?\d*\.?\d+)/i);
   if (!xm&&!ym) return;

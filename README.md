@@ -183,6 +183,30 @@ DRV8835版を選んだ場合だけ`M980`を送ります。
 
 PWMサーボの信号線はPico 2 / Pico 2 WのGP12（物理16番）です。サーボ電源は外部5 Vから供給し、Pico、サーボ、DRV8835のGNDを共通にします。Picoの3V3端子からサーボへ給電しないでください。`M281`の`U/D`は上下のパルス幅us、`T`は動作待機ms、`Z`は上下判定しきい値です。DYNAMIXELプロファイルは従来の`M3 S1400` / `M3 S1000`を維持し、DRV8835プロファイルを選んだ場合だけZ指令へ切り替わります。
 
+### M5Stack Basic DRV8835 XY Planar（開発中）
+
+M5Stack Basic版ファームウェアでは、従来のUSBシリアル実行に加えて、PlotterFlowから
+本体microSDへG-codeを保存できます。
+
+1. M5Stackを起動し、画面で`USB SERIAL`を選択します。
+2. 設定タブで`M5Stack Basic DRV8835 XY Planar`を選択します。
+3. Serialタブから115200 bpsで接続します。
+4. 送信対象を選び、送信先を`M5Stack SDカードへ保存`へ変更します。
+5. 48文字以内のASCIIファイル名を確認して`SDカードへ転送`を押します。
+6. 完了後にM5Stackを再起動し、`SD CARD`モードからファイルを選択します。
+
+転送には`M28 filename.gcode`、G-code本文、`M29`の行単位プロトコルを使用します。
+転送開始時にモータ出力をLowへ戻し、本文は実行せず一時ファイルへ保存します。`M29`が
+成功した場合だけ正式名へ変更されます。停止、切断、書き込みエラー時はCtrl-Xで転送を
+中止し、未完成ファイルを破棄します。
+
+同名ファイルは安全のため上書きしません。M5Stackから既存ファイルを残したまま再転送する
+場合は、PlotterFlowのSDファイル名を変更してください。
+
+SD転送の選択肢はこのM5Stackプロファイルでだけ表示されます。他のプロファイルは
+従来どおり接続先でG-codeを即時実行します。SDへ保存される内容には、エディタ内の
+ヘッダ、ペン命令、移動命令、フッタがすべて含まれます。
+
 ### XL330 PIO / Pico・Pico 2（開発中）
 
 [DYNAMIXEL XL330-M077-T direct half-duplex with Pico PIO](https://github.com/pscmps/dynamixel-pio-xl330-m077-t-rp2040) のMicroPythonファームウェアを、PlotterFlowのUSBシリアルから操作するためのプロファイルです。X/YのXL330はExtended Position Control Modeで符号付き多回転位置を扱い、ID 3はペンサーボとして使用します。
