@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="styles.css?v=20260715-1">
   <link rel="stylesheet" href="profile.css?v=20260715-1">
   <link rel="stylesheet" href="drawing.css">
-  <link rel="stylesheet" href="serial.css?v=20260730-2">
+  <link rel="stylesheet" href="serial.css?v=20260802-1">
   <link rel="stylesheet" href="conversion.css">
   <link rel="stylesheet" href="job-ui.css">
   <link rel="stylesheet" href="simulation.css">
@@ -180,9 +180,9 @@
           <div class="control-grid"><button data-command="?">?</button><button data-command="$$">$$</button><button data-command="$X">$X</button><button id="penUpButton">ペンアップ</button><button id="penDownButton">ペンダウン</button><button id="reloadButton" class="secondary">リロード</button><button id="pauseSend">Pause (!)</button><button id="resumeSend">Resume (~)</button><button id="stopSend" class="danger">Stop</button><button id="resetController" class="danger">Reset</button></div>
           <section class="jog-section" aria-labelledby="jogTitle">
             <div class="jog-heading">
-              <div><h3 id="jogTitle">XYジョグ</h3><p>1タップで選択距離だけ移動</p></div>
+              <div><h3 id="jogTitle">XYジョグ</h3><p id="jogHint">1タップで選択距離だけ移動</p></div>
               <div class="jog-heading-actions">
-                <span class="jog-unit">mm</span>
+                <span id="jogUnitLabel" class="jog-unit">mm</span>
                 <label class="keyboard-jog-toggle" title="PCの矢印キーでXYジョグ">
                   <input id="keyboardJogToggle" type="checkbox">
                   <span class="keyboard-jog-switch" aria-hidden="true"></span>
@@ -190,7 +190,7 @@
                 </label>
               </div>
             </div>
-            <div class="coordinate-readout" aria-live="polite">
+            <div id="jogCoordinates" class="coordinate-readout" aria-live="polite">
               <div class="coordinate-status"><i id="machineStateDot"></i><span id="machineState">未接続</span><small id="positionSource">ワーク座標</small></div>
               <div class="coordinate-axis"><span>X</span><strong id="serialXPosition">—</strong><small>mm</small></div>
               <div class="coordinate-axis"><span>Y</span><strong id="serialYPosition">—</strong><small>mm</small></div>
@@ -206,15 +206,15 @@
                 <button class="jog-button jog-down" data-jog-axis="Y" data-jog-sign="1" aria-label="Y下方向"><span>↓</span><small>Y↓</small></button>
               </div>
               <div class="jog-options">
-                <label>移動量<select id="jogStep"><option value="0.15625">0.15625 mm</option><option value="0.625">0.625 mm</option><option value="0.1">0.1 mm</option><option value="1" selected>1 mm</option><option value="2.5">2.5 mm</option><option value="10">10 mm</option><option value="40">40 mm</option><option value="50">50 mm</option></select></label>
-                <label>速度<input id="jogFeed" type="number" min="1" max="50000" step="1" value="1000"><span>mm/min</span></label>
+                <label><span id="jogStepLabel">移動量</span><select id="jogStep"><option value="0.15625">0.15625 mm</option><option value="0.625">0.625 mm</option><option value="0.1">0.1 mm</option><option value="1" selected>1 mm</option><option value="2.5">2.5 mm</option><option value="10">10 mm</option><option value="40">40 mm</option><option value="50">50 mm</option></select></label>
+                <label><span id="jogFeedLabel">速度</span><input id="jogFeed" type="number" min="1" max="50000" step="1" value="1000"><span id="jogFeedUnit">mm/min</span></label>
                 <div class="jog-command-preview" id="jogCommandPreview">$J=G91 G21 X±1 F1000</div>
               </div>
             </div>
           </section>
           <div class="inline"><input id="manualCommand" placeholder="手動コマンド"><button id="sendManual">送信</button></div>
           <hr>
-          <label>送信対象<select id="serialSource"><option value="editor">現在のエディタ</option></select></label>
+          <label id="serialSourceLabel">送信対象<select id="serialSource"><option value="editor">現在のエディタ</option></select></label>
           <div id="serialDestinationGroup" class="serial-destination" hidden>
             <label>M5Stack操作モード<select id="m5OperationMode"><option value="normal">通常操作</option><option value="sd-manager">SDカード管理</option></select></label>
             <label id="serialDestinationLabel">送信先<select id="serialDestination"><option value="execute">コントローラーで実行</option><option value="sd">M5Stack SDカードへ保存</option></select></label>
@@ -392,7 +392,7 @@
       <form id="settingsForm" class="settings-grid">
         <article class="card controller-profile-card">
           <div class="development-heading"><div><span>開発中</span><h2>コントローラープロファイル</h2></div><p>選択すると関連する接続・出力設定をまとめて反映します。</p></div>
-          <label>プロファイル<select id="controllerProfile" name="controllerProfile"><option value="grbl-fluidnc">GRBL / FluidNC（標準）</option><option value="xl330-pio">XL330 PIO / Pico・Pico 2（開発中）</option><option value="pico2-tmc2209-planar">Pico 2 TMC2209 XY Planar（開発中）</option><option value="pico2-drv8835-planar">Pico 2 DRV8835 XY Planar（開発中）</option><option value="m5stack-drv8835-planar">M5Stack Basic DRV8835 XY Planar（開発中）</option><option value="custom">カスタム（値を維持）</option></select></label>
+          <label>プロファイル<select id="controllerProfile" name="controllerProfile"><option value="grbl-fluidnc">GRBL / FluidNC（標準）</option><option value="xl330-pio-id1-test">XL330 ID1 単体安全テスト（開発中）</option><option value="xl330-pio">XL330 PIO / Pico・Pico 2（開発中）</option><option value="pico2-tmc2209-planar">Pico 2 TMC2209 XY Planar（開発中）</option><option value="pico2-drv8835-planar">Pico 2 DRV8835 XY Planar（開発中）</option><option value="m5stack-drv8835-planar">M5Stack Basic DRV8835 XY Planar（開発中）</option><option value="custom">カスタム（値を維持）</option></select></label>
           <div id="controllerProfileDescription" class="controller-profile-description" aria-live="polite"></div>
         </article>
         <article class="card"><h2>ペン・Delay</h2>
@@ -420,7 +420,7 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260730-2"></script>
+  <script src="app.js?v=20260802-1"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js"></script>
   <script>

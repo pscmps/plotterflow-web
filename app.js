@@ -35,6 +35,26 @@ const CONTROLLER_PROFILES = {
       initializeCommand: "M17", disconnectCommand: "M18"
     }
   },
+  "xl330-pio-id1-test": {
+    label: "XL330 ID1 単体安全テスト（開発中）",
+    phase: "実機テスト",
+    summary: "MOTION_LOCKED=1を維持したまま、ID 1のXL330を低速・小刻みで回転確認するCファーム専用プロファイルです。",
+    notes: [
+      "接続後の初期化はSCAN 1だけを送り、Pingと現在位置を読み出します。",
+      "X左右だけを正転・逆転JOGとして使用します。Y方向、通常G-code、M17、ペン指令はロックされたままです。",
+      "移動量の単位は回転です。初期値は1/16回転、1操作の上限は2回転です。",
+      "速度欄はmm/minではなくXL330のProfile Velocity raw値です。初期値20、上限100です。",
+      "各JOGの完了・停止・失敗後にTorqueをOFFにします。1台・無負荷・電流制限付き5 V電源で使用してください。"
+    ],
+    capabilities: { jogCommand: "xl330-test", jogAxes: ["X"] },
+    settings: {
+      baudrate: 115200, header: "", footer: "",
+      penUpCommand: "", penDownCommand: "",
+      okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
+      initializeCommand: "SCAN 1", disconnectCommand: "M18", jogAutoDisable: false,
+      jogStep: 0.0625, jogFeed: 20
+    }
+  },
   "pico2-tmc2209-planar": {
     label: "Pico 2 TMC2209 XY Planar（開発中）",
     phase: "開発中",
@@ -435,6 +455,7 @@ function updateSerialProfileDisplay() {
     button.textContent = command ? `初期化 (${command})` : "初期化";
   }
   updateSerialDestinationUi();
+  updateJogProfileUi();
 }
 
 function supportsSdUpload() {
@@ -848,16 +869,57 @@ function saveJogSettings() {
   state.settings.jogStep = Math.max(.001, +$("#jogStep").value || 1); state.settings.jogFeed = Math.max(1, +$("#jogFeed").value || 1000);
   saveJSON("plotterflow.settings", state.settings); updateJogPreview();
 }
+const STANDARD_JOG_STEPS = [0.15625, 0.625, 0.1, 1, 2.5, 10, 40, 50];
+const XL330_TEST_JOG_STEPS = [0.015625, 0.0625, 0.25, 1, 2];
+function isXl330TestJog() { return activeControllerProfile().capabilities?.jogCommand === "xl330-test"; }
+function updateJogProfileUi() {
+  const testMode = isXl330TestJog(), stepSelect = $("#jogStep"), feed = $("#jogFeed");
+  const mode = testMode ? "xl330-test" : "standard";
+  if (stepSelect.dataset.mode !== mode) {
+    const values = testMode ? XL330_TEST_JOG_STEPS : STANDARD_JOG_STEPS;
+    stepSelect.replaceChildren(...values.map(value => new Option(`${value} ${testMode ? "回転" : "mm"}`, String(value))));
+    stepSelect.dataset.mode = mode;
+  }
+  $("#jogUnitLabel").textContent = testMode ? "回転" : "mm";
+  $("#jogStepLabel").textContent = testMode ? "回転量" : "移動量";
+  $("#jogFeedLabel").textContent = testMode ? "速度raw" : "速度";
+  $("#jogFeedUnit").textContent = testMode ? "1～100" : "mm/min";
+  $("#jogTitle").textContent = testMode ? "XL330 ID1 単体JOG" : "XYジョグ";
+  $("#jogHint").textContent = testMode ? "X左右でID 1を選択回転量だけ正転・逆転" : "1タップで選択距離だけ移動";
+  $("#jogCoordinates").hidden = testMode;
+  $("#serialSourceLabel").hidden = testMode;
+  $("#serialTransferControls").hidden = testMode;
+  $("#serialSource").disabled = testMode;
+  ["penUpButton", "penDownButton", "reloadButton", "pauseSend", "resumeSend"].forEach(id => { $(`#${id}`).disabled = testMode; });
+  ['[data-command="$$"]', '[data-command="$X"]'].forEach(selector => { $(selector).disabled = testMode; });
+  $(".keyboard-jog-toggle").title = testMode ? "PCの左右キーでID 1を正転・逆転" : "PCの矢印キーでXYジョグ";
+  feed.min = "1"; feed.max = testMode ? "100" : "50000";
+  $$('[data-jog-axis="Y"]').forEach(button => { button.disabled = testMode; });
+  const left = $('[data-jog-axis="X"][data-jog-sign="1"] small');
+  const right = $('[data-jog-axis="X"][data-jog-sign="-1"] small');
+  if (left) left.textContent = testMode ? "正転" : "X←";
+  if (right) right.textContent = testMode ? "逆転" : "X→";
+  const leftButton = $('[data-jog-axis="X"][data-jog-sign="1"]');
+  const rightButton = $('[data-jog-axis="X"][data-jog-sign="-1"]');
+  if (leftButton) leftButton.setAttribute("aria-label", testMode ? "ID 1 正転" : "X左方向");
+  if (rightButton) rightButton.setAttribute("aria-label", testMode ? "ID 1 逆転" : "X右方向");
+}
 function populateJogSettings() {
+  updateJogProfileUi();
   const stepSelect = $("#jogStep"), step = String(state.settings.jogStep || 1);
   if (![...stepSelect.options].some(option => option.value === step)) {
-    stepSelect.add(new Option(`${step} mm`, step), 0);
+    stepSelect.add(new Option(`${step} ${isXl330TestJog() ? "回転" : "mm"}`, step), 0);
   }
   stepSelect.value = step;
   $("#jogFeed").value = state.settings.jogFeed || 1000;
   updateJogPreview();
 }
-function updateJogPreview() { const step=+$("#jogStep").value||1,feed=+$("#jogFeed").value||1000;$("#jogCommandPreview").textContent=`$J=G91 G21 X±${fmt(step)} F${fmt(feed)}`; }
+function updateJogPreview() {
+  const step=+$("#jogStep").value||1,feed=+$("#jogFeed").value||1000;
+  $("#jogCommandPreview").textContent = isXl330TestJog()
+    ? `TESTJOG D±${Math.round(step * 4096)} V${Math.round(feed)}`
+    : `$J=G91 G21 X±${fmt(step)} F${fmt(feed)}`;
+}
 const KEYBOARD_JOG_DIRECTIONS = {
   ArrowUp: { axis: "Y", sign: -1 },
   ArrowDown: { axis: "Y", sign: 1 },
@@ -899,9 +961,24 @@ async function sendJog(axis, sign) {
   if (state.sdManagementActive) return toast("SDカード管理を終了してからジョグしてください");
   if (state.sending) return toast("G-code送信中はジョグできません");
   if (state.jogging) return;
-  saveJogSettings(); const distance=sign*state.settings.jogStep,command=`$J=G91 G21 ${axis}${fmt(distance)} F${fmt(state.settings.jogFeed)}`;
+  saveJogSettings();
+  const distance=sign*state.settings.jogStep;
+  let command, successText;
+  if (isXl330TestJog()) {
+    if (axis !== "X") return toast("単体安全テストではX左右だけを使用します");
+    const turns = Math.abs(distance), velocity = Math.round(state.settings.jogFeed);
+    if (!(turns > 0 && turns <= 2)) return toast("単体JOGは1操作2回転以下にしてください");
+    if (!(velocity >= 1 && velocity <= 100)) return toast("速度rawは1～100にしてください");
+    const delta = Math.round(distance * 4096);
+    if (!delta) return toast("回転量が小さすぎます");
+    command = `TESTJOG D${delta} V${velocity}`;
+    successText = `${distance > 0 ? "+" : ""}${fmt(distance)}回転（Torque OFF）`;
+  } else {
+    command=`$J=G91 G21 ${axis}${fmt(distance)} F${fmt(state.settings.jogFeed)}`;
+    successText=`${axis} ${distance>0?"+":""}${fmt(distance)} mm`;
+  }
   state.jogging=true;
-  try { await sendLineAndWait(command, false); toast(`${axis} ${distance>0?"+":""}${fmt(distance)} mm`); }
+  try { await sendLineAndWait(command, false); toast(successText); }
   catch (error) { log(`ジョグエラー: ${error.message}`, "rx"); }
   finally {
     if (state.settings.jogAutoDisable && state.writer) {
