@@ -88,6 +88,7 @@ const CONTROLLER_PROFILES = {
       "Stopは0x85で現在移動をキャンセルしてペンを上げ、切断時はM18で全DRV8835入力をLowへ戻します。",
       "VM 3V、電源制限1.5A、各相1.5Ω直列抵抗から実機確認してください。"
     ],
+    capabilities: { positionSensors: true },
     settings: {
       baudrate: 115200,
       header: "M18\nM281 U1400 D1000 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nM17\nG21\nG90\nG10 L20 P0 X0 Y0 Z1",
@@ -159,7 +160,10 @@ const state = {
   serialLogLimit: 200, lastSentLine: "", lastReceivedLine: "", lastOkAt: 0, lastSendAt: 0,
   serialUiTimer: null, pendingSerialProgress: null, pendingPositionDisplay: false, pendingJobProgress: null,
   readBuffer: "", okWaiters: [], sending: false, sdUploading: false, sdManagementActive: false, sdFiles: [], sdListReceiving: false, jogging: false, keyboardJogEnabled: false, paused: false, stopped: false, jobStopped: false,
-  previewMode: "svg", previewNormalizeY: false, position: null, machinePosition: null, workPosition: null, workOffset: null, controllerState: "未接続", statusPollTimer: null
+  previewMode: "svg", previewNormalizeY: false, position: null, machinePosition: null, workPosition: null, workOffset: null, controllerState: "未接続", statusPollTimer: null,
+  positionTelemetryEnabled: false,
+  positionSensors: { presentMask: 0, magnetMask: 0, joints: [{ raw: 0, degrees: 180 }, { raw: 0, degrees: 180 }] },
+  armCalibration: loadJSON("plotterflow.armCalibration", { offset1: 0, offset2: 0, invert1: false, invert2: false, calibrated: false })
 };
 
 const $ = (s, root = document) => root.querySelector(s);
@@ -432,7 +436,9 @@ function applyControllerProfile(profileId) {
     $("#controllerProfile").value = state.settings.controllerProfile;
     return toast("SDカード管理を終了してからプロファイルを変更してください");
   }
+  const previousProfile = state.settings.controllerProfile;
   const profile = CONTROLLER_PROFILES[profileId] || CONTROLLER_PROFILES.custom;
+  if (previousProfile === "pico2-drv8835-planar" && profileId !== previousProfile && state.positionTelemetryEnabled) void setPositionTelemetryEnabled(false);
   state.settings.controllerProfile = profileId;
   if (profile.settings) Object.assign(state.settings, profile.settings);
   populateSettings();
@@ -456,6 +462,16 @@ function updateSerialProfileDisplay() {
   }
   updateSerialDestinationUi();
   updateJogProfileUi();
+  updatePlanarArmVisibility();
+}
+
+function isPicoDrv8835Profile() { return state.settings.controllerProfile === "pico2-drv8835-planar"; }
+function updatePlanarArmVisibility() {
+  const panel = $("#planarArmPanel");
+  if (!panel) return;
+  panel.hidden = !isPicoDrv8835Profile();
+  if (panel.hidden && state.positionTelemetryEnabled) disablePositionTelemetry(false);
+  renderPlanarArm();
 }
 
 function supportsSdUpload() {
@@ -542,6 +558,11 @@ function bindSerial() {
   document.addEventListener("keydown", handleKeyboardJog);
   $("#jogCancel").addEventListener("click", cancelJog); updateJogPreview();
   $("#setXyZero").addEventListener("click", setCurrentXyZero); updateSerialPositionDisplay();
+  $("#positionTelemetryToggle").addEventListener("change", event => setPositionTelemetryEnabled(event.target.checked));
+  $("#armJ1Invert").addEventListener("change", saveArmCalibrationFromUi);
+  $("#armJ2Invert").addEventListener("change", saveArmCalibrationFromUi);
+  $("#calibrateArmDown").addEventListener("click", calibrateArmDown);
+  renderPlanarArm();
   $("#initializeController").addEventListener("click", initializeController);
   $$('[data-command]').forEach(b => b.addEventListener("click", () => sendRealtime(b.dataset.command + "\n")));
   $("#sendManual").addEventListener("click", () => { const c = $("#manualCommand").value; if (c) sendRealtime(c + "\n"); });
@@ -621,6 +642,10 @@ function shouldLogPicoPlanarDebug(text) {
 }
 async function disconnectSerial() {
   stopStatusPolling();
+  if (state.writer && state.positionTelemetryEnabled) {
+    try { await rawWrite("M983 S0\n", false); await sleep(50); }
+    catch (error) { log(`切断前位置センサ通信停止失敗: ${error.message}`, "rx"); }
+  }
   if (state.writer && state.sdUploading) {
     try { await rawWrite("\x18", false); log("SD upload cancel before disconnect (Ctrl-X)", "tx"); await sleep(100); }
     catch (error) { log(`切断前SD転送中止失敗: ${error.message}`, "rx"); }
@@ -640,7 +665,7 @@ async function disconnectSerial() {
   }
   state.stopped = true; clearOkWaiters("切断");
   try { await state.reader?.cancel(); } catch {} try { state.writer?.releaseLock(); state.writer = null; await state.port?.close(); } catch (e) { log(`切断エラー: ${e.message}`, "rx"); }
-  state.port = null; state.sdUploading=false; state.sdManagementActive=false; state.sdFiles=[]; state.sdListReceiving=false; $("#m5OperationMode").value="normal"; updateSerialDestinationUi(); state.controllerState="未接続"; state.machinePosition=null; state.workPosition=null; state.workOffset=null; updateSerialPositionDisplay(); $("#connectionBadge").textContent = "Serial: 未接続"; $("#connectionBadge").classList.remove("connected"); log("切断しました", "rx");
+  state.port = null; state.sdUploading=false; state.sdManagementActive=false; state.sdFiles=[]; state.sdListReceiving=false; $("#m5OperationMode").value="normal"; updateSerialDestinationUi(); state.controllerState="未接続"; state.machinePosition=null; state.workPosition=null; state.workOffset=null; disablePositionTelemetry(false); updateSerialPositionDisplay(); $("#connectionBadge").textContent = "Serial: 未接続"; $("#connectionBadge").classList.remove("connected"); log("切断しました", "rx");
 }
 async function rawWrite(text, shouldLog = true) { if (!state.writer) throw new Error("Serial未接続です"); await state.writer.write(new TextEncoder().encode(text)); if (shouldLog) log(text.replace(/[\r\n]+$/, "") || "Ctrl-X", "tx"); }
 async function sendRealtime(text) {
@@ -995,7 +1020,7 @@ async function cancelJog() {
 }
 function startStatusPolling() {
   stopStatusPolling();
-  const poll=()=>{if(state.writer&&!state.sending&&!state.jobStopped&&!state.sdManagementActive)rawWrite("?",false).catch(()=>{});};poll();state.statusPollTimer=setInterval(poll,750);
+  const poll=()=>{if(state.writer&&!state.sending&&!state.jobStopped&&!state.sdManagementActive)rawWrite("?",false).catch(()=>{});};poll();state.statusPollTimer=setInterval(poll,state.positionTelemetryEnabled?250:750);
 }
 function stopStatusPolling(){if(state.statusPollTimer){clearInterval(state.statusPollTimer);state.statusPollTimer=null;}}
 function parseControllerStatus(line) {
@@ -1005,11 +1030,64 @@ function parseControllerStatus(line) {
     if(key==="MPos")state.machinePosition=parseStatusVector(value);
     if(key==="WPos"){state.workPosition=parseStatusVector(value);hasWorkPosition=true;}
     if(key==="WCO")state.workOffset=parseStatusVector(value);
+    if(key==="AS5600")parsePositionSensorStatus(value);
   }
   if(!hasWorkPosition&&state.machinePosition&&state.workOffset)state.workPosition={x:state.machinePosition.x-state.workOffset.x,y:state.machinePosition.y-state.workOffset.y,z:state.machinePosition.z-state.workOffset.z};
   if(state.workPosition){state.position={x:state.workPosition.x,y:state.workPosition.y};}
   scheduleSerialUiFlush();
 }
+function parsePositionSensorStatus(value) {
+  const values=value.split(",").map(Number);
+  if(values.length<6||values.some(number=>!Number.isFinite(number)))return false;
+  state.positionSensors={presentMask:values[0]&3,magnetMask:values[1]&3,joints:[{raw:values[2]&4095,degrees:values[4]},{raw:values[3]&4095,degrees:values[5]}]};
+  return true;
+}
+function normalizedDegrees(value){return((Number(value)||0)%360+360)%360;}
+function armJointDegrees(index) {
+  const joint=state.positionSensors.joints[index];
+  const invert=index===0?state.armCalibration.invert1:state.armCalibration.invert2;
+  const offset=index===0?state.armCalibration.offset1:state.armCalibration.offset2;
+  return normalizedDegrees((invert?360-joint.degrees:joint.degrees)+offset);
+}
+function armPoint(origin,length,degrees){const radians=degrees*Math.PI/180;return{x:origin.x+length*Math.sin(radians),y:origin.y-length*Math.cos(radians)};}
+function renderPlanarArm() {
+  if(!$("#planarArmPanel"))return;
+  const present=state.positionSensors.presentMask,magnet=state.positionSensors.magnetMask;
+  const j1=present&1?armJointDegrees(0):180,j2=present&2?armJointDegrees(1):180,base={x:120,y:20};
+  const elbow=armPoint(base,78,j1),tip=armPoint(elbow,78,j1+j2-180);
+  const setLine=(selector,a,b)=>{const element=$(selector);element.setAttribute("x1",a.x);element.setAttribute("y1",a.y);element.setAttribute("x2",b.x);element.setAttribute("y2",b.y);};
+  setLine("#planarArmLink1",base,elbow);setLine("#planarArmLink2",elbow,tip);
+  $("#planarArmJoint").setAttribute("cx",elbow.x);$("#planarArmJoint").setAttribute("cy",elbow.y);
+  $("#planarArmTip").setAttribute("cx",tip.x);$("#planarArmTip").setAttribute("cy",tip.y);
+  [0,1].forEach(index=>{
+    const isPresent=!!(present&(1<<index)),hasMagnet=!!(magnet&(1<<index));
+    $(`#armJ${index+1}Angle`).textContent=isPresent?`${armJointDegrees(index).toFixed(2)} deg`:`--.-- deg`;
+    const status=$(`#armJ${index+1}Status`);status.textContent=!isPresent?"未接続":hasMagnet?`磁石OK / raw ${state.positionSensors.joints[index].raw}`:"磁石なし";
+    status.dataset.state=!isPresent?"missing":hasMagnet?"ok":"warning";
+  });
+  $("#armJ1Invert").checked=!!state.armCalibration.invert1;$("#armJ2Invert").checked=!!state.armCalibration.invert2;
+  $("#positionTelemetryToggle").checked=state.positionTelemetryEnabled;$("#positionTelemetryState").textContent=state.positionTelemetryEnabled?"ON":"OFF";
+}
+function saveArmCalibrationFromUi() {
+  state.armCalibration.invert1=$("#armJ1Invert").checked;state.armCalibration.invert2=$("#armJ2Invert").checked;
+  saveJSON("plotterflow.armCalibration",state.armCalibration);renderPlanarArm();
+}
+function calibrateArmDown() {
+  if((state.positionSensors.presentMask&3)!==3)return toast("J1とJ2の両方を接続してから基準設定してください");
+  saveArmCalibrationFromUi();
+  const base1=state.armCalibration.invert1?360-state.positionSensors.joints[0].degrees:state.positionSensors.joints[0].degrees;
+  const base2=state.armCalibration.invert2?360-state.positionSensors.joints[1].degrees:state.positionSensors.joints[1].degrees;
+  state.armCalibration.offset1=180-base1;state.armCalibration.offset2=180-base2;state.armCalibration.calibrated=true;
+  saveJSON("plotterflow.armCalibration",state.armCalibration);renderPlanarArm();toast("現在姿勢を180 deg / 180 degの真下基準にしました");
+}
+async function setPositionTelemetryEnabled(enabled) {
+  if(!isPicoDrv8835Profile()){disablePositionTelemetry(false);return;}
+  if(enabled&&!state.writer){disablePositionTelemetry(false);return toast("先にPico 2 DRV8835へSerial接続してください");}
+  if(state.sending||state.jogging||state.sdManagementActive){disablePositionTelemetry(false);return toast("動作完了後に位置センサ通信を切り替えてください");}
+  try{await sendLineAndWait(`M983 S${enabled?1:0}`,false);state.positionTelemetryEnabled=enabled;renderPlanarArm();startStatusPolling();toast(`位置センサ通信を${enabled?"開始":"停止"}しました`);}
+  catch(error){disablePositionTelemetry(false);log(`位置センサ通信設定失敗: ${error.message}`,"rx");toast("位置センサ通信を切り替えられませんでした");}
+}
+function disablePositionTelemetry(restartPolling=true){state.positionTelemetryEnabled=false;renderPlanarArm();if(restartPolling&&state.writer)startStatusPolling();}
 function parseStatusVector(value){const numbers=value.split(",").map(Number);return{x:numbers[0]||0,y:numbers[1]||0,z:numbers[2]||0};}
 function updateSerialPositionDisplay() {
   const actual=state.workPosition,position=actual||state.position;
@@ -1145,6 +1223,7 @@ function flushSerialUi() {
   }
   if (state.pendingPositionDisplay) {
     updateSerialPositionDisplay();
+    renderPlanarArm();
     state.pendingPositionDisplay = false;
   }
 }

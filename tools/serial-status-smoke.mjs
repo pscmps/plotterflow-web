@@ -43,6 +43,36 @@ const drvDebug=await evaluate(`(() => {
   return lines;
 })()`);
 const drvProfile=await evaluate(`(() => { applyControllerProfile('pico2-drv8835-planar'); const profile=CONTROLLER_PROFILES['pico2-drv8835-planar']; return {header:profile.settings.header,footer:profile.settings.footer,initializeCommand:profile.settings.initializeCommand,jogAutoDisable:profile.settings.jogAutoDisable,stateStep:state.settings.jogStep,stateFeed:state.settings.jogFeed,uiStep:document.querySelector('#jogStep').value,uiFeed:document.querySelector('#jogFeed').value}; })()`);
+const armTelemetry=await evaluate(`new Promise(resolve => {
+  applyControllerProfile('pico2-drv8835-planar');
+  state.armCalibration={offset1:0,offset2:0,invert1:false,invert2:false,calibrated:false};
+  localStorage.removeItem('plotterflow.armCalibration');
+  renderPlanarArm();
+  const initial={hidden:document.querySelector('#planarArmPanel').hidden,enabled:state.positionTelemetryEnabled};
+  window.__armWrites=[];
+  state.writer={write:async bytes=>window.__armWrites.push(new TextDecoder().decode(bytes))};
+  const toggle=document.querySelector('#positionTelemetryToggle');
+  toggle.checked=true;
+  toggle.dispatchEvent(new Event('change',{bubbles:true}));
+  setTimeout(()=>handleSerialLine('ok'),20);
+  setTimeout(()=>{
+    handleSerialLine('<Idle|WPos:1.000,2.000,0.000|AS5600:3,3,1024,2048,90.000,180.000>');
+    setTimeout(()=>{
+      const live={enabled:state.positionTelemetryEnabled,toggle:toggle.checked,j1:document.querySelector('#armJ1Angle').textContent,j2:document.querySelector('#armJ2Angle').textContent,j1Status:document.querySelector('#armJ1Status').textContent,j2Status:document.querySelector('#armJ2Status').textContent};
+      document.querySelector('#calibrateArmDown').click();
+      const calibrated={j1:document.querySelector('#armJ1Angle').textContent,j2:document.querySelector('#armJ2Angle').textContent,saved:state.armCalibration.calibrated};
+      toggle.checked=false;
+      toggle.dispatchEvent(new Event('change',{bubbles:true}));
+      setTimeout(()=>handleSerialLine('ok'),20);
+      setTimeout(()=>{
+        const stopped={enabled:state.positionTelemetryEnabled,toggle:toggle.checked};
+        state.writer=null;
+        applyControllerProfile('grbl-fluidnc');
+        resolve({initial,live,calibrated,stopped,writes:window.__armWrites,hiddenAfterProfileChange:document.querySelector('#planarArmPanel').hidden,capability:CONTROLLER_PROFILES['pico2-drv8835-planar'].capabilities?.positionSensors});
+      },70);
+    },180);
+  },80);
+})`);
 const keyboardJog=await evaluate(`new Promise(resolve => {
   switchTab('serial');
   window.__serialWrites=[];
@@ -163,6 +193,8 @@ if(planarProfile.footer!=='M122 P\nM18'||planarProfile.initializeCommand!=='M18\
 if(planarJog.stateStep!==40||planarJog.stateFeed!==2400||planarJog.uiStep!=='40'||planarJog.uiFeed!=='2400'||!planarJog.preview.includes('40 F2400'))throw new Error(`planar jog mismatch: ${JSON.stringify(planarJog)}`);
 if(drvDebug.length!==1||!drvDebug[0].includes('[MSG:DRV8835 armed=1 outputs=HiZ]'))throw new Error(`DRV8835 debug log mismatch: ${JSON.stringify(drvDebug)}`);
 if(drvProfile.header!=='M18\nM281 U1400 D1000 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nM17\nG21\nG90\nG10 L20 P0 X0 Y0 Z1'||drvProfile.footer!=='M122\nM18'||drvProfile.initializeCommand!=='M18\nM281 U1400 D1000 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nG21\nG90'||drvProfile.jogAutoDisable!==false||drvProfile.stateStep!==2.5||drvProfile.stateFeed!==300||drvProfile.uiStep!=='2.5'||drvProfile.uiFeed!=='300')throw new Error(`DRV8835 profile mismatch: ${JSON.stringify(drvProfile)}`);
+if(armTelemetry.initial.hidden||armTelemetry.initial.enabled||!armTelemetry.live.enabled||!armTelemetry.live.toggle||armTelemetry.live.j1!=='90.00 deg'||armTelemetry.live.j2!=='180.00 deg'||!armTelemetry.live.j1Status.includes('raw 1024')||!armTelemetry.live.j2Status.includes('raw 2048'))throw new Error(`arm telemetry mismatch: ${JSON.stringify(armTelemetry)}`);
+if(armTelemetry.calibrated.j1!=='180.00 deg'||armTelemetry.calibrated.j2!=='180.00 deg'||!armTelemetry.calibrated.saved||armTelemetry.stopped.enabled||armTelemetry.stopped.toggle||JSON.stringify(armTelemetry.writes.filter(line=>line.startsWith('M983')))!==JSON.stringify(['M983 S1\n','M983 S0\n'])||!armTelemetry.hiddenAfterProfileChange||armTelemetry.capability!==true)throw new Error(`arm telemetry lifecycle mismatch: ${JSON.stringify(armTelemetry)}`);
 if(!keyboardJog.handled||keyboardJog.afterJog!==1||keyboardJog.afterIgnored!==1||keyboardJog.writes[0]!=="$J=G91 G21 X2.5 F300\n"||!keyboardJog.enabled.checked||keyboardJog.enabled.label!=="ON"||!keyboardJog.enabled.state||keyboardJog.disabled.checked||keyboardJog.disabled.label!=="OFF"||keyboardJog.disabled.state)throw new Error(`keyboard jog mismatch: ${JSON.stringify(keyboardJog)}`);
 if(keyboardJog.directions.ArrowUp.axis!=="Y"||keyboardJog.directions.ArrowUp.sign!==-1||keyboardJog.directions.ArrowLeft.axis!=="X"||keyboardJog.directions.ArrowLeft.sign!==1)throw new Error(`keyboard direction mismatch: ${JSON.stringify(keyboardJog.directions)}`);
 if(sdUpload.capability!==true||sdUpload.m5Ui.groupHidden||sdUpload.m5Ui.filenameHidden||sdUpload.m5Ui.startText!=='SDカードへ転送'||sdUpload.m5Ui.filename!=='file.gcode'||sdUpload.busy||sdUpload.uploading||!sdUpload.hiddenForGrbl||sdUpload.progress!=='3 / 3 (100%)'||sdUpload.sanitized!=='name.gcode')throw new Error(`SD upload UI mismatch: ${JSON.stringify(sdUpload)}`);
@@ -170,4 +202,4 @@ if(JSON.stringify(sdUpload.writes)!==JSON.stringify(['M28 file.gcode\n','; keep 
 if(sdManagement.capability!==true||!sdManagement.entered.active||sdManagement.entered.cardHidden||!sdManagement.entered.transferHidden||sdManagement.entered.rows!==2||JSON.stringify(sdManagement.entered.files)!==JSON.stringify(['alpha.gcode','beta.nc']))throw new Error(`SD management enter mismatch: ${JSON.stringify(sdManagement)}`);
 if(JSON.stringify(sdManagement.renamed)!==JSON.stringify(['renamed.gcode','beta.nc'])||JSON.stringify(sdManagement.deleted)!==JSON.stringify(['beta.nc'])||sdManagement.exited.active||sdManagement.exited.files!==0||!sdManagement.hiddenForGrbl)throw new Error(`SD management mutation mismatch: ${JSON.stringify(sdManagement)}`);
 if(JSON.stringify(sdManagement.writes)!==JSON.stringify(['M21\n','M20\n','M993 alpha.gcode renamed.gcode\n','M20\n','M30 renamed.gcode\n','M20\n','M22\n']))throw new Error(`SD management protocol mismatch: ${JSON.stringify(sdManagement.writes)}`);
-console.log(JSON.stringify({derived,direct,zero,pfdbg,planarProfile,planarJog,drvDebug,drvProfile,keyboardJog,sdUpload,sdManagement,exceptions},null,2));socket.close();
+console.log(JSON.stringify({derived,direct,zero,pfdbg,planarProfile,planarJog,drvDebug,drvProfile,armTelemetry,keyboardJog,sdUpload,sdManagement,exceptions},null,2));socket.close();

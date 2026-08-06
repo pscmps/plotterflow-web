@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="styles.css?v=20260715-1">
   <link rel="stylesheet" href="profile.css?v=20260715-1">
   <link rel="stylesheet" href="drawing.css">
-  <link rel="stylesheet" href="serial.css?v=20260802-1">
+  <link rel="stylesheet" href="serial.css?v=20260806-1">
   <link rel="stylesheet" href="conversion.css">
   <link rel="stylesheet" href="job-ui.css">
   <link rel="stylesheet" href="simulation.css">
@@ -209,6 +209,35 @@
                 <label><span id="jogStepLabel">移動量</span><select id="jogStep"><option value="0.15625">0.15625 mm</option><option value="0.625">0.625 mm</option><option value="0.1">0.1 mm</option><option value="1" selected>1 mm</option><option value="2.5">2.5 mm</option><option value="10">10 mm</option><option value="40">40 mm</option><option value="50">50 mm</option></select></label>
                 <label><span id="jogFeedLabel">速度</span><input id="jogFeed" type="number" min="1" max="50000" step="1" value="1000"><span id="jogFeedUnit">mm/min</span></label>
                 <div class="jog-command-preview" id="jogCommandPreview">$J=G91 G21 X±1 F1000</div>
+              </div>
+            </div>
+          </section>
+          <section id="planarArmPanel" class="planar-arm-panel" hidden aria-labelledby="planarArmTitle">
+            <div class="planar-arm-heading">
+              <div><h3 id="planarArmTitle">2関節アーム</h3><p>AS5600 J1 / J2</p></div>
+              <label class="position-telemetry-toggle" title="Pico 2 Wから関節角を取得">
+                <input id="positionTelemetryToggle" type="checkbox">
+                <span class="position-telemetry-switch" aria-hidden="true"></span>
+                <span>位置センサ通信</span><strong id="positionTelemetryState">OFF</strong>
+              </label>
+            </div>
+            <div class="planar-arm-content">
+              <svg id="planarArmSvg" class="planar-arm-svg" viewBox="0 0 240 210" role="img" aria-label="2関節アームの姿勢">
+                <line class="arm-guide" x1="120" y1="20" x2="120" y2="200"></line>
+                <circle class="arm-base" cx="120" cy="20" r="9"></circle>
+                <line id="planarArmLink1" class="arm-link arm-link-1" x1="120" y1="20" x2="120" y2="98"></line>
+                <line id="planarArmLink2" class="arm-link arm-link-2" x1="120" y1="98" x2="120" y2="176"></line>
+                <circle id="planarArmJoint" class="arm-joint" cx="120" cy="98" r="8"></circle>
+                <circle id="planarArmTip" class="arm-tip" cx="120" cy="176" r="7"></circle>
+              </svg>
+              <div class="planar-arm-data">
+                <div class="arm-sensor-row"><span>J1 / I2C0</span><strong id="armJ1Angle">--.-- deg</strong><small id="armJ1Status">未接続</small></div>
+                <div class="arm-sensor-row"><span>J2 / I2C1</span><strong id="armJ2Angle">--.-- deg</strong><small id="armJ2Status">未接続</small></div>
+                <div class="arm-calibration-controls">
+                  <label><input id="armJ1Invert" type="checkbox"> J1反転</label>
+                  <label><input id="armJ2Invert" type="checkbox"> J2反転</label>
+                </div>
+                <button id="calibrateArmDown" class="secondary">現在を真下基準</button>
               </div>
             </div>
           </section>
@@ -420,7 +449,7 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260802-1"></script>
+  <script src="app.js?v=20260806-1"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js"></script>
   <script>
