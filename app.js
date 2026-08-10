@@ -80,7 +80,7 @@ const CONTROLLER_PROFILES = {
     phase: "開発中",
     summary: "Pico 2とDRV8835 4個でXY平面リニアステッパを駆動し、GP12のPWMサーボでZ上下する試作ファームウェア用です。",
     notes: [
-      "ジョブ開始前にM18で出力を止め、M281でGP12サーボを上1400us・下1000us・待機150msへ設定します。",
+      "ジョブ開始前にM18で出力を止め、M281でGP12サーボを上1000us・下1800us・待機150msへ設定します。",
       "M980で単相U1・XYピーク100%・停止後500ms保持・初期捕捉100ms・移動軸だけ励磁を設定します。",
       "滑らか動作を試す場合はカスタム設定でU8へ変更できますが、通常運転は動作確認済みの単相励磁を優先します。",
       "ペン上はG0 Z1、ペン下はG1 Z0です。DYNAMIXELプロファイルのM3 S1400/S1000は変更しません。",
@@ -91,11 +91,11 @@ const CONTROLLER_PROFILES = {
     capabilities: { positionSensors: true },
     settings: {
       baudrate: 115200,
-      header: "M18\nM281 U1400 D1000 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nM17\nG21\nG90\nG10 L20 P0 X0 Y0 Z1",
+      header: "M18\nM281 U1000 D1800 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nM17\nG21\nG90\nG10 L20 P0 X0 Y0 Z1",
       footer: "M122\nM18",
       penUpCommand: "G0 Z1", penDownCommand: "G1 Z0",
       okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
-      initializeCommand: "M18\nM281 U1400 D1000 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nG21\nG90",
+      initializeCommand: "M18\nM281 U1000 D1800 T150 Z0.5\nM980 U1 X100 Y100 H500 A1 C100\nG0 Z1\nG21\nG90",
       disconnectCommand: "M18", jogAutoDisable: false,
       travelFeed: 500, drawFeed: 300, jogStep: 2.5, jogFeed: 300,
       sampleInterval: 0.5, optimization: "safe", yFlip: true
@@ -192,12 +192,25 @@ function migrateDrv8835RobustMode() {
   }
   localStorage.setItem(migrationKey, "1");
 }
+function migrateDrv8835ServoDirection() {
+  const migrationKey = "plotterflow.drv8835ServoDirectionV1";
+  if (localStorage.getItem(migrationKey)) return;
+  if (state.settings.controllerProfile === "pico2-drv8835-planar") {
+    const reversedServo = command => String(command || "").replace(/^M281[^\r\n]*$/m,
+      "M281 U1000 D1800 T150 Z0.5");
+    state.settings.header = reversedServo(state.settings.header);
+    state.settings.initializeCommand = reversedServo(state.settings.initializeCommand);
+    saveJSON("plotterflow.settings", state.settings);
+  }
+  localStorage.setItem(migrationKey, "1");
+}
 function toast(message) { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2200); }
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
 function switchTab(name) { $$(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === name)); $$(".panel").forEach(x => x.classList.toggle("active", x.id === `tab-${name}`)); }
 
 function init() {
   migrateDrv8835RobustMode();
+  migrateDrv8835ServoDirection();
   if (!localStorage.getItem("plotterflow.svgOrientationV1")) { state.settings.yFlip = true; saveJSON("plotterflow.settings", state.settings); localStorage.setItem("plotterflow.svgOrientationV1", "1"); }
   $$(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
   bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindJobs();
