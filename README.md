@@ -246,6 +246,8 @@ Select `RP2040-GEEK STS3215 XYZ直結G-code（XY実機テスト）` to send gene
 
 The current hardware scan found IDs 2 and 3; ID 1 did not respond. The default 128 pulses/mm makes 32 mm equal one servo turn. PlotterFlow does not rewrite servo IDs or EEPROM. `ENABLEMULTITURN <id>` remains an explicit maintenance command. The angle-based `TESTJOG` controls are also retained and use the X/Y IDs from settings.
 
+Settings saved by the earlier jog-only profile (`SCAN 2` / `SCAN 3`) are migrated automatically to the direct-axis initialization sequence. The initialization field is multiline so saving settings preserves each command as a separate line.
+
 ### XL330 PIO / Pico・Pico 2（開発中）
 
 [DYNAMIXEL XL330-M077-T direct half-duplex with Pico PIO](https://github.com/pscmps/dynamixel-pio-xl330-m077-t-rp2040) のMicroPythonファームウェアを、PlotterFlowのUSBシリアルから操作するためのプロファイルです。X/YのXL330はExtended Position Control Modeで符号付き多回転位置を扱い、ID 3はペンサーボとして使用します。

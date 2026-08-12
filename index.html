@@ -446,7 +446,7 @@
         <article class="card"><h2>出力・接続</h2>
           <label>Baudrate<input name="baudrate" type="number"></label><label>ok応答 timeout (ms)<input name="okTimeoutMs" type="number" min="1000" step="1000"></label>
           <label>停止方式<select name="stopStrategy"><option value="hold-pen-up">feed hold (!) → ペンアップ</option><option value="cancel-pen-up">motion cancel (0x85) → ペンアップ</option></select></label>
-          <label>初期化 command<input name="initializeCommand"></label><label>切断 command<input name="disconnectCommand"></label>
+          <label>初期化 command<textarea name="initializeCommand" rows="5"></textarea></label><label>切断 command<input name="disconnectCommand"></label>
           <label>ヘッダ<textarea name="header" rows="5"></textarea></label><label>フッタ<textarea name="footer" rows="5"></textarea></label>
           <label>リロード動作 G-code<textarea name="reloadGcode" class="code" rows="18" spellcheck="false"></textarea></label><p class="muted">Serialの「リロード」とジョブの「リロード動作（設定）」で共通使用します。</p>
           <button type="submit" class="primary">設定を保存</button><button type="button" id="resetSettings">初期値へ戻す</button><p id="settingsStatus" class="status"></p>
@@ -455,7 +455,7 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260812-5"></script>
+  <script src="app.js?v=20260812-6"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js"></script>
   <script>

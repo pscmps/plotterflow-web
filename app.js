@@ -233,6 +233,21 @@ function migrateDrv8835ServoDirection() {
   }
   localStorage.setItem(migrationKey, "1");
 }
+function migrateSts3215DirectAxesProfile() {
+  if (state.settings.controllerProfile === "rp2040-geek-sts3215-id2-id3") {
+    const oldInitialize = cleanLines(String(state.settings.initializeCommand || ""));
+    const isOldScanOnly = oldInitialize.length === 2 && oldInitialize[0] === "SCAN 2" && oldInitialize[1] === "SCAN 3";
+    const compactInitialize = String(state.settings.initializeCommand || "").replace(/\s+/g, "").toUpperCase();
+    const isCollapsedOldScan = compactInitialize === "SCAN2SCAN3";
+    const isCollapsedDirectInit = compactInitialize === "M17G21G90G10L20P0X0Y0";
+    if (isOldScanOnly || isCollapsedOldScan || isCollapsedDirectInit || oldInitialize.length === 0) {
+      state.settings.initializeCommand = "M17\nG21\nG90\nG10 L20 P0 X0 Y0";
+      if (!String(state.settings.header || "").trim()) state.settings.header = "G21\nG90";
+      if (!String(state.settings.footer || "").trim()) state.settings.footer = "M18";
+      saveJSON("plotterflow.settings", state.settings);
+    }
+  }
+}
 function toast(message) { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2200); }
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
 function switchTab(name) { $$(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === name)); $$(".panel").forEach(x => x.classList.toggle("active", x.id === `tab-${name}`)); }
@@ -240,6 +255,7 @@ function switchTab(name) { $$(".tab").forEach(x => x.classList.toggle("active", 
 function init() {
   migrateDrv8835RobustMode();
   migrateDrv8835ServoDirection();
+  migrateSts3215DirectAxesProfile();
   if (!localStorage.getItem("plotterflow.svgOrientationV1")) { state.settings.yFlip = true; saveJSON("plotterflow.settings", state.settings); localStorage.setItem("plotterflow.svgOrientationV1", "1"); }
   $$(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
   bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindJobs();
