@@ -226,21 +226,22 @@ M5Stackが起動直後のモード選択画面でも、PCからこの操作を�
 - SD管理中はジョグ、通常送信、ジョブ実行を無効にします。
 - この管理UIもM5Stack DRV8835プロファイルだけに表示します。
 
-### RP2040-GEEK STS3215 ID2/ID3 safe jog
+### RP2040-GEEK STS3215 ID2/ID3 multi-turn jog
 
-Select `RP2040-GEEK STS3215 ID2/ID3 安全JOG（実機確認済み）` for the bounded-jog firmware tested on the connected RP2040-GEEK.
+Select `RP2040-GEEK STS3215 ID2/ID3 多回転JOG（実機確認済み）` for the multi-turn firmware tested on the connected RP2040-GEEK.
 
 - Web Serial: USB CDC at 115200 baud
 - Axis mapping: X = STS3215 ID 2, Y = STS3215 ID 3
 - Initialization: `SCAN 2`, then `SCAN 3`
 - Jog command: `TESTJOG <id> <delta>`
-- Available increments: 16, 32, 64, or 128 pulses (1.40625, 2.8125, 5.625, or 11.25 degrees)
+- Available increments: 11.25 to 2520 degrees (up to 7 turns per command)
 - Firmware velocity: raw 3400 with acceleration raw 150 (fixed maximum-speed profile)
-- Each jog returns to its starting position and turns torque off
+- Requires Operating Mode 0, Min/Max Angle Limit 0, Phase BIT4 enabled, and Angle Resolution 1
+- Each jog adds to the servo's current signed multi-turn position, does not return, then turns torque off
 - Stop sends byte `0x85`
 - GRBL status polling and normal G-code job transfer are disabled for this profile
 
-The current hardware scan found IDs 2 and 3; ID 1 did not respond. This profile does not rewrite servo IDs. It is intentionally limited to the firmware's safe `TESTJOG` operation and is not a general plotting profile yet.
+The current hardware scan found IDs 2 and 3; ID 1 did not respond. The RP2040-GEEK firmware provides an explicit `ENABLEMULTITURN <id>` maintenance command that preserves the existing Phase bits, adds BIT4, locks EEPROM again, and verifies the readback. PlotterFlow itself does not rewrite servo IDs or EEPROM. Repeated button presses accumulate from the latest measured position, within the servo's signed multi-turn range. It is intentionally limited to `TESTJOG` and is not a general plotting profile yet.
 
 ### XL330 PIO / Pico・Pico 2（開発中）
 

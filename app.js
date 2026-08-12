@@ -56,13 +56,14 @@ const CONTROLLER_PROFILES = {
     }
   },
   "rp2040-geek-sts3215-id2-id3": {
-    label: "RP2040-GEEK STS3215 ID2/ID3 安全JOG（実機確認済み）",
+    label: "RP2040-GEEK STS3215 ID2/ID3 多回転JOG（実機確認済み）",
     phase: "実機テスト",
-    summary: "RP2040-GEEKに接続したSTS3215を、PlotterFlowから小さな往復動作だけで確認する専用プロファイルです。",
+    summary: "RP2040-GEEKに接続したSTS3215へ、現在位置基準の多回転相対角度を連続指令する専用プロファイルです。",
     notes: [
       "実機スキャンで検出したID 2をX、ID 3をYとして操作します。ID 1は検出されていません。",
-      "通常のG-codeジョブ送信は無効です。矢印ボタンからTESTJOGだけを送信します。",
-      "1回の移動量は最大128 pulse（11.25度）で、移動後は原点へ戻りTorque OFFになります。",
+      "Mode 0、Min/Max Angle Limit=0、Phase BIT4=1、Angle Resolution=1のときだけ動作し、符号付き約±7回転の範囲を使います。",
+      "通常のG-codeジョブ送信は無効です。矢印ボタンから現在位置＋選択角度のTESTJOGだけを送信します。",
+      "移動後は元の位置へ戻りません。Torque OFF後も、次の指令はその時点の現在位置から加算されます。",
       "速度はファームウェア側でraw 3400、加速度raw 150に固定されています。Stopは0x85で現在の往復動作を中止します。"
     ],
     capabilities: {
@@ -74,7 +75,7 @@ const CONTROLLER_PROFILES = {
       penUpCommand: "", penDownCommand: "",
       okTimeoutMs: 15000, stopStrategy: "cancel-pen-up",
       initializeCommand: "SCAN 2\nSCAN 3", disconnectCommand: "", jogAutoDisable: false,
-      jogStep: 5.625, jogFeed: 3400
+      jogStep: 45, jogFeed: 3400
     }
   },
   "pico2-tmc2209-planar": {
@@ -931,7 +932,7 @@ function saveJogSettings() {
 }
 const STANDARD_JOG_STEPS = [0.15625, 0.625, 0.1, 1, 2.5, 10, 40, 50];
 const XL330_TEST_JOG_STEPS = [0.015625, 0.0625, 0.25, 1, 2];
-const STS3215_TEST_JOG_STEPS = [1.40625, 2.8125, 5.625, 11.25];
+const STS3215_TEST_JOG_STEPS = [11.25, 45, 90, 180, 360, 720, 1080, 1800, 2520];
 function isXl330TestJog() { return activeControllerProfile().capabilities?.jogCommand === "xl330-test"; }
 function isSts3215TestJog() { return activeControllerProfile().capabilities?.jogCommand === "sts3215-test"; }
 function updateSts3215JogProfileUi() {
@@ -944,8 +945,8 @@ function updateSts3215JogProfileUi() {
   $("#jogStepLabel").textContent = "角度";
   $("#jogFeedLabel").textContent = "速度raw（FW固定）";
   $("#jogFeedUnit").textContent = "3400固定";
-  $("#jogTitle").textContent = "STS3215 ID2(X) / ID3(Y) 安全JOG";
-  $("#jogHint").textContent = "左右でID 2、上下でID 3を小さく往復。完了後は原点復帰・Torque OFF";
+  $("#jogTitle").textContent = "STS3215 ID2(X) / ID3(Y) 多回転JOG";
+  $("#jogHint").textContent = "左右でID 2、上下でID 3へ現在位置基準の角度を加算。戻らずTorque OFF";
   $("#jogCoordinates").hidden = true;
   $("#serialSourceLabel").hidden = true;
   $("#serialTransferControls").hidden = true;
@@ -1080,11 +1081,11 @@ async function sendJog(axis, sign) {
     if (!["X", "Y"].includes(axis)) return toast("STS3215安全JOGはX/Yだけ使用できます");
     const delta = Math.round(distance * 4096 / 360);
     if (!delta) return toast("角度が小さすぎます");
-    if (Math.abs(delta) > 128) return toast("安全JOGは1操作128 pulse（11.25度）以下にしてください");
+    if (Math.abs(delta) > 28672) return toast("多回転JOGは1操作7回転（2520度）以下にしてください");
     const id = activeControllerProfile().capabilities?.jogIds?.[axis];
     if (!id) return toast(`${axis}軸のSTS3215 IDが未設定です`);
     command = `TESTJOG ${id} ${delta}`;
-    successText = `ID ${id}: ${distance > 0 ? "+" : ""}${fmt(distance)} deg 往復（Torque OFF）`;
+    successText = `ID ${id}: ${distance > 0 ? "+" : ""}${fmt(distance)} deg 移動（現在位置を更新・Torque OFF）`;
   } else if (isXl330TestJog()) {
     if (axis !== "X") return toast("単体安全テストではX左右だけを使用します");
     const turns = Math.abs(distance), velocity = Math.round(state.settings.jogFeed);
