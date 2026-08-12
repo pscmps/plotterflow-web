@@ -56,26 +56,29 @@ const CONTROLLER_PROFILES = {
     }
   },
   "rp2040-geek-sts3215-id2-id3": {
-    label: "RP2040-GEEK STS3215 ID2/ID3 多回転JOG（実機確認済み）",
+    label: "RP2040-GEEK STS3215 XYZ直結G-code（XY実機テスト）",
     phase: "実機テスト",
-    summary: "RP2040-GEEKに接続したSTS3215へ、現在位置基準の多回転相対角度を連続指令する専用プロファイルです。",
+    summary: "運動学を使わず、G-codeのXYZを設定したSTS3215へ直接割り当てるプロファイルです。現在はXY動作を対象にし、Zは設定のみ用意しています。",
     notes: [
-      "実機スキャンで検出したID 2をX、ID 3をYとして操作します。ID 1は検出されていません。",
+      "初期値は実機スキャンで検出したID 2をX、ID 3をYに割り当てます。設定画面からXYZのID・pulse/mm・反転を変更できます。",
       "Mode 0、Min/Max Angle Limit=0、Phase BIT4=1、Angle Resolution=1のときだけ動作し、符号付き約±7回転の範囲を使います。",
-      "通常のG-codeジョブ送信は無効です。矢印ボタンから現在位置＋選択角度のTESTJOGだけを送信します。",
+      "送信開始時の現在位置をXY=0として、G0/G1のmm座標を絶対多回転位置へ変換します。Zは初期状態で無効です。",
       "移動後は元の位置へ戻りません。Torque OFF後も、次の指令はその時点の現在位置から加算されます。",
       "速度はファームウェア側でraw 3400、加速度raw 150に固定されています。Stopは0x85で現在の往復動作を中止します。"
     ],
     capabilities: {
       jogCommand: "sts3215-test", jogAxes: ["X", "Y"],
-      jogIds: { X: 2, Y: 3 }, statusPolling: false
+      directAxes: true, statusPolling: false
     },
     settings: {
-      baudrate: 115200, header: "", footer: "",
+      baudrate: 115200, header: "G21\nG90", footer: "M18",
       penUpCommand: "", penDownCommand: "",
       okTimeoutMs: 20000, stopStrategy: "cancel-pen-up",
-      initializeCommand: "SCAN 2\nSCAN 3", disconnectCommand: "", jogAutoDisable: false,
-      jogStep: 45, jogFeed: 3400
+      initializeCommand: "M17\nG21\nG90\nG10 L20 P0 X0 Y0", disconnectCommand: "M18", jogAutoDisable: false,
+      jogStep: 45, jogFeed: 3400, penUpDelay: 0, penDownDelay: 0, penUpClearanceDelay: 0,
+      stsAxisXId: 2, stsAxisYId: 3, stsAxisZId: 1,
+      stsAxisXPulsesPerMm: 128, stsAxisYPulsesPerMm: 128, stsAxisZPulsesPerMm: 128,
+      stsAxisXInvert: false, stsAxisYInvert: false, stsAxisZInvert: false, stsAxisZEnabled: false
     }
   },
   "pico2-tmc2209-planar": {
@@ -169,6 +172,9 @@ const DEFAULTS = {
   optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1,
   baudrate: 115200, jogStep: 1, jogFeed: 1000, jogAutoDisable: false, header: "G21\nG90", footer: "",
   okTimeoutMs: 15000, stopStrategy: "hold-pen-up", initializeCommand: "", disconnectCommand: "",
+  stsAxisXId: 2, stsAxisYId: 3, stsAxisZId: 1,
+  stsAxisXPulsesPerMm: 128, stsAxisYPulsesPerMm: 128, stsAxisZPulsesPerMm: 128,
+  stsAxisXInvert: false, stsAxisYInvert: false, stsAxisZInvert: false, stsAxisZEnabled: false,
   serialDestination: "execute",
   reloadGcode: `M3 S1600
 
@@ -483,6 +489,16 @@ function applyControllerProfile(profileId) {
   toast(`${profile.label}を反映しました`);
 }
 function activeControllerProfile() { return CONTROLLER_PROFILES[state.settings.controllerProfile] || CONTROLLER_PROFILES.custom; }
+function isSts3215DirectAxes() { return activeControllerProfile().capabilities?.directAxes === true; }
+function sts3215AxisConfigCommand() {
+  const s = state.settings;
+  const id = key => Math.max(0, Math.min(253, Math.round(+s[key] || 0)));
+  const ppm = key => Math.max(0.001, Math.min(28672, +s[key] || 128));
+  return `M950 X${id("stsAxisXId")} Y${id("stsAxisYId")} Z${id("stsAxisZId")} ` +
+    `PX${fmt(ppm("stsAxisXPulsesPerMm"))} PY${fmt(ppm("stsAxisYPulsesPerMm"))} PZ${fmt(ppm("stsAxisZPulsesPerMm"))} ` +
+    `IX${s.stsAxisXInvert ? 1 : 0} IY${s.stsAxisYInvert ? 1 : 0} IZ${s.stsAxisZInvert ? 1 : 0} EZ${s.stsAxisZEnabled ? 1 : 0}`;
+}
+function sts3215SetupLines() { return isSts3215DirectAxes() ? [sts3215AxisConfigCommand(), "M17"] : []; }
 function renderControllerProfile() {
   const profile = activeControllerProfile(), host = $("#controllerProfileDescription");
   if (!host) return;
@@ -915,7 +931,7 @@ async function initializeController() {
   if (!state.writer) return toast("先にSerial接続してください");
   if (state.sdManagementActive) return toast("SDカード管理を終了してから初期化してください");
   if (state.sending || state.jogging) return toast("送信・ジョグ中は初期化できません");
-  const commands = cleanLines(String(state.settings.initializeCommand || ""));
+  const commands = [...(isSts3215DirectAxes() ? [sts3215AxisConfigCommand()] : []), ...cleanLines(String(state.settings.initializeCommand || ""))];
   if (!commands.length) return toast("このプロファイルに初期化コマンドはありません");
   try {
     for (const command of commands) await sendLineAndWait(command, false);
@@ -945,23 +961,24 @@ function updateSts3215JogProfileUi() {
   $("#jogStepLabel").textContent = "角度";
   $("#jogFeedLabel").textContent = "速度raw（FW固定）";
   $("#jogFeedUnit").textContent = "3400固定";
-  $("#jogTitle").textContent = "STS3215 ID2(X) / ID3(Y) 多回転JOG";
-  $("#jogHint").textContent = "左右でID 2、上下でID 3へ現在位置基準の角度を加算。戻らずTorque OFF";
+  $("#jogTitle").textContent = `STS3215 ID${state.settings.stsAxisXId}(X) / ID${state.settings.stsAxisYId}(Y)`;
+  $("#jogHint").textContent = "G-codeはXY直結、矢印は従来の角度JOG。どちらも完了後Torque OFF";
   $("#jogCoordinates").hidden = true;
-  $("#serialSourceLabel").hidden = true;
-  $("#serialTransferControls").hidden = true;
-  $("#serialSource").disabled = true;
-  ["penUpButton", "penDownButton", "reloadButton", "pauseSend", "resumeSend"].forEach(id => { $(`#${id}`).disabled = true; });
+  $("#serialSourceLabel").hidden = false;
+  $("#serialTransferControls").hidden = false;
+  $("#serialSource").disabled = false;
+  ["penUpButton", "penDownButton", "reloadButton"].forEach(id => { $(`#${id}`).disabled = true; });
+  ["pauseSend", "resumeSend"].forEach(id => { $(`#${id}`).disabled = false; });
   ['[data-command="$$"]', '[data-command="$X"]'].forEach(selector => { $(selector).disabled = true; });
   $('[data-command="?"]').disabled = true;
-  $(".keyboard-jog-toggle").title = "矢印キーでID 2(X) / ID 3(Y)の安全JOG";
+  $(".keyboard-jog-toggle").title = `矢印キーでID ${state.settings.stsAxisXId}(X) / ID ${state.settings.stsAxisYId}(Y)の安全JOG`;
   feed.min = "3400"; feed.max = "3400"; feed.value = "3400"; feed.disabled = true;
   $$('[data-jog-axis="Y"]').forEach(button => { button.disabled = false; });
   const labels = [
-    ['[data-jog-axis="X"][data-jog-sign="1"]', "ID2 +"],
-    ['[data-jog-axis="X"][data-jog-sign="-1"]', "ID2 -"],
-    ['[data-jog-axis="Y"][data-jog-sign="-1"]', "ID3 -"],
-    ['[data-jog-axis="Y"][data-jog-sign="1"]', "ID3 +"]
+    ['[data-jog-axis="X"][data-jog-sign="1"]', `ID${state.settings.stsAxisXId} +`],
+    ['[data-jog-axis="X"][data-jog-sign="-1"]', `ID${state.settings.stsAxisXId} -`],
+    ['[data-jog-axis="Y"][data-jog-sign="-1"]', `ID${state.settings.stsAxisYId} -`],
+    ['[data-jog-axis="Y"][data-jog-sign="1"]', `ID${state.settings.stsAxisYId} +`]
   ];
   labels.forEach(([selector, label]) => {
     const button = $(selector), small = $(`${selector} small`);
@@ -1026,7 +1043,7 @@ function updateJogPreview() {
   const step=+$("#jogStep").value||1,feed=+$("#jogFeed").value||1000;
   if (isSts3215TestJog()) {
     const pulses = Math.round(step * 4096 / 360);
-    $("#jogCommandPreview").textContent = `TESTJOG ID2/ID3 ±${pulses} pulse`;
+    $("#jogCommandPreview").textContent = `TESTJOG ID${state.settings.stsAxisXId}/ID${state.settings.stsAxisYId} ±${pulses} pulse`;
     return;
   }
   $("#jogCommandPreview").textContent = isXl330TestJog()
@@ -1082,7 +1099,7 @@ async function sendJog(axis, sign) {
     const delta = Math.round(distance * 4096 / 360);
     if (!delta) return toast("角度が小さすぎます");
     if (Math.abs(delta) > 28672) return toast("多回転JOGは1操作7回転（2520度）以下にしてください");
-    const id = activeControllerProfile().capabilities?.jogIds?.[axis];
+    const id = +(axis === "X" ? state.settings.stsAxisXId : state.settings.stsAxisYId);
     if (!id) return toast(`${axis}軸のSTS3215 IDが未設定です`);
     command = `TESTJOG ${id} ${delta}`;
     successText = `ID ${id}: ${distance > 0 ? "+" : ""}${fmt(distance)} deg 移動（現在位置を更新・Torque OFF）`;
@@ -1194,13 +1211,13 @@ function updateSerialPositionDisplay() {
 }
 async function setCurrentXyZero() {
   if(!state.writer)return toast("先にSerial接続してください");if(state.sdManagementActive)return toast("SDカード管理を終了してから0点を変更してください");if(state.sending)return toast("G-code送信中は0点を変更できません");
-  try{await sendLineAndWait("G10 L20 P0 X0 Y0",false);state.workPosition={x:0,y:0,z:state.workPosition?.z||0};state.position={x:0,y:0};updateSerialPositionDisplay();await rawWrite("?",false);toast("現在位置をXY=0に設定しました");}
+  try{await sendLineAndWait("G10 L20 P0 X0 Y0",false);state.workPosition={x:0,y:0,z:state.workPosition?.z||0};state.position={x:0,y:0};updateSerialPositionDisplay();if(activeControllerProfile().capabilities?.statusPolling!==false)await rawWrite("?",false);toast("現在位置をXY=0に設定しました");}
   catch(error){log(`0点設定エラー: ${error.message}`,"rx");toast("XYの0点設定に失敗しました");}
 }
 function cleanLines(code) { return code.split(/\r?\n/).map(x => x.trim()).filter(x => x && !x.startsWith(";") && !x.startsWith("(")); }
 async function startSending(code, options = {}) {
   if (!state.writer) return toast("先にSerial接続してください"); if (state.sdManagementActive) return toast("SDカード管理を終了してから送信してください"); if (state.sending) return toast("すでに送信中です");
-  const lines = cleanLines(code); if (!lines.length) return toast("送信するG-codeがありません");
+  const lines = [...sts3215SetupLines(), ...cleanLines(code)]; if (!lines.length) return toast("送信するG-codeがありません");
   clearOkWaiters("新しい送信を開始");
   state.sending = true; state.stopped = false; state.jobStopped = false; state.paused = false;
   try { await sendLines(lines, options); if (!state.stopped && !options.silent) toast("送信が完了しました"); }
@@ -1487,6 +1504,7 @@ async function runJobs() {
   const useAutoReload=autoReloadBetweenJobs();
   let total=loops*jobs.reduce((n,j)=>n+j.count,0), done=0;
   try{
+    for (const command of sts3215SetupLines()) await sendLineAndWait(command, false);
     scheduleJobProgress(done,total);
     for(let loop=1;loop<=loops;loop++){
       for(let ji=0;ji<jobs.length;ji++){
