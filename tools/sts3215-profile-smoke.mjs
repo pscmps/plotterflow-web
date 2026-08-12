@@ -9,11 +9,13 @@ assert.match(app, /"rp2040-geek-sts3215-id2-id3"/);
 assert.match(app, /jogCommand: "sts3215-test"/);
 assert.match(app, /jogIds: \{ X: 2, Y: 3 \}, statusPolling: false/);
 assert.match(app, /initializeCommand: "SCAN 2\\nSCAN 3"/);
+assert.match(app, /jogStep: 5\.625, jogFeed: 3400/);
+assert.match(app, /feed\.min = "3400"; feed\.max = "3400"; feed\.value = "3400"/);
 assert.match(app, /command = `TESTJOG \$\{id\} \$\{delta\}`/);
 assert.match(app, /Math\.abs\(delta\) > 128/);
 assert.match(app, /\$\('\[data-command="\?"\]'\)\.disabled = true/);
 assert.match(html, /value="rp2040-geek-sts3215-id2-id3"/);
-assert.match(html, /app\.js\?v=20260812-1/);
+assert.match(html, /app\.js\?v=20260812-2/);
 assert.match(readme, /X = STS3215 ID 2, Y = STS3215 ID 3/);
 
 console.log("STS3215 PlotterFlow profile smoke test passed");

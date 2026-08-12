@@ -63,7 +63,7 @@ const CONTROLLER_PROFILES = {
       "実機スキャンで検出したID 2をX、ID 3をYとして操作します。ID 1は検出されていません。",
       "通常のG-codeジョブ送信は無効です。矢印ボタンからTESTJOGだけを送信します。",
       "1回の移動量は最大128 pulse（11.25度）で、移動後は原点へ戻りTorque OFFになります。",
-      "速度はファームウェア側でraw 50に固定されています。Stopは0x85で現在の往復動作を中止します。"
+      "速度はファームウェア側でraw 3400、加速度raw 150に固定されています。Stopは0x85で現在の往復動作を中止します。"
     ],
     capabilities: {
       jogCommand: "sts3215-test", jogAxes: ["X", "Y"],
@@ -74,7 +74,7 @@ const CONTROLLER_PROFILES = {
       penUpCommand: "", penDownCommand: "",
       okTimeoutMs: 15000, stopStrategy: "cancel-pen-up",
       initializeCommand: "SCAN 2\nSCAN 3", disconnectCommand: "", jogAutoDisable: false,
-      jogStep: 5.625, jogFeed: 50
+      jogStep: 5.625, jogFeed: 3400
     }
   },
   "pico2-tmc2209-planar": {
@@ -943,7 +943,7 @@ function updateSts3215JogProfileUi() {
   $("#jogUnitLabel").textContent = "deg";
   $("#jogStepLabel").textContent = "角度";
   $("#jogFeedLabel").textContent = "速度raw（FW固定）";
-  $("#jogFeedUnit").textContent = "50固定";
+  $("#jogFeedUnit").textContent = "3400固定";
   $("#jogTitle").textContent = "STS3215 ID2(X) / ID3(Y) 安全JOG";
   $("#jogHint").textContent = "左右でID 2、上下でID 3を小さく往復。完了後は原点復帰・Torque OFF";
   $("#jogCoordinates").hidden = true;
@@ -954,7 +954,7 @@ function updateSts3215JogProfileUi() {
   ['[data-command="$$"]', '[data-command="$X"]'].forEach(selector => { $(selector).disabled = true; });
   $('[data-command="?"]').disabled = true;
   $(".keyboard-jog-toggle").title = "矢印キーでID 2(X) / ID 3(Y)の安全JOG";
-  feed.min = "50"; feed.max = "50"; feed.value = "50"; feed.disabled = true;
+  feed.min = "3400"; feed.max = "3400"; feed.value = "3400"; feed.disabled = true;
   $$('[data-jog-axis="Y"]').forEach(button => { button.disabled = false; });
   const labels = [
     ['[data-jog-axis="X"][data-jog-sign="1"]', "ID2 +"],

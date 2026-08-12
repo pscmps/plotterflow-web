@@ -235,7 +235,7 @@ Select `RP2040-GEEK STS3215 ID2/ID3 安全JOG（実機確認済み）` for the b
 - Initialization: `SCAN 2`, then `SCAN 3`
 - Jog command: `TESTJOG <id> <delta>`
 - Available increments: 16, 32, 64, or 128 pulses (1.40625, 2.8125, 5.625, or 11.25 degrees)
-- Firmware velocity: raw 50 (fixed)
+- Firmware velocity: raw 3400 with acceleration raw 150 (fixed maximum-speed profile)
 - Each jog returns to its starting position and turns torque off
 - Stop sends byte `0x85`
 - GRBL status polling and normal G-code job transfer are disabled for this profile
