@@ -55,6 +55,28 @@ const CONTROLLER_PROFILES = {
       jogStep: 0.0625, jogFeed: 20
     }
   },
+  "rp2040-geek-sts3215-id2-id3": {
+    label: "RP2040-GEEK STS3215 ID2/ID3 安全JOG（実機確認済み）",
+    phase: "実機テスト",
+    summary: "RP2040-GEEKに接続したSTS3215を、PlotterFlowから小さな往復動作だけで確認する専用プロファイルです。",
+    notes: [
+      "実機スキャンで検出したID 2をX、ID 3をYとして操作します。ID 1は検出されていません。",
+      "通常のG-codeジョブ送信は無効です。矢印ボタンからTESTJOGだけを送信します。",
+      "1回の移動量は最大128 pulse（11.25度）で、移動後は原点へ戻りTorque OFFになります。",
+      "速度はファームウェア側でraw 50に固定されています。Stopは0x85で現在の往復動作を中止します。"
+    ],
+    capabilities: {
+      jogCommand: "sts3215-test", jogAxes: ["X", "Y"],
+      jogIds: { X: 2, Y: 3 }, statusPolling: false
+    },
+    settings: {
+      baudrate: 115200, header: "", footer: "",
+      penUpCommand: "", penDownCommand: "",
+      okTimeoutMs: 15000, stopStrategy: "cancel-pen-up",
+      initializeCommand: "SCAN 2\nSCAN 3", disconnectCommand: "", jogAutoDisable: false,
+      jogStep: 5.625, jogFeed: 50
+    }
+  },
   "pico2-tmc2209-planar": {
     label: "Pico 2 TMC2209 XY Planar（開発中）",
     phase: "開発中",
@@ -896,7 +918,7 @@ async function initializeController() {
   if (!commands.length) return toast("このプロファイルに初期化コマンドはありません");
   try {
     for (const command of commands) await sendLineAndWait(command, false);
-    await rawWrite("?", false);
+    if (activeControllerProfile().capabilities?.statusPolling !== false) await rawWrite("?", false);
     toast("コントローラーを初期化しました");
   } catch (error) {
     log(`初期化エラー: ${error.message}`, "rx");
@@ -909,9 +931,48 @@ function saveJogSettings() {
 }
 const STANDARD_JOG_STEPS = [0.15625, 0.625, 0.1, 1, 2.5, 10, 40, 50];
 const XL330_TEST_JOG_STEPS = [0.015625, 0.0625, 0.25, 1, 2];
+const STS3215_TEST_JOG_STEPS = [1.40625, 2.8125, 5.625, 11.25];
 function isXl330TestJog() { return activeControllerProfile().capabilities?.jogCommand === "xl330-test"; }
+function isSts3215TestJog() { return activeControllerProfile().capabilities?.jogCommand === "sts3215-test"; }
+function updateSts3215JogProfileUi() {
+  const stepSelect = $("#jogStep"), feed = $("#jogFeed");
+  if (stepSelect.dataset.mode !== "sts3215-test") {
+    stepSelect.replaceChildren(...STS3215_TEST_JOG_STEPS.map(value => new Option(`${value} deg`, String(value))));
+    stepSelect.dataset.mode = "sts3215-test";
+  }
+  $("#jogUnitLabel").textContent = "deg";
+  $("#jogStepLabel").textContent = "角度";
+  $("#jogFeedLabel").textContent = "速度raw（FW固定）";
+  $("#jogFeedUnit").textContent = "50固定";
+  $("#jogTitle").textContent = "STS3215 ID2(X) / ID3(Y) 安全JOG";
+  $("#jogHint").textContent = "左右でID 2、上下でID 3を小さく往復。完了後は原点復帰・Torque OFF";
+  $("#jogCoordinates").hidden = true;
+  $("#serialSourceLabel").hidden = true;
+  $("#serialTransferControls").hidden = true;
+  $("#serialSource").disabled = true;
+  ["penUpButton", "penDownButton", "reloadButton", "pauseSend", "resumeSend"].forEach(id => { $(`#${id}`).disabled = true; });
+  ['[data-command="$$"]', '[data-command="$X"]'].forEach(selector => { $(selector).disabled = true; });
+  $('[data-command="?"]').disabled = true;
+  $(".keyboard-jog-toggle").title = "矢印キーでID 2(X) / ID 3(Y)の安全JOG";
+  feed.min = "50"; feed.max = "50"; feed.value = "50"; feed.disabled = true;
+  $$('[data-jog-axis="Y"]').forEach(button => { button.disabled = false; });
+  const labels = [
+    ['[data-jog-axis="X"][data-jog-sign="1"]', "ID2 +"],
+    ['[data-jog-axis="X"][data-jog-sign="-1"]', "ID2 -"],
+    ['[data-jog-axis="Y"][data-jog-sign="-1"]', "ID3 -"],
+    ['[data-jog-axis="Y"][data-jog-sign="1"]', "ID3 +"]
+  ];
+  labels.forEach(([selector, label]) => {
+    const button = $(selector), small = $(`${selector} small`);
+    if (small) small.textContent = label;
+    if (button) button.setAttribute("aria-label", label);
+  });
+}
 function updateJogProfileUi() {
+  if (isSts3215TestJog()) return updateSts3215JogProfileUi();
   const testMode = isXl330TestJog(), stepSelect = $("#jogStep"), feed = $("#jogFeed");
+  feed.disabled = false;
+  $('[data-command="?"]').disabled = false;
   const mode = testMode ? "xl330-test" : "standard";
   if (stepSelect.dataset.mode !== mode) {
     const values = testMode ? XL330_TEST_JOG_STEPS : STANDARD_JOG_STEPS;
@@ -941,6 +1002,14 @@ function updateJogProfileUi() {
   const rightButton = $('[data-jog-axis="X"][data-jog-sign="-1"]');
   if (leftButton) leftButton.setAttribute("aria-label", testMode ? "ID 1 正転" : "X左方向");
   if (rightButton) rightButton.setAttribute("aria-label", testMode ? "ID 1 逆転" : "X右方向");
+  const up = $('[data-jog-axis="Y"][data-jog-sign="-1"] small');
+  const down = $('[data-jog-axis="Y"][data-jog-sign="1"] small');
+  const upButton = $('[data-jog-axis="Y"][data-jog-sign="-1"]');
+  const downButton = $('[data-jog-axis="Y"][data-jog-sign="1"]');
+  if (up) up.textContent = "Y↑";
+  if (down) down.textContent = "Y↓";
+  if (upButton) upButton.setAttribute("aria-label", "Y上方向");
+  if (downButton) downButton.setAttribute("aria-label", "Y下方向");
 }
 function populateJogSettings() {
   updateJogProfileUi();
@@ -954,6 +1023,11 @@ function populateJogSettings() {
 }
 function updateJogPreview() {
   const step=+$("#jogStep").value||1,feed=+$("#jogFeed").value||1000;
+  if (isSts3215TestJog()) {
+    const pulses = Math.round(step * 4096 / 360);
+    $("#jogCommandPreview").textContent = `TESTJOG ID2/ID3 ±${pulses} pulse`;
+    return;
+  }
   $("#jogCommandPreview").textContent = isXl330TestJog()
     ? `TESTJOG D±${Math.round(step * 4096)} V${Math.round(feed)}`
     : `$J=G91 G21 X±${fmt(step)} F${fmt(feed)}`;
@@ -1002,7 +1076,16 @@ async function sendJog(axis, sign) {
   saveJogSettings();
   const distance=sign*state.settings.jogStep;
   let command, successText;
-  if (isXl330TestJog()) {
+  if (isSts3215TestJog()) {
+    if (!["X", "Y"].includes(axis)) return toast("STS3215安全JOGはX/Yだけ使用できます");
+    const delta = Math.round(distance * 4096 / 360);
+    if (!delta) return toast("角度が小さすぎます");
+    if (Math.abs(delta) > 128) return toast("安全JOGは1操作128 pulse（11.25度）以下にしてください");
+    const id = activeControllerProfile().capabilities?.jogIds?.[axis];
+    if (!id) return toast(`${axis}軸のSTS3215 IDが未設定です`);
+    command = `TESTJOG ${id} ${delta}`;
+    successText = `ID ${id}: ${distance > 0 ? "+" : ""}${fmt(distance)} deg 往復（Torque OFF）`;
+  } else if (isXl330TestJog()) {
     if (axis !== "X") return toast("単体安全テストではX左右だけを使用します");
     const turns = Math.abs(distance), velocity = Math.round(state.settings.jogFeed);
     if (!(turns > 0 && turns <= 2)) return toast("単体JOGは1操作2回転以下にしてください");
@@ -1033,7 +1116,7 @@ async function cancelJog() {
 }
 function startStatusPolling() {
   stopStatusPolling();
-  const poll=()=>{if(state.writer&&!state.sending&&!state.jobStopped&&!state.sdManagementActive)rawWrite("?",false).catch(()=>{});};poll();state.statusPollTimer=setInterval(poll,state.positionTelemetryEnabled?250:750);
+  const poll=()=>{if(activeControllerProfile().capabilities?.statusPolling!==false&&state.writer&&!state.sending&&!state.jobStopped&&!state.sdManagementActive)rawWrite("?",false).catch(()=>{});};poll();state.statusPollTimer=setInterval(poll,state.positionTelemetryEnabled?250:750);
 }
 function stopStatusPolling(){if(state.statusPollTimer){clearInterval(state.statusPollTimer);state.statusPollTimer=null;}}
 function parseControllerStatus(line) {

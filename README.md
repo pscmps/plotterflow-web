@@ -226,6 +226,22 @@ M5Stackが起動直後のモード選択画面でも、PCからこの操作を�
 - SD管理中はジョグ、通常送信、ジョブ実行を無効にします。
 - この管理UIもM5Stack DRV8835プロファイルだけに表示します。
 
+### RP2040-GEEK STS3215 ID2/ID3 safe jog
+
+Select `RP2040-GEEK STS3215 ID2/ID3 安全JOG（実機確認済み）` for the bounded-jog firmware tested on the connected RP2040-GEEK.
+
+- Web Serial: USB CDC at 115200 baud
+- Axis mapping: X = STS3215 ID 2, Y = STS3215 ID 3
+- Initialization: `SCAN 2`, then `SCAN 3`
+- Jog command: `TESTJOG <id> <delta>`
+- Available increments: 16, 32, 64, or 128 pulses (1.40625, 2.8125, 5.625, or 11.25 degrees)
+- Firmware velocity: raw 50 (fixed)
+- Each jog returns to its starting position and turns torque off
+- Stop sends byte `0x85`
+- GRBL status polling and normal G-code job transfer are disabled for this profile
+
+The current hardware scan found IDs 2 and 3; ID 1 did not respond. This profile does not rewrite servo IDs. It is intentionally limited to the firmware's safe `TESTJOG` operation and is not a general plotting profile yet.
+
 ### XL330 PIO / Pico・Pico 2（開発中）
 
 [DYNAMIXEL XL330-M077-T direct half-duplex with Pico PIO](https://github.com/pscmps/dynamixel-pio-xl330-m077-t-rp2040) のMicroPythonファームウェアを、PlotterFlowのUSBシリアルから操作するためのプロファイルです。X/YのXL330はExtended Position Control Modeで符号付き多回転位置を扱い、ID 3はペンサーボとして使用します。
