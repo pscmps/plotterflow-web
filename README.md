@@ -236,6 +236,7 @@ Select `RP2040-GEEK STS3215 ID2/ID3 多回転JOG（実機確認済み）` for th
 - Jog command: `TESTJOG <id> <delta>`
 - Available increments: 11.25 to 2520 degrees (up to 7 turns per command)
 - Firmware velocity: raw 3400 with acceleration raw 150 (fixed maximum-speed profile)
+- Command timeout: 20 seconds in PlotterFlow; firmware calculates motion timeout from pulse distance plus a 4-second margin
 - Requires Operating Mode 0, Min/Max Angle Limit 0, Phase BIT4 enabled, and Angle Resolution 1
 - Each jog adds to the servo's current signed multi-turn position, does not return, then turns torque off
 - Stop sends byte `0x85`

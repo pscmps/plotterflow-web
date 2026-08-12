@@ -73,7 +73,7 @@ const CONTROLLER_PROFILES = {
     settings: {
       baudrate: 115200, header: "", footer: "",
       penUpCommand: "", penDownCommand: "",
-      okTimeoutMs: 15000, stopStrategy: "cancel-pen-up",
+      okTimeoutMs: 20000, stopStrategy: "cancel-pen-up",
       initializeCommand: "SCAN 2\nSCAN 3", disconnectCommand: "", jogAutoDisable: false,
       jogStep: 45, jogFeed: 3400
     }
