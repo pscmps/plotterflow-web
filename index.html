@@ -8,7 +8,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css?v=20260715-1">
   <link rel="stylesheet" href="profile.css?v=20260715-1">
-  <link rel="stylesheet" href="drawing.css">
+  <link rel="stylesheet" href="drawing.css?v=20260812-2">
   <link rel="stylesheet" href="serial.css?v=20260806-1">
   <link rel="stylesheet" href="conversion.css">
   <link rel="stylesheet" href="job-ui.css">
@@ -74,6 +74,14 @@
             <button id="drawingDelete" class="danger">選択を削除</button>
             <button id="drawingClear" class="danger">全消去</button>
           </div>
+          <section id="drawingSelectionProperties" class="drawing-selection-properties" hidden aria-labelledby="drawingSelectionPropertiesTitle">
+            <div class="selection-properties-heading"><div><h2 id="drawingSelectionPropertiesTitle">選択オブジェクト</h2><p id="drawingSelectionType">図形</p></div><button id="drawingSelectionDetailed" class="secondary" hidden>詳細</button></div>
+            <div class="selection-property-grid"><label>中心 X (mm)<input id="drawingSelectionX" type="number" step="0.1"></label><label>中心 Y (mm)<input id="drawingSelectionY" type="number" step="0.1"></label></div>
+            <div class="selection-property-grid"><label>幅 (mm)<input id="drawingSelectionWidth" type="number" min="0.01" step="0.1"></label><label>高さ (mm)<input id="drawingSelectionHeight" type="number" min="0.01" step="0.1"></label></div>
+            <label>回転角度 (°)<input id="drawingSelectionRotation" type="number" min="-360" max="360" step="1"></label>
+            <p class="muted selection-size-hint">幅または高さを変更すると、縦横比を保って拡大縮小します。</p>
+            <button id="drawingSelectionApply" class="primary wide">プロパティを適用</button>
+          </section>
           <hr>
           <h2>キャンバス</h2>
           <label>プリセット<select id="drawingCanvasPreset"><option value="30x30">30 × 30 mm</option><option value="100x100">100 × 100 mm</option><option value="150x150">150 × 150 mm</option><option value="200x200">200 × 200 mm</option><option value="297x210">297 × 210 mm</option><option value="custom">カスタム</option></select></label>
@@ -178,6 +186,27 @@
           <div class="serial-profile-strip"><div><small>コントローラープロファイル</small><strong id="serialControllerProfile">GRBL / FluidNC（標準）</strong></div><button id="initializeController" class="secondary" hidden>初期化</button></div>
           <div class="inline"><label>Baudrate<input id="serialBaud" type="number" value="115200"></label><button id="connectSerial" class="primary">接続</button><button id="disconnectSerial">切断</button></div>
           <div class="control-grid"><button data-command="?">?</button><button data-command="$$">$$</button><button data-command="$X">$X</button><button id="penUpButton">ペンアップ</button><button id="penDownButton">ペンダウン</button><button id="reloadButton" class="secondary">リロード</button><button id="pauseSend">Pause (!)</button><button id="resumeSend">Resume (~)</button><button id="stopSend" class="danger">Stop</button><button id="resetController" class="danger">Reset</button></div>
+          <section id="serialSendPanel" class="serial-send-panel" aria-labelledby="serialSendTitle">
+            <h3 id="serialSendTitle">G-code送信</h3>
+            <label id="serialSourceLabel">送信対象<select id="serialSource"><option value="editor">現在のエディタ</option></select></label>
+            <div id="serialDestinationGroup" class="serial-destination" hidden>
+              <label>M5Stack操作モード<select id="m5OperationMode"><option value="normal">通常操作</option><option value="sd-manager">SDカード管理</option></select></label>
+              <label id="serialDestinationLabel">送信先<select id="serialDestination"><option value="execute">コントローラーで実行</option><option value="sd">M5Stack SDカードへ保存</option></select></label>
+              <label id="sdFilenameLabel" hidden>SDファイル名<input id="sdFilename" value="untitled.gcode" maxlength="48" inputmode="latin" spellcheck="false"></label>
+              <p id="sdTransferHint" class="muted" hidden>M5StackをUSB SERIALモードにして転送します。完了後、SD CARDモードから実行できます。</p>
+            </div>
+            <div id="serialTransferControls">
+              <button id="startSend" class="primary wide">送信開始</button>
+              <div class="progress-row"><progress id="sendProgress" value="0" max="1"></progress><span id="sendProgressText">0 / 0 (0%)</span></div>
+            </div>
+            <section id="sdManager" class="sd-manager" hidden aria-labelledby="sdManagerTitle">
+              <div class="sd-manager-heading">
+                <div><h3 id="sdManagerTitle">SDカード内のG-code</h3><p id="sdManagerStatus">管理モードを開始してください</p></div>
+                <div class="actions"><button id="refreshSdFiles">再同期</button><button id="closeSdManager">管理終了</button></div>
+              </div>
+              <div id="sdFileList" class="sd-file-list" aria-live="polite"></div>
+            </section>
+          </section>
           <section class="jog-section" aria-labelledby="jogTitle">
             <div class="jog-heading">
               <div><h3 id="jogTitle">XYジョグ</h3><p id="jogHint">1タップで選択距離だけ移動</p></div>
@@ -242,25 +271,6 @@
             </div>
           </section>
           <div class="inline"><input id="manualCommand" placeholder="手動コマンド"><button id="sendManual">送信</button></div>
-          <hr>
-          <label id="serialSourceLabel">送信対象<select id="serialSource"><option value="editor">現在のエディタ</option></select></label>
-          <div id="serialDestinationGroup" class="serial-destination" hidden>
-            <label>M5Stack操作モード<select id="m5OperationMode"><option value="normal">通常操作</option><option value="sd-manager">SDカード管理</option></select></label>
-            <label id="serialDestinationLabel">送信先<select id="serialDestination"><option value="execute">コントローラーで実行</option><option value="sd">M5Stack SDカードへ保存</option></select></label>
-            <label id="sdFilenameLabel" hidden>SDファイル名<input id="sdFilename" value="untitled.gcode" maxlength="48" inputmode="latin" spellcheck="false"></label>
-            <p id="sdTransferHint" class="muted" hidden>M5StackをUSB SERIALモードにして転送します。完了後、SD CARDモードから実行できます。</p>
-          </div>
-          <div id="serialTransferControls">
-            <button id="startSend" class="primary wide">送信開始</button>
-            <div class="progress-row"><progress id="sendProgress" value="0" max="1"></progress><span id="sendProgressText">0 / 0 (0%)</span></div>
-          </div>
-          <section id="sdManager" class="sd-manager" hidden aria-labelledby="sdManagerTitle">
-            <div class="sd-manager-heading">
-              <div><h3 id="sdManagerTitle">SDカード内のG-code</h3><p id="sdManagerStatus">管理モードを開始してください</p></div>
-              <div class="actions"><button id="refreshSdFiles">再同期</button><button id="closeSdManager">管理終了</button></div>
-            </div>
-            <div id="sdFileList" class="sd-file-list" aria-live="polite"></div>
-          </section>
         </article>
         <article class="card">
           <h2>通信ログ</h2>
@@ -268,6 +278,11 @@
           <button id="clearLog">ログを消去</button>
         </article>
       </div>
+      <article id="serialTrajectoryCard" class="card preview-card serial-trajectory-card" tabindex="-1">
+        <div class="card-title"><div><h2>送信軌跡</h2><p id="serialTrajectoryName" class="muted">現在のエディタ</p></div><button id="scrollToSerialControls" class="secondary">操作へ戻る</button></div>
+        <div class="preview serial-trajectory-preview"><svg id="serialTrajectorySvg" aria-label="送信するG-code軌跡"></svg></div>
+        <div class="legend"><span><i class="draw"></i>描画</span><span><i class="travel"></i>空走</span><span><i class="position"></i>現在位置</span></div>
+      </article>
     </section>
 
     <section id="tab-jobs" class="panel">
@@ -455,9 +470,9 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260812-6"></script>
+  <script src="app.js?v=20260812-7"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
-  <script src="drawing.js"></script>
+  <script src="drawing.js?v=20260812-2"></script>
   <script>
     (() => {
       let simulationStarted = false;

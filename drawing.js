@@ -59,6 +59,10 @@
     $d("#drawingAddText").addEventListener("click", addTextObject);
     $$d("[data-text-writing]").forEach(button => button.addEventListener("click", () => setTextWriting(button.dataset.textWriting)));
     $d("#drawingProperties").addEventListener("click", openSelectedProperties);
+    $d("#drawingSelectionDetailed").addEventListener("click", openSelectedProperties);
+    $d("#drawingSelectionApply").addEventListener("click", applySelectionProperties);
+    $d("#drawingSelectionWidth").addEventListener("input", () => syncSelectionAspect("width"));
+    $d("#drawingSelectionHeight").addEventListener("input", () => syncSelectionAspect("height"));
     $d("#drawingDuplicate").addEventListener("click", duplicateSelected);
     $d("#drawingToFront").addEventListener("click", bringSelectedToFront);
     $d("#drawingToBack").addEventListener("click", sendSelectedToBack);
@@ -289,15 +293,16 @@
     $d("#drawingObjectCount").textContent = `${editor.document.objects.length}オブジェクト`;
     $d("#drawingUndo").disabled = editor.history.length <= 1; $d("#drawingRedo").disabled = !editor.future.length;
     $d("#drawingDelete").disabled = editor.selected < 0;
-    const selectedObject=editor.document.objects[editor.selected];$d("#drawingProperties").hidden = !(selectedObject?.type==="text"||isVectorObject(selectedObject));
+    const selectedObject=editor.document.objects[editor.selected],hasDetailed=selectedObject?.type==="text"||isVectorObject(selectedObject);$d("#drawingProperties").hidden = !hasDetailed;
+    syncSelectionProperties(selectedObject,hasDetailed);
     ["#drawingDuplicate","#drawingToFront","#drawingToBack"].forEach(selector=>$d(selector).disabled=editor.selected<0);
     updateCanvasFit(); persistLast();
   }
 
   function objectMarkup(object, selected) {
     const cls = `drawing-object${selected ? " selected" : ""}`;
-    if (object.type === "freehand") return `<polyline class="${cls}" points="${object.points.map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
-    if (object.type === "rect") return `<rect class="${cls}" x="${fmt(object.x)}" y="${fmt(object.y)}" width="${fmt(object.width)}" height="${fmt(object.height)}"/>`;
+    if (object.type === "freehand") { const center=rawObjectCenter(object);return `<polyline class="${cls}" points="${object.points.map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}" transform="rotate(${fmt(object.rotation||0)} ${fmt(center.x)} ${fmt(center.y)})"/>`; }
+    if (object.type === "rect") { const center=rawObjectCenter(object);return `<rect class="${cls}" x="${fmt(object.x)}" y="${fmt(object.y)}" width="${fmt(object.width)}" height="${fmt(object.height)}" transform="rotate(${fmt(object.rotation||0)} ${fmt(center.x)} ${fmt(center.y)})"/>`; }
     if (object.type === "circle") return `<circle class="${cls}" cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>`;
     if (object.type === "star") return `<polygon class="${cls}" points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
     if (object.type === "text") return `<path class="${cls}" d="${contoursToPathData(textObjectContours(object))}"/>`;
@@ -330,6 +335,51 @@
   function bringSelectedToFront(){if(editor.selected<0||editor.selected===editor.document.objects.length-1)return;const [object]=editor.document.objects.splice(editor.selected,1);editor.document.objects.push(object);editor.selected=editor.document.objects.length-1;commit("最前面へ移動");renderDrawing();}
   function sendSelectedToBack(){if(editor.selected<=0)return;const [object]=editor.document.objects.splice(editor.selected,1);editor.document.objects.unshift(object);editor.selected=0;commit("最背面へ移動");renderDrawing();}
   function clearDrawing() { if (!editor.document.objects.length || !confirm("描画内容をすべて消去しますか？")) return; editor.document.objects = []; editor.selected = -1; commit("全消去"); renderDrawing(); }
+
+  const selectionTypeNames={freehand:"自由線",rect:"四角",circle:"円",star:"星",text:"テキスト",stamp:"スタンプ",svgObject:"SVG素材"};
+  function syncSelectionProperties(object,hasDetailed=false){
+    const panel=$d("#drawingSelectionProperties");
+    panel.hidden=!object;
+    if(!object){panel.dataset.selected="";return;}
+    $d("#drawingSelectionDetailed").hidden=!hasDetailed;
+    const focused=panel.contains(document.activeElement),selectionChanged=panel.dataset.selected!==String(editor.selected);
+    if(focused&&!selectionChanged)return;
+    const geometry=objectPropertyGeometry(object),width=Math.max(.01,geometry.width),height=Math.max(.01,geometry.height);
+    panel.dataset.selected=String(editor.selected);panel.dataset.aspect=String(width/height);
+    $d("#drawingSelectionType").textContent=selectionTypeNames[object.type]||"図形";
+    $d("#drawingSelectionX").value=fmt(geometry.center.x);$d("#drawingSelectionY").value=fmt(geometry.center.y);
+    $d("#drawingSelectionWidth").value=fmt(width);$d("#drawingSelectionHeight").value=fmt(height);$d("#drawingSelectionRotation").value=fmt(object.rotation||0);
+  }
+  function syncSelectionAspect(source){
+    const aspect=+$d("#drawingSelectionProperties").dataset.aspect||1;
+    if(source==="width")$d("#drawingSelectionHeight").value=fmt(Math.max(.01,+$d("#drawingSelectionWidth").value||.01)/aspect);
+    else $d("#drawingSelectionWidth").value=fmt(Math.max(.01,+$d("#drawingSelectionHeight").value||.01)*aspect);
+  }
+  function applySelectionProperties(){
+    const object=editor.document.objects[editor.selected];if(!object)return;
+    const before=objectPropertyGeometry(object),beforeWidth=Math.max(.01,before.width),targetWidth=clamp(+$d("#drawingSelectionWidth").value||beforeWidth,.01,2000);
+    const targetX=finiteOr(+$d("#drawingSelectionX").value,before.center.x),targetY=finiteOr(+$d("#drawingSelectionY").value,before.center.y),ratio=clamp(targetWidth/beforeWidth,.001,1000);
+    scaleObjectUniform(object,ratio);object.rotation=normalizeAngle(+$d("#drawingSelectionRotation").value||0);
+    const after=objectPropertyGeometry(object),moved=translateObject(object,targetX-after.center.x,targetY-after.center.y);editor.document.objects[editor.selected]=moved;
+    commit("オブジェクトプロパティ変更");renderDrawing();setStatus("選択オブジェクトの位置・サイズ・角度を更新しました。");
+  }
+  function scaleObjectUniform(object,ratio){
+    if(object.type==="freehand"){const c=rawObjectCenter(object);object.points=object.points.map(p=>[c.x+(p[0]-c.x)*ratio,c.y+(p[1]-c.y)*ratio]);}
+    else if(object.type==="rect"){const c=rawObjectCenter(object);object.width*=ratio;object.height*=ratio;object.x=c.x-object.width/2;object.y=c.y-object.height/2;}
+    else if(object.type==="circle"||object.type==="star")object.r*=ratio;
+    else if(object.type==="text"){object.fontSize=clamp(object.fontSize*ratio,1,500);object.letterSpacing*=ratio;}
+    else if(isVectorObject(object))object.scale=clamp(object.scale*ratio,.01,50);
+  }
+  function finiteOr(value,fallback){return Number.isFinite(value)?value:fallback;}
+
+  function objectPropertyGeometry(object){
+    if(object.type==="rect")return{center:{x:object.x+object.width/2,y:object.y+object.height/2},width:object.width,height:object.height};
+    if(object.type==="circle"||object.type==="star")return{center:{x:object.cx,y:object.cy},width:object.r*2,height:object.r*2};
+    if(isVectorObject(object)){const asset=vectorAsset(object),width=(asset?.defaultWidthMm||30)*object.scale,height=(asset?.defaultHeightMm||30)*object.scale;return{center:{x:object.x,y:object.y},width,height};}
+    if(object.type==="text"){const bounds=objectBounds({...object,rotation:0});return{center:{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2},width:bounds.width,height:bounds.height};}
+    const points=object.points,xs=points.map(p=>p[0]),ys=points.map(p=>p[1]),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+    return{center:{x:(minX+maxX)/2,y:(minY+maxY)/2},width:maxX-minX,height:maxY-minY};
+  }
 
   function openSelectedProperties(){const object=editor.document.objects[editor.selected];if(object?.type==="text")openTextProperties();if(isVectorObject(object))openStampProperties();}
   function openDialog(dialog){if(typeof dialog.showModal==="function")dialog.showModal();else dialog.setAttribute("open","");}
@@ -428,8 +478,8 @@
     return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="${svgNS}" width="${c.widthMm}mm" height="${c.heightMm}mm" viewBox="0 0 ${c.widthMm} ${c.heightMm}">\n  <g fill="none" stroke="#000" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round">\n    ${editor.document.objects.map(object => objectSvgMarkup(object)).join("\n    ")}\n  </g>\n</svg>\n`;
   }
   function objectSvgMarkup(object) {
-    if (object.type === "freehand") return `<polyline points="${object.points.map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
-    if (object.type === "rect") return `<rect x="${fmt(object.x)}" y="${fmt(object.y)}" width="${fmt(object.width)}" height="${fmt(object.height)}"/>`;
+    if (object.type === "freehand") return `<polyline points="${rotatedObjectPoints(object,object.points).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
+    if (object.type === "rect") return `<polygon points="${rectPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
     if (object.type === "circle") return `<circle cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>`;
     if (object.type === "text") return `<path d="${contoursToPathData(textObjectContours(object))}"/>`;
     if (isVectorObject(object)) return vectorObjectMarkup(object,false);
@@ -445,8 +495,8 @@
   function objectsToPaths(objects) {
     const interval = Math.max(.05, +(window.PlotterFlow.getSettings().sampleInterval || .5));
     return objects.flatMap(object => {
-      if (object.type === "freehand") return [object.points.map(p => ({ x: p[0], y: p[1] }))];
-      if (object.type === "rect") return [[[object.x,object.y],[object.x+object.width,object.y],[object.x+object.width,object.y+object.height],[object.x,object.y+object.height],[object.x,object.y]].map(p => ({x:p[0],y:p[1]}))];
+      if (object.type === "freehand") return [rotatedObjectPoints(object,object.points).map(p => ({ x: p[0], y: p[1] }))];
+      if (object.type === "rect") return [rectPoints(object,true).map(p => ({x:p[0],y:p[1]}))];
       if (object.type === "star") return [[...starPoints(object), starPoints(object)[0]].map(p => ({x:p[0],y:p[1]}))];
       if (object.type === "text") return textObjectContours(object,interval).map(contour=>contour.map(p=>({x:p[0],y:p[1]})));
       if (isVectorObject(object)) return stampObjectPaths(object,interval).map(path=>path.map(p=>({x:p[0],y:p[1]})));
@@ -470,8 +520,8 @@
     return changed;
   }
   function objectAsPolylines(object, step) {
-    if (object.type === "freehand") return [{ points: resamplePolyline(object.points, step), closed: false }];
-    if (object.type === "rect") return [{ points: resamplePolyline([[object.x,object.y],[object.x+object.width,object.y],[object.x+object.width,object.y+object.height],[object.x,object.y+object.height],[object.x,object.y]], step), closed: true }];
+    if (object.type === "freehand") return [{ points: resamplePolyline(rotatedObjectPoints(object,object.points), step), closed: false }];
+    if (object.type === "rect") return [{ points: resamplePolyline(rectPoints(object,true), step), closed: true }];
     if (object.type === "star") { const points=starPoints(object);points.push(points[0]);return [{ points:resamplePolyline(points,step),closed:true }]; }
     if (object.type === "text") return textObjectContours(object,step).map(points=>({points:resamplePolyline(points,step),closed:true}));
     if (isVectorObject(object)) return stampObjectPaths(object,step).map(points=>({points:resamplePolyline(points,step),closed:Math.hypot(points[0][0]-points.at(-1)[0],points[0][1]-points.at(-1)[1])<.01}));
@@ -534,8 +584,8 @@
     if (object.type === "text") { const b=objectBounds(object);if(point.x>=b.x&&point.x<=b.x+b.width&&point.y>=b.y&&point.y<=b.y+b.height)return 0;return Math.min(...textObjectContours(object).map(points=>distanceToPointList(point,points)),Infinity); }
     if (isVectorObject(object)) { const b=objectBounds(object);if(point.x>=b.x&&point.x<=b.x+b.width&&point.y>=b.y&&point.y<=b.y+b.height)return 0;return Math.min(Math.abs(point.x-b.x),Math.abs(point.x-b.x-b.width),Math.abs(point.y-b.y),Math.abs(point.y-b.y-b.height)); }
     let points;
-    if (object.type === "freehand") points = object.points;
-    if (object.type === "rect") points = [[object.x,object.y],[object.x+object.width,object.y],[object.x+object.width,object.y+object.height],[object.x,object.y+object.height],[object.x,object.y]];
+    if (object.type === "freehand") points = rotatedObjectPoints(object,object.points);
+    if (object.type === "rect") points = rectPoints(object,true);
     if (object.type === "star") { points = starPoints(object); points.push(points[0]); }
     let distance = Infinity; for (let i=1;i<points.length;i++) distance=Math.min(distance,distanceToSegment(point,{x:points[i-1][0],y:points[i-1][1]},{x:points[i][0],y:points[i][1]})); return distance;
   }
@@ -543,14 +593,23 @@
   function distanceToSegment(p, a, b) { const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(!l2)return Math.hypot(p.x-a.x,p.y-a.y);const t=clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/l2,0,1);return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy)); }
   function translateObject(object, dx, dy) { const result=clone(object);if(result.type==="freehand")result.points=result.points.map(p=>[p[0]+dx,p[1]+dy]);else if(result.type==="rect"){result.x+=dx;result.y+=dy;}else if(result.type==="text"||isVectorObject(result)){result.x+=dx;result.y+=dy;}else{result.cx+=dx;result.cy+=dy;}return result; }
   function objectBounds(object) {
-    let points;if(object.type==="freehand")points=object.points;else if(object.type==="rect")points=[[object.x,object.y],[object.x+object.width,object.y+object.height]];else if(object.type==="text")points=textObjectContours(object).flat();else if(isVectorObject(object)){
+    let points;if(object.type==="freehand")points=rotatedObjectPoints(object,object.points);else if(object.type==="rect")points=rectPoints(object);else if(object.type==="star")points=starPoints(object);else if(object.type==="text")points=textObjectContours(object).flat();else if(isVectorObject(object)){
       const asset=vectorAsset(object),w=(asset?.defaultWidthMm||30)/2,h=(asset?.defaultHeightMm||30)/2;points=[[-w,-h],[w,-h],[w,h],[-w,h]].map(point=>transformStampPoint(object,point));
     }else points=[[object.cx-object.r,object.cy-object.r],[object.cx+object.r,object.cy+object.r]];
     if(!points.length)return{x:object.x||0,y:object.y||0,width:0,height:0};const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);return{x:Math.min(...xs),y:Math.min(...ys),width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys)};
   }
   function rotationHandlePoint(object){const b=objectBounds(object),c=editor.document.canvas;return{x:b.x+b.width/2,y:b.y-Math.max(2,Math.max(c.widthMm,c.heightMm)*.035)};}
   function pointNearRotationHandle(point,object){const handle=rotationHandlePoint(object),svg=$d("#drawingCanvas"),rect=svg.getBoundingClientRect(),c=editor.document.canvas,threshold=Math.max(c.widthMm/Math.max(1,rect.width),c.heightMm/Math.max(1,rect.height))*18;return Math.hypot(point.x-handle.x,point.y-handle.y)<=threshold;}
-  function starPoints(object) { const points=[];for(let i=0;i<object.vertices*2;i++){const radius=i%2?object.r*.45:object.r,angle=-Math.PI/2+i*Math.PI/object.vertices;points.push([object.cx+Math.cos(angle)*radius,object.cy+Math.sin(angle)*radius]);}return points; }
+  function rawObjectCenter(object){
+    if(object.type==="rect")return{x:object.x+object.width/2,y:object.y+object.height/2};
+    if(object.type==="circle"||object.type==="star")return{x:object.cx,y:object.cy};
+    if(object.type==="text"||isVectorObject(object))return{x:object.x,y:object.y};
+    const xs=object.points.map(p=>p[0]),ys=object.points.map(p=>p[1]);return{x:(Math.min(...xs)+Math.max(...xs))/2,y:(Math.min(...ys)+Math.max(...ys))/2};
+  }
+  function rotatePoint(point,center,degrees){const angle=(degrees||0)*Math.PI/180,cos=Math.cos(angle),sin=Math.sin(angle),x=point[0]-center.x,y=point[1]-center.y;return[center.x+x*cos-y*sin,center.y+x*sin+y*cos];}
+  function rotatedObjectPoints(object,points){const center=rawObjectCenter(object);return points.map(point=>rotatePoint(point,center,object.rotation||0));}
+  function rectPoints(object,closed=false){const points=[[object.x,object.y],[object.x+object.width,object.y],[object.x+object.width,object.y+object.height],[object.x,object.y+object.height]];if(closed)points.push(points[0]);return rotatedObjectPoints(object,points);}
+  function starPoints(object) { const points=[],offset=(object.rotation||0)*Math.PI/180;for(let i=0;i<object.vertices*2;i++){const radius=i%2?object.r*.45:object.r,angle=-Math.PI/2+offset+i*Math.PI/object.vertices;points.push([object.cx+Math.cos(angle)*radius,object.cy+Math.sin(angle)*radius]);}return points; }
 
   function textObjectContours(object,tolerance) {
     if(!editor.fontReady||!object.text)return[];
@@ -598,13 +657,13 @@
   }
   function normalizeObject(object) {
     if (!object || !["freehand","rect","circle","star","text","stamp","svgObject"].includes(object.type)) throw new Error("未対応のオブジェクトがあります");
-    if(object.type==="freehand"){if(!Array.isArray(object.points)||object.points.length<2)throw new Error("自由線の点列が不正です");return{type:"freehand",points:object.points.map(p=>[finite(p[0]),finite(p[1])])};}
-    if(object.type==="rect")return{type:"rect",x:finite(object.x),y:finite(object.y),width:Math.abs(finite(object.width)),height:Math.abs(finite(object.height))};
-    if(object.type==="circle")return{type:"circle",cx:finite(object.cx),cy:finite(object.cy),r:Math.abs(finite(object.r))};
+    if(object.type==="freehand"){if(!Array.isArray(object.points)||object.points.length<2)throw new Error("自由線の点列が不正です");return{type:"freehand",points:object.points.map(p=>[finite(p[0]),finite(p[1])]),rotation:normalizeAngle(finite(object.rotation||0))};}
+    if(object.type==="rect")return{type:"rect",x:finite(object.x),y:finite(object.y),width:Math.abs(finite(object.width)),height:Math.abs(finite(object.height)),rotation:normalizeAngle(finite(object.rotation||0))};
+    if(object.type==="circle")return{type:"circle",cx:finite(object.cx),cy:finite(object.cy),r:Math.abs(finite(object.r)),rotation:normalizeAngle(finite(object.rotation||0))};
     if(object.type==="text")return{type:"text",text:String(object.text||""),x:finite(object.x),y:finite(object.y),fontSize:clamp(Math.abs(finite(object.fontSize||6)),1,500),letterSpacing:clamp(finite(object.letterSpacing||0),-20,100),lineHeight:clamp(finite(object.lineHeight||1.2),.5,5),writingMode:object.writingMode==="vertical"?"vertical":"horizontal",rotation:clamp(finite(object.rotation||0),-360,360),renderMode:object.renderMode==="singleline"?"singleline":"outline"};
     if(object.type==="stamp")return{type:"stamp",stampId:String(object.stampId||""),x:finite(object.x),y:finite(object.y),scale:clamp(Math.abs(finite(object.scale??1)),.05,50),rotation:normalizeAngle(finite(object.rotation||0)),flipX:!!object.flipX,flipY:!!object.flipY};
     if(object.type==="svgObject")return normalizeSvgObject(object);
-    return{type:"star",cx:finite(object.cx),cy:finite(object.cy),r:Math.abs(finite(object.r)),vertices:clamp(Math.round(finite(object.vertices||5)),3,24)};
+    return{type:"star",cx:finite(object.cx),cy:finite(object.cy),r:Math.abs(finite(object.r)),vertices:clamp(Math.round(finite(object.vertices||5)),3,24),rotation:normalizeAngle(finite(object.rotation||0))};
   }
   function normalizeSvgObject(object){
     const sourceViewBox=object.viewBox||{},viewBox={x:finite(sourceViewBox.x??0),y:finite(sourceViewBox.y??0),width:Math.max(.001,Math.abs(finite(sourceViewBox.width||100))),height:Math.max(.001,Math.abs(finite(sourceViewBox.height||100)))};

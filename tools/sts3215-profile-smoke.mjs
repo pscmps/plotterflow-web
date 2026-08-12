@@ -26,7 +26,7 @@ assert.match(html, /value="rp2040-geek-sts3215-id2-id3"/);
 assert.match(html, /name="stsAxisXId"/);
 assert.match(html, /name="stsAxisZEnabled"/);
 assert.match(html, /<textarea name="initializeCommand" rows="5"><\/textarea>/);
-assert.match(html, /app\.js\?v=20260812-6/);
+assert.match(html, /app\.js\?v=20260812-7/);
 assert.match(readme, /M950/);
 
 console.log("STS3215 PlotterFlow profile smoke test passed");

@@ -364,6 +364,7 @@ async function generateAndSendSvg() {
   const code = generateGcode({ stayOnCurrentTab: true });
   if (code) {
     $("#sdFilename").value = sanitizeSdFilename($("#gcodeName").value);
+    openSerialTrajectory(code, $("#gcodeName").value);
     await startConfiguredTransfer(code, $("#gcodeName").value);
   }
 }
@@ -425,10 +426,30 @@ function renderGcodePreview() {
     moves = moves.map(m => ({ ...m, from: flipPoint(m.from), to: flipPoint(m.to) }));
     if (previewPosition) previewPosition = flipPoint(previewPosition);
   }
-  const pts = moves.flatMap(m => [m.from, m.to]); if (!pts.length) { svg.innerHTML = ""; return; }
+  renderTrajectorySvg(svg, moves, previewPosition);
+  if ($("#serialSource")?.value === "editor") renderSerialTrajectory($("#gcodeEditor").value, $("#gcodeName").value);
+}
+function renderTrajectorySvg(svg, moves, previewPosition = null) {
+  const pts = moves.flatMap(m => [m.from, m.to]); if (!pts.length) { svg.innerHTML = ""; svg.removeAttribute("viewBox"); return; }
   const xs = pts.map(p => p.x), ys = pts.map(p => p.y), pad = Math.max(5, (Math.max(...xs)-Math.min(...xs))*.05);
   svg.setAttribute("viewBox", `${Math.min(...xs)-pad} ${Math.min(...ys)-pad} ${Math.max(...xs)-Math.min(...xs)+2*pad || 10} ${Math.max(...ys)-Math.min(...ys)+2*pad || 10}`);
   svg.innerHTML = moves.map(m => `<line x1="${m.from.x}" y1="${m.from.y}" x2="${m.to.x}" y2="${m.to.y}" stroke="${m.type === "draw" ? "#087985" : "#df8a32"}" stroke-width="0.5" ${m.type === "travel" ? 'stroke-dasharray="2 2"' : ""} vector-effect="non-scaling-stroke"/>`).join("") + (previewPosition ? `<circle cx="${previewPosition.x}" cy="${previewPosition.y}" r="2" fill="#d02f52" vector-effect="non-scaling-stroke"/>` : "");
+}
+function renderSerialTrajectory(code, name = "送信データ") {
+  renderTrajectorySvg($("#serialTrajectorySvg"), parseGcodeMoves(String(code || "")), state.position);
+  $("#serialTrajectoryName").textContent = name || "送信データ";
+}
+function renderSelectedSerialTrajectory() {
+  const payload = selectedSerialPayload();
+  renderSerialTrajectory(payload.code, payload.name);
+}
+function scrollToSerialTrajectory() {
+  requestAnimationFrame(() => requestAnimationFrame(() => $("#serialTrajectoryCard").scrollIntoView({ behavior: "smooth", block: "start" })));
+}
+function openSerialTrajectory(code, name) {
+  switchTab("serial");
+  renderSerialTrajectory(code, name);
+  scrollToSerialTrajectory();
 }
 function parseGcodeMoves(code) {
   let pos = { x: 0, y: 0 }, absolute = true; const moves = [];
@@ -451,7 +472,7 @@ function bindEditor() {
   $("#renameGcode").addEventListener("click", renameGcode); $("#deleteGcode").addEventListener("click", deleteGcode);
   $("#gcodeLibrary").addEventListener("change", e => loadEditor(e.target.value));
   $("#gcodeFile").addEventListener("change", event => event.target.files[0] && loadGcodeFile(event.target.files[0]));
-  $("#sendFromEditor").addEventListener("click", () => { switchTab("serial"); $("#sdFilename").value = sanitizeSdFilename($("#gcodeName").value); startConfiguredTransfer($("#gcodeEditor").value, $("#gcodeName").value); });
+  $("#sendFromEditor").addEventListener("click", () => { const code=$("#gcodeEditor").value,name=$("#gcodeName").value; openSerialTrajectory(code,name); $("#sdFilename").value = sanitizeSdFilename(name); startConfiguredTransfer(code,name); });
 }
 async function loadGcodeFile(file) {
   if (!/\.(gcode|nc|tap|txt)$/i.test(file.name)) return toast("G-codeファイルを選択してください");
@@ -617,7 +638,7 @@ function bindSerial() {
     await exitSdManagement();
     updateSerialDestinationUi();
   });
-  $("#serialSource").addEventListener("change", () => updateSdFilenameFromSource(true));
+  $("#serialSource").addEventListener("change", () => { updateSdFilenameFromSource(true); renderSelectedSerialTrajectory(); });
   $("#sdFilename").addEventListener("change", event => { event.target.value = sanitizeSdFilename(event.target.value); });
   populateJogSettings();
   $("#jogStep").addEventListener("change", saveJogSettings); $("#jogFeed").addEventListener("input", updateJogPreview); $("#jogFeed").addEventListener("change", saveJogSettings);
@@ -640,8 +661,12 @@ function bindSerial() {
   $("#startSend").addEventListener("click", () => {
     const payload = selectedSerialPayload();
     if (payload.reload && effectiveSerialDestination() === "execute") notifyReloadSimulation(payload.code);
+    renderSerialTrajectory(payload.code, payload.name);
+    scrollToSerialTrajectory();
     startConfiguredTransfer(payload.code, payload.name);
   });
+  $("#scrollToSerialControls").addEventListener("click", () => $("#serialSendPanel").scrollIntoView({ behavior: "smooth", block: "start" }));
+  renderSelectedSerialTrajectory();
   $("#clearLog").addEventListener("click", () => $("#serialLog").innerHTML = "");
 }
 async function connectSerial() {
