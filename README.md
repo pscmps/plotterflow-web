@@ -230,9 +230,9 @@ M5Stackが起動直後のモード選択画面でも、PCからこの操作を�
 - SD管理中はジョグ、通常送信、ジョブ実行を無効にします。
 - この管理UIもM5Stack DRV8835プロファイルだけに表示します。
 
-### RP2040-GEEK STS3215 direct-axis G-code
+### RP2040/RP2350-GEEK STS3215 direct-axis G-code
 
-Select `RP2040-GEEK STS3215 XYZ直結G-code（XY実機テスト）` to send generated G-code without applying machine kinematics.
+Select `RP2040/RP2350-GEEK STS3215 XYZ直結G-code（XY実機テスト）` to send generated G-code without applying machine kinematics.
 
 - Web Serial: USB CDC at 115200 baud
 - Axis mapping defaults: X = STS3215 ID 2, Y = STS3215 ID 3, Z = ID 1 (disabled)
@@ -251,6 +251,14 @@ Select `RP2040-GEEK STS3215 XYZ直結G-code（XY実機テスト）` to send gene
 The current hardware scan found IDs 2 and 3; ID 1 did not respond. The default 128 pulses/mm makes 32 mm equal one servo turn. PlotterFlow does not rewrite servo IDs or EEPROM. `ENABLEMULTITURN <id>` remains an explicit maintenance command. The angle-based `TESTJOG` controls are also retained and use the X/Y IDs from settings.
 
 Settings saved by the earlier jog-only profile (`SCAN 2` / `SCAN 3`) are migrated automatically to the direct-axis initialization sequence. The initialization field is multiline so saving settings preserves each command as a separate line.
+
+G-code編集画面の「SD用ダウンロード」は、このSTS3215直結プロファイルを選んだ場合だけ表示されます。
+通常のダウンロード内容へ、現在の軸設定から生成した`M950`、`M17`、`G21`、`G90`、
+`G10 L20 P0 X0 Y0`を先頭に追加し、末尾へ`M18`を追加した`*-sd.gcode`を生成します。
+FAT32でフォーマットしたGEEK本体のSDカードのルートへコピーし、LCDのファイルメニューから選択します。
+RP2040-GEEK/RP2350-GEEK共通で、GP3=上、GP4=下、GP5=決定です。実行中はGP5を1秒長押しすると
+中止し、STS3215のTorqueをOFFにします。XL330の`MOTION_LOCKED=1`版では同じメニューから
+ファイル名を確認できますが、SDからの運転はできません。
 
 ### XL330 PIO / Pico・Pico 2（開発中）
 

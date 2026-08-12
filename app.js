@@ -56,7 +56,7 @@ const CONTROLLER_PROFILES = {
     }
   },
   "rp2040-geek-sts3215-id2-id3": {
-    label: "RP2040-GEEK STS3215 XYZ直結G-code（XY実機テスト）",
+    label: "RP2040/RP2350-GEEK STS3215 XYZ直結G-code（XY実機テスト）",
     phase: "実機テスト",
     summary: "運動学を使わず、G-codeのXYZを設定したSTS3215へ直接割り当てるプロファイルです。現在はXY動作を対象にし、Zは設定のみ用意しています。",
     notes: [
@@ -467,7 +467,7 @@ function parseGcodeMoves(code) {
 function bindEditor() {
   $("#gcodeEditor").addEventListener("input", () => { state.previewNormalizeY = false; updateEditorStats(); if (state.previewMode === "gcode") renderGcodePreview(); });
   $("#gcodeName").addEventListener("input", () => updateSdFilenameFromSource(true));
-  $("#saveGcode").addEventListener("click", saveCurrentGcode); $("#downloadGcode").addEventListener("click", downloadGcode);
+  $("#saveGcode").addEventListener("click", saveCurrentGcode); $("#downloadGcode").addEventListener("click", downloadGcode); $("#downloadSdGcode").addEventListener("click", downloadSdGcode);
   $("#newGcode").addEventListener("click", () => loadEditor(null)); $("#duplicateGcode").addEventListener("click", duplicateGcode);
   $("#renameGcode").addEventListener("click", renameGcode); $("#deleteGcode").addEventListener("click", deleteGcode);
   $("#gcodeLibrary").addEventListener("change", e => loadEditor(e.target.value));
@@ -500,6 +500,18 @@ function duplicateGcode() { const item = state.library.find(x => x.id === state.
 function renameGcode() { const item = state.library.find(x => x.id === state.currentId); if (!item) return toast("名前を変更する項目を選択してください"); const name = prompt("新しい名前", item.name); if (name) { item.name = ensureExt(name); item.updated = Date.now(); saveJSON("plotterflow.library", state.library); refreshLibrary(); $("#gcodeName").value = item.name; } }
 function deleteGcode() { if (!state.currentId || !confirm("選択中のG-codeを削除しますか？")) return; state.library = state.library.filter(x => x.id !== state.currentId); saveJSON("plotterflow.library", state.library); loadEditor(null); refreshLibrary(); }
 function downloadGcode() { const blob = new Blob([$("#gcodeEditor").value], { type: "text/plain" }), a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = ensureExt($("#gcodeName").value); a.click(); URL.revokeObjectURL(a.href); }
+function downloadSdGcode() {
+  if (!isSts3215DirectAxes()) return toast("STS3215 XYZ直結プロファイルを選択してください");
+  const setup = [sts3215AxisConfigCommand(), "M17", "G21", "G90", "G10 L20 P0 X0 Y0"];
+  const body = cleanLines($("#gcodeEditor").value);
+  const text = [...setup, ...body, "M18", ""].join("\n");
+  const blob = new Blob([text], { type: "text/plain" }), a = document.createElement("a");
+  const sourceName = ensureExt($("#gcodeName").value.trim() || "untitled.gcode");
+  a.href = URL.createObjectURL(blob);
+  a.download = sourceName.replace(/\.(gcode|nc|tap)$/i, "-sd.gcode");
+  a.click(); URL.revokeObjectURL(a.href);
+  toast("GEEK本体SD用G-codeをダウンロードしました");
+}
 function ensureExt(name) { return /\.(gcode|nc|tap)$/i.test(name) ? name : `${name}.gcode`; }
 function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 
@@ -552,6 +564,8 @@ function updateSerialProfileDisplay() {
   updateSerialDestinationUi();
   updateJogProfileUi();
   updatePlanarArmVisibility();
+  const sdDownload = $("#downloadSdGcode");
+  if (sdDownload) sdDownload.hidden = !isSts3215DirectAxes();
 }
 
 function isPicoDrv8835Profile() { return state.settings.controllerProfile === "pico2-drv8835-planar"; }
