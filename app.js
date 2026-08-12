@@ -49,7 +49,7 @@ const CONTROLLER_PROFILES = {
     capabilities: { jogCommand: "xl330-test", jogAxes: ["X"] },
     settings: {
       baudrate: 115200, header: "", footer: "",
-      penUpCommand: "", penDownCommand: "",
+      penUpCommand: "G0 Z1", penDownCommand: "G0 Z0",
       okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
       initializeCommand: "SCAN 1", disconnectCommand: "M18", jogAutoDisable: false,
       jogStep: 0.0625, jogFeed: 20
@@ -62,7 +62,7 @@ const CONTROLLER_PROFILES = {
     notes: [
       "初期値は実機スキャンで検出したID 2をX、ID 3をYに割り当てます。設定画面からXYZのID・pulse/mm・反転を変更できます。",
       "Mode 0、Min/Max Angle Limit=0、Phase BIT4=1、Angle Resolution=1のときだけ動作し、符号付き約±7回転の範囲を使います。",
-      "送信開始時の現在位置をXY=0として、G0/G1のmm座標を絶対多回転位置へ変換します。Zは初期状態で無効です。",
+      "送信開始時の現在位置をXYZ=0として、G0/G1のmm座標を絶対多回転位置へ変換します。ZはID 1のペン軸として有効です。",
       "移動後は元の位置へ戻りません。Torque OFF後も、次の指令はその時点の現在位置から加算されます。",
       "速度はファームウェア側でraw 3400、加速度raw 150に固定されています。Stopは0x85で現在の往復動作を中止します。"
     ],
@@ -78,7 +78,7 @@ const CONTROLLER_PROFILES = {
       jogStep: 45, jogFeed: 3400, penUpDelay: 0, penDownDelay: 0, penUpClearanceDelay: 0,
       stsAxisXId: 2, stsAxisYId: 3, stsAxisZId: 1,
       stsAxisXPulsesPerMm: 128, stsAxisYPulsesPerMm: 128, stsAxisZPulsesPerMm: 128,
-      stsAxisXInvert: false, stsAxisYInvert: false, stsAxisZInvert: false, stsAxisZEnabled: false
+      stsAxisXInvert: false, stsAxisYInvert: false, stsAxisZInvert: false, stsAxisZEnabled: true
     }
   },
   "pico2-tmc2209-planar": {
@@ -246,6 +246,19 @@ function migrateSts3215DirectAxesProfile() {
       if (!String(state.settings.footer || "").trim()) state.settings.footer = "M18";
       saveJSON("plotterflow.settings", state.settings);
     }
+  }
+  const penMigrationKey = "plotterflow.sts3215Id1PenV1";
+  if (!localStorage.getItem(penMigrationKey)) {
+    if (state.settings.controllerProfile === "rp2040-geek-sts3215-id2-id3" &&
+        +state.settings.stsAxisZId === 1 && !state.settings.stsAxisZEnabled &&
+        !String(state.settings.penUpCommand || "").trim() && !String(state.settings.penDownCommand || "").trim()) {
+      state.settings.stsAxisZEnabled = true;
+      state.settings.stsAxisZPulsesPerMm = 128;
+      state.settings.penUpCommand = "G0 Z1";
+      state.settings.penDownCommand = "G0 Z0";
+      saveJSON("plotterflow.settings", state.settings);
+    }
+    localStorage.setItem(penMigrationKey, "1");
   }
 }
 function toast(message) { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2200); }
