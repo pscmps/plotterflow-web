@@ -256,6 +256,8 @@ Select `RP2040/RP2350-GEEK STS3215 XYZ直結G-code` to send generated G-code wit
 Serialタブには、ID 3を固定で−5度／+5度動かすZ確認ボタンも表示します。これはRθ差動入力を実装する前の単体確認専用で、最終的なXYZ機械座標を表すものではありません。
 実機では`+57`／`-57` pulseの往復が成功し、原点差は−1 pulse、各終了時のTorque OFFも確認済みです。
 
+「矢印＋W/S」キージョグをONにすると、このプロファイルに限りWキーでZ正方向、SキーでZ負方向へ、角度欄で選択した量だけ`TESTJOG`します。入力欄の編集中、キー長押し、Serialタブ以外では動作しません。画面のZボタンは従来どおり固定±5度です。
+
 The current hardware scan found model 777 at IDs 1, 2, and 3. The default 128 pulses/mm makes 32 mm equal one servo turn. PlotterFlow does not rewrite servo IDs or EEPROM. `ENABLEMULTITURN <id>` remains an explicit maintenance command. The angle-based `TESTJOG` controls use the configured X/Y IDs, plus a temporary fixed ±5 degree Z control.
 
 Settings saved by the earlier jog-only profile (`SCAN 2` / `SCAN 3`) are migrated automatically to the direct-axis initialization sequence. The initialization field is multiline so saving settings preserves each command as a separate line.

@@ -1035,7 +1035,7 @@ function updateSts3215JogProfileUi() {
   $("#jogFeedLabel").textContent = "速度raw（FW固定）";
   $("#jogFeedUnit").textContent = "3400固定";
   $("#jogTitle").textContent = `STS3215 ID${state.settings.stsAxisXId}(X) / ID${state.settings.stsAxisYId}(Y) / ID${state.settings.stsAxisZId}(Z)`;
-  $("#jogHint").textContent = "矢印はXY角度JOG、Zボタンは固定±5°の暫定確認。完了後Torque OFF";
+  $("#jogHint").textContent = "矢印はXY、W/Sは選択角度のZ+/Z−。Zボタンは固定±5°。完了後Torque OFF";
   $("#jogCoordinates").hidden = true;
   $("#serialSourceLabel").hidden = false;
   $("#serialTransferControls").hidden = false;
@@ -1045,7 +1045,8 @@ function updateSts3215JogProfileUi() {
   ['[data-command="$$"]', '[data-command="$X"]'].forEach(selector => { $(selector).disabled = true; });
   $('[data-command="?"]').disabled = true;
   $("#stsZJogControls").hidden = false;
-  $(".keyboard-jog-toggle").title = `矢印キーでID ${state.settings.stsAxisXId}(X) / ID ${state.settings.stsAxisYId}(Y)の安全JOG`;
+  $(".keyboard-jog-toggle").title = `矢印キーでXY、W/SキーでID ${state.settings.stsAxisZId}(Z)を選択角度だけ安全JOG`;
+  $("#keyboardJogLabel").textContent = "矢印＋W/S";
   feed.min = "3400"; feed.max = "3400"; feed.value = "3400"; feed.disabled = true;
   $$('[data-jog-axis="Y"]').forEach(button => { button.disabled = false; });
   const labels = [
@@ -1085,6 +1086,7 @@ function updateJogProfileUi() {
   ["penUpButton", "penDownButton", "reloadButton", "pauseSend", "resumeSend"].forEach(id => { $(`#${id}`).disabled = testMode; });
   ['[data-command="$$"]', '[data-command="$X"]'].forEach(selector => { $(selector).disabled = testMode; });
   $(".keyboard-jog-toggle").title = testMode ? "PCの左右キーでID 1を正転・逆転" : "PCの矢印キーでXYジョグ";
+  $("#keyboardJogLabel").textContent = "矢印キー";
   feed.min = "1"; feed.max = testMode ? "100" : "50000";
   $$('[data-jog-axis="Y"]').forEach(button => { button.disabled = testMode; });
   const left = $('[data-jog-axis="X"][data-jog-sign="1"] small');
@@ -1137,7 +1139,7 @@ function setKeyboardJogEnabled(enabled) {
   const toggle = $("#keyboardJogToggle");
   toggle.checked = state.keyboardJogEnabled;
   $("#keyboardJogState").textContent = state.keyboardJogEnabled ? "ON" : "OFF";
-  toast(`矢印キージョグ: ${state.keyboardJogEnabled ? "ON" : "OFF"}`);
+  toast(`${isSts3215TestJog() ? "矢印＋W/S" : "矢印キー"}ジョグ: ${state.keyboardJogEnabled ? "ON" : "OFF"}`);
 }
 function isKeyboardJogEditingTarget(target) {
   if (!(target instanceof Element)) return false;
@@ -1153,7 +1155,10 @@ function flashKeyboardJogButton(axis, sign) {
   button.keyboardActiveTimer = setTimeout(() => button.classList.remove("keyboard-active"), 160);
 }
 function handleKeyboardJog(event) {
-  const direction = KEYBOARD_JOG_DIRECTIONS[event.key];
+  const stsZDirection = isSts3215TestJog()
+    ? ({ w: { axis: "Z", sign: 1 }, s: { axis: "Z", sign: -1 } }[event.key.toLowerCase()])
+    : null;
+  const direction = KEYBOARD_JOG_DIRECTIONS[event.key] || stsZDirection;
   if (!state.keyboardJogEnabled || !direction || event.repeat || event.defaultPrevented) return;
   if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
   if (!$("#tab-serial").classList.contains("active") || document.querySelector("dialog[open]")) return;

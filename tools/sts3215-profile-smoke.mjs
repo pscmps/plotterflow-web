@@ -26,6 +26,8 @@ assert.match(app, /`M950 X\$\{id\("stsAxisXId"\)\}/);
 assert.match(app, /const lines = \[\.\.\.sts3215SetupLines\(\), \.\.\.cleanLines\(code\)\]/);
 assert.match(app, /feed\.min = "3400"; feed\.max = "3400"; feed\.value = "3400"/);
 assert.match(app, /command = `TESTJOG \$\{id\} \$\{delta\}`/);
+assert.match(app, /w: \{ axis: "Z", sign: 1 \}, s: \{ axis: "Z", sign: -1 \}/);
+assert.match(app, /KEYBOARD_JOG_DIRECTIONS\[event\.key\] \|\| stsZDirection/);
 assert.match(app, /Math\.abs\(delta\) > 28672/);
 assert.match(app, /\$\('\[data-command="\?"\]'\)\.disabled = true/);
 assert.match(html, /value="rp2040-geek-sts3215-id2-id3"/);
@@ -35,7 +37,8 @@ assert.match(html, /name="stsAxisZEnabled"/);
 assert.match(html, /<textarea name="initializeCommand" rows="5"><\/textarea>/);
 assert.match(html, /data-jog-axis="Z" data-jog-sign="-1" data-jog-degrees="5"/);
 assert.match(html, /data-jog-axis="Z" data-jog-sign="1" data-jog-degrees="5"/);
-assert.match(html, /app\.js\?v=20260813-2/);
+assert.match(html, /id="keyboardJogLabel">矢印キー/);
+assert.match(html, /app\.js\?v=20260814-1/);
 assert.match(readme, /M950/);
 
 console.log("STS3215 PlotterFlow profile smoke test passed");
