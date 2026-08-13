@@ -56,9 +56,9 @@ const CONTROLLER_PROFILES = {
     }
   },
   "rp2040-geek-sts3215-id2-id3": {
-    label: "RP2040/RP2350-GEEK STS3215 XYZ直結G-code（XY実機テスト）",
-    phase: "実機テスト",
-    summary: "運動学を使わず、G-codeのXYZを設定したSTS3215へ直接割り当てるプロファイルです。現在はXY動作を対象にし、Zは設定のみ用意しています。",
+    label: "RP2040/RP2350-GEEK STS3215 XYZ直結G-code",
+    phase: "対応",
+    summary: "G-codeのXYZを設定したSTS3215へ直接割り当てるPlotterFlow対応プロファイルです。",
     notes: [
       "初期値は実機スキャンで検出したID 2をX、ID 3をYに割り当てます。設定画面からXYZのID・pulse/mm・反転を変更できます。",
       "Mode 0、Min/Max Angle Limit=0、Phase BIT4=1、Angle Resolution=1のときだけ動作し、符号付き約±7回転の範囲を使います。",

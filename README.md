@@ -232,7 +232,7 @@ M5Stackが起動直後のモード選択画面でも、PCからこの操作を�
 
 ### RP2040/RP2350-GEEK STS3215 direct-axis G-code
 
-Select `RP2040/RP2350-GEEK STS3215 XYZ直結G-code（XY実機テスト）` to send generated G-code without applying machine kinematics.
+Select `RP2040/RP2350-GEEK STS3215 XYZ直結G-code` to send generated G-code without applying machine kinematics.
 
 - Web Serial: USB CDC at 115200 baud
 - Axis mapping defaults: X = STS3215 ID 2, Y = ID 3, pen Z = ID 1 (enabled)
