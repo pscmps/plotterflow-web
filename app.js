@@ -49,20 +49,20 @@ const CONTROLLER_PROFILES = {
     capabilities: { jogCommand: "xl330-test", jogAxes: ["X"] },
     settings: {
       baudrate: 115200, header: "", footer: "",
-      penUpCommand: "", penDownCommand: "",
+      penUpCommand: "G0 Z1", penDownCommand: "G0 Z0",
       okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
       initializeCommand: "SCAN 1", disconnectCommand: "M18", jogAutoDisable: false,
       jogStep: 0.0625, jogFeed: 20
     }
   },
   "rp2040-geek-sts3215-id2-id3": {
-    label: "RP2040-GEEK STS3215 XYZ直結G-code（XY実機テスト）",
-    phase: "実機テスト",
-    summary: "運動学を使わず、G-codeのXYZを設定したSTS3215へ直接割り当てるプロファイルです。現在はXY動作を対象にし、Zは設定のみ用意しています。",
+    label: "RP2040/RP2350-GEEK STS3215 XYZ直結G-code",
+    phase: "対応",
+    summary: "G-codeのXYZを設定したSTS3215へ直接割り当てるPlotterFlow対応プロファイルです。",
     notes: [
       "初期値は実機スキャンで検出したID 2をX、ID 3をYに割り当てます。設定画面からXYZのID・pulse/mm・反転を変更できます。",
       "Mode 0、Min/Max Angle Limit=0、Phase BIT4=1、Angle Resolution=1のときだけ動作し、符号付き約±7回転の範囲を使います。",
-      "送信開始時の現在位置をXY=0として、G0/G1のmm座標を絶対多回転位置へ変換します。Zは初期状態で無効です。",
+      "送信開始時の現在位置をXYZ=0として、G0/G1のmm座標を絶対多回転位置へ変換します。ZはID 1のペン軸として有効です。",
       "移動後は元の位置へ戻りません。Torque OFF後も、次の指令はその時点の現在位置から加算されます。",
       "速度はファームウェア側でraw 3400、加速度raw 150に固定されています。Stopは0x85で現在の往復動作を中止します。"
     ],
@@ -78,7 +78,7 @@ const CONTROLLER_PROFILES = {
       jogStep: 45, jogFeed: 3400, penUpDelay: 0, penDownDelay: 0, penUpClearanceDelay: 0,
       stsAxisXId: 2, stsAxisYId: 3, stsAxisZId: 1,
       stsAxisXPulsesPerMm: 128, stsAxisYPulsesPerMm: 128, stsAxisZPulsesPerMm: 128,
-      stsAxisXInvert: false, stsAxisYInvert: false, stsAxisZInvert: false, stsAxisZEnabled: false
+      stsAxisXInvert: false, stsAxisYInvert: false, stsAxisZInvert: false, stsAxisZEnabled: true
     }
   },
   "pico2-tmc2209-planar": {
@@ -246,6 +246,19 @@ function migrateSts3215DirectAxesProfile() {
       if (!String(state.settings.footer || "").trim()) state.settings.footer = "M18";
       saveJSON("plotterflow.settings", state.settings);
     }
+  }
+  const penMigrationKey = "plotterflow.sts3215Id1PenV1";
+  if (!localStorage.getItem(penMigrationKey)) {
+    if (state.settings.controllerProfile === "rp2040-geek-sts3215-id2-id3" &&
+        +state.settings.stsAxisZId === 1 && !state.settings.stsAxisZEnabled &&
+        !String(state.settings.penUpCommand || "").trim() && !String(state.settings.penDownCommand || "").trim()) {
+      state.settings.stsAxisZEnabled = true;
+      state.settings.stsAxisZPulsesPerMm = 128;
+      state.settings.penUpCommand = "G0 Z1";
+      state.settings.penDownCommand = "G0 Z0";
+      saveJSON("plotterflow.settings", state.settings);
+    }
+    localStorage.setItem(penMigrationKey, "1");
   }
 }
 function toast(message) { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2200); }
@@ -467,7 +480,7 @@ function parseGcodeMoves(code) {
 function bindEditor() {
   $("#gcodeEditor").addEventListener("input", () => { state.previewNormalizeY = false; updateEditorStats(); if (state.previewMode === "gcode") renderGcodePreview(); });
   $("#gcodeName").addEventListener("input", () => updateSdFilenameFromSource(true));
-  $("#saveGcode").addEventListener("click", saveCurrentGcode); $("#downloadGcode").addEventListener("click", downloadGcode);
+  $("#saveGcode").addEventListener("click", saveCurrentGcode); $("#downloadGcode").addEventListener("click", downloadGcode); $("#downloadSdGcode").addEventListener("click", downloadSdGcode);
   $("#newGcode").addEventListener("click", () => loadEditor(null)); $("#duplicateGcode").addEventListener("click", duplicateGcode);
   $("#renameGcode").addEventListener("click", renameGcode); $("#deleteGcode").addEventListener("click", deleteGcode);
   $("#gcodeLibrary").addEventListener("change", e => loadEditor(e.target.value));
@@ -500,6 +513,18 @@ function duplicateGcode() { const item = state.library.find(x => x.id === state.
 function renameGcode() { const item = state.library.find(x => x.id === state.currentId); if (!item) return toast("名前を変更する項目を選択してください"); const name = prompt("新しい名前", item.name); if (name) { item.name = ensureExt(name); item.updated = Date.now(); saveJSON("plotterflow.library", state.library); refreshLibrary(); $("#gcodeName").value = item.name; } }
 function deleteGcode() { if (!state.currentId || !confirm("選択中のG-codeを削除しますか？")) return; state.library = state.library.filter(x => x.id !== state.currentId); saveJSON("plotterflow.library", state.library); loadEditor(null); refreshLibrary(); }
 function downloadGcode() { const blob = new Blob([$("#gcodeEditor").value], { type: "text/plain" }), a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = ensureExt($("#gcodeName").value); a.click(); URL.revokeObjectURL(a.href); }
+function downloadSdGcode() {
+  if (!isSts3215DirectAxes()) return toast("STS3215 XYZ直結プロファイルを選択してください");
+  const setup = [sts3215AxisConfigCommand(), "M17", "G21", "G90", "G10 L20 P0 X0 Y0"];
+  const body = cleanLines($("#gcodeEditor").value);
+  const text = [...setup, ...body, "M18", ""].join("\n");
+  const blob = new Blob([text], { type: "text/plain" }), a = document.createElement("a");
+  const sourceName = ensureExt($("#gcodeName").value.trim() || "untitled.gcode");
+  a.href = URL.createObjectURL(blob);
+  a.download = sourceName.replace(/\.(gcode|nc|tap)$/i, "-sd.gcode");
+  a.click(); URL.revokeObjectURL(a.href);
+  toast("GEEK本体SD用G-codeをダウンロードしました");
+}
 function ensureExt(name) { return /\.(gcode|nc|tap)$/i.test(name) ? name : `${name}.gcode`; }
 function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 
@@ -552,6 +577,8 @@ function updateSerialProfileDisplay() {
   updateSerialDestinationUi();
   updateJogProfileUi();
   updatePlanarArmVisibility();
+  const sdDownload = $("#downloadSdGcode");
+  if (sdDownload) sdDownload.hidden = !isSts3215DirectAxes();
 }
 
 function isPicoDrv8835Profile() { return state.settings.controllerProfile === "pico2-drv8835-planar"; }
