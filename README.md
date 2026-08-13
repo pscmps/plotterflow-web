@@ -235,7 +235,7 @@ M5Stackが起動直後のモード選択画面でも、PCからこの操作を�
 Select `RP2040/RP2350-GEEK STS3215 XYZ直結G-code` to send generated G-code without applying machine kinematics.
 
 - Web Serial: USB CDC at 115200 baud
-- Axis mapping defaults: X = STS3215 ID 2, Y = ID 3, pen Z = ID 1 (enabled)
+- 暫定軸割当: X = STS3215 ID 2、Y = ID 1、ペンZ = ID 3（有効）
 - Settings: per-axis servo ID, pulses/mm, direction inversion, and Z enable
 - Configuration: PlotterFlow sends `M950 ...`, then `M17` captures the current positions as G-code XYZ zero
 - Motion: generated `G0` / `G1` millimetre coordinates map directly to signed multi-turn servo positions
@@ -248,12 +248,15 @@ Select `RP2040/RP2350-GEEK STS3215 XYZ直結G-code` to send generated G-code wit
 - Stop sends byte `0x85`
 - GRBL status polling is disabled; normal G-code and job transfer are enabled
 
-実機でID 1/2/3はいずれもmodel 777として応答しました。ID 1をペンZ軸に割り当て、
+実機でID 1/2/3はいずれもmodel 777として応答しました。現在はID 3をペンZ軸へ暫定的に割り当て、
 ペンアップボタンは`G0 Z1`、ペンダウンボタンは`G0 Z0`を送ります。既定の128 pulse/mmでは
 上下差は128 pulse（約11.25度）です。電源投入後の`M17`時点がZ=0になり、取付方向が逆の場合は
 設定画面の「Z反転」を有効にします。各移動後にファームウェアが全軸をTorque OFFにします。
 
-The current hardware scan found model 777 at IDs 1, 2, and 3. The default 128 pulses/mm makes 32 mm equal one servo turn. ID 1 was explicitly configured for multi-turn operation before assigning it to pen Z. PlotterFlow does not rewrite servo IDs or EEPROM. `ENABLEMULTITURN <id>` remains an explicit maintenance command. The angle-based `TESTJOG` controls are also retained and use the X/Y IDs from settings.
+Serialタブには、ID 3を固定で−5度／+5度動かすZ確認ボタンも表示します。これはRθ差動入力を実装する前の単体確認専用で、最終的なXYZ機械座標を表すものではありません。
+実機では`+57`／`-57` pulseの往復が成功し、原点差は−1 pulse、各終了時のTorque OFFも確認済みです。
+
+The current hardware scan found model 777 at IDs 1, 2, and 3. The default 128 pulses/mm makes 32 mm equal one servo turn. PlotterFlow does not rewrite servo IDs or EEPROM. `ENABLEMULTITURN <id>` remains an explicit maintenance command. The angle-based `TESTJOG` controls use the configured X/Y IDs, plus a temporary fixed ±5 degree Z control.
 
 Settings saved by the earlier jog-only profile (`SCAN 2` / `SCAN 3`) are migrated automatically to the direct-axis initialization sequence. The initialization field is multiline so saving settings preserves each command as a separate line.
 

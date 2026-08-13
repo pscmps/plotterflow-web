@@ -57,26 +57,27 @@ const CONTROLLER_PROFILES = {
   },
   "rp2040-geek-sts3215-id2-id3": {
     label: "RP2040/RP2350-GEEK STS3215 XYZ直結G-code",
-    phase: "対応",
-    summary: "G-codeのXYZを設定したSTS3215へ直接割り当てるPlotterFlow対応プロファイルです。",
+    phase: "動作確認",
+    summary: "Rθ差動化前に、G-codeのXYZをSTS3215へ直接割り当てて確認する暫定プロファイルです。",
     notes: [
-      "初期値は実機スキャンで検出したID 2をX、ID 3をYに割り当てます。設定画面からXYZのID・pulse/mm・反転を変更できます。",
+      "暫定割当はID 2=X、ID 1=Y、ID 3=Zです。設定画面からXYZのID・pulse/mm・反転を変更できます。",
       "Mode 0、Min/Max Angle Limit=0、Phase BIT4=1、Angle Resolution=1のときだけ動作し、符号付き約±7回転の範囲を使います。",
-      "送信開始時の現在位置をXYZ=0として、G0/G1のmm座標を絶対多回転位置へ変換します。ZはID 1のペン軸として有効です。",
+      "送信開始時の現在位置をXYZ=0として、G0/G1のmm座標を絶対多回転位置へ変換します。ZはID 3のペン軸として有効です。",
+      "Z -5° / +5°はRθ差動化前の単体動作確認専用です。最終的な機械座標の意味はまだ確定していません。",
       "移動後は元の位置へ戻りません。Torque OFF後も、次の指令はその時点の現在位置から加算されます。",
       "速度はファームウェア側でraw 3400、加速度raw 150に固定されています。Stopは0x85で現在の往復動作を中止します。"
     ],
     capabilities: {
-      jogCommand: "sts3215-test", jogAxes: ["X", "Y"],
+      jogCommand: "sts3215-test", jogAxes: ["X", "Y", "Z"],
       directAxes: true, statusPolling: false
     },
     settings: {
       baudrate: 115200, header: "G21\nG90", footer: "M18",
-      penUpCommand: "", penDownCommand: "",
+      penUpCommand: "G0 Z1", penDownCommand: "G0 Z0",
       okTimeoutMs: 20000, stopStrategy: "cancel-pen-up",
       initializeCommand: "M17\nG21\nG90\nG10 L20 P0 X0 Y0", disconnectCommand: "M18", jogAutoDisable: false,
       jogStep: 45, jogFeed: 3400, penUpDelay: 0, penDownDelay: 0, penUpClearanceDelay: 0,
-      stsAxisXId: 2, stsAxisYId: 3, stsAxisZId: 1,
+      stsAxisXId: 2, stsAxisYId: 1, stsAxisZId: 3,
       stsAxisXPulsesPerMm: 128, stsAxisYPulsesPerMm: 128, stsAxisZPulsesPerMm: 128,
       stsAxisXInvert: false, stsAxisYInvert: false, stsAxisZInvert: false, stsAxisZEnabled: true
     }
@@ -247,18 +248,20 @@ function migrateSts3215DirectAxesProfile() {
       saveJSON("plotterflow.settings", state.settings);
     }
   }
-  const penMigrationKey = "plotterflow.sts3215Id1PenV1";
-  if (!localStorage.getItem(penMigrationKey)) {
-    if (state.settings.controllerProfile === "rp2040-geek-sts3215-id2-id3" &&
-        +state.settings.stsAxisZId === 1 && !state.settings.stsAxisZEnabled &&
-        !String(state.settings.penUpCommand || "").trim() && !String(state.settings.penDownCommand || "").trim()) {
+  const xyzMigrationKey = "plotterflow.sts3215X2Y1Z3V2";
+  if (!localStorage.getItem(xyzMigrationKey)) {
+    if (state.settings.controllerProfile === "rp2040-geek-sts3215-id2-id3") {
+      if (+state.settings.stsAxisXId === 2 && +state.settings.stsAxisYId === 3 && +state.settings.stsAxisZId === 1) {
+        state.settings.stsAxisYId = 1;
+        state.settings.stsAxisZId = 3;
+      }
       state.settings.stsAxisZEnabled = true;
       state.settings.stsAxisZPulsesPerMm = 128;
-      state.settings.penUpCommand = "G0 Z1";
-      state.settings.penDownCommand = "G0 Z0";
+      if (!String(state.settings.penUpCommand || "").trim()) state.settings.penUpCommand = "G0 Z1";
+      if (!String(state.settings.penDownCommand || "").trim()) state.settings.penDownCommand = "G0 Z0";
       saveJSON("plotterflow.settings", state.settings);
     }
-    localStorage.setItem(penMigrationKey, "1");
+    localStorage.setItem(xyzMigrationKey, "1");
   }
 }
 function toast(message) { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2200); }
@@ -669,7 +672,9 @@ function bindSerial() {
   $("#sdFilename").addEventListener("change", event => { event.target.value = sanitizeSdFilename(event.target.value); });
   populateJogSettings();
   $("#jogStep").addEventListener("change", saveJogSettings); $("#jogFeed").addEventListener("input", updateJogPreview); $("#jogFeed").addEventListener("change", saveJogSettings);
-  $$('[data-jog-axis]').forEach(button => button.addEventListener("click", () => sendJog(button.dataset.jogAxis, +button.dataset.jogSign)));
+  $$('[data-jog-axis]').forEach(button => button.addEventListener("click", () => sendJog(
+    button.dataset.jogAxis, +button.dataset.jogSign, +(button.dataset.jogDegrees || 0) || null
+  )));
   $("#keyboardJogToggle").addEventListener("change", event => setKeyboardJogEnabled(event.target.checked));
   document.addEventListener("keydown", handleKeyboardJog);
   $("#jogCancel").addEventListener("click", cancelJog); updateJogPreview();
@@ -1029,16 +1034,17 @@ function updateSts3215JogProfileUi() {
   $("#jogStepLabel").textContent = "角度";
   $("#jogFeedLabel").textContent = "速度raw（FW固定）";
   $("#jogFeedUnit").textContent = "3400固定";
-  $("#jogTitle").textContent = `STS3215 ID${state.settings.stsAxisXId}(X) / ID${state.settings.stsAxisYId}(Y)`;
-  $("#jogHint").textContent = "G-codeはXY直結、矢印は従来の角度JOG。どちらも完了後Torque OFF";
+  $("#jogTitle").textContent = `STS3215 ID${state.settings.stsAxisXId}(X) / ID${state.settings.stsAxisYId}(Y) / ID${state.settings.stsAxisZId}(Z)`;
+  $("#jogHint").textContent = "矢印はXY角度JOG、Zボタンは固定±5°の暫定確認。完了後Torque OFF";
   $("#jogCoordinates").hidden = true;
   $("#serialSourceLabel").hidden = false;
   $("#serialTransferControls").hidden = false;
   $("#serialSource").disabled = false;
-  ["penUpButton", "penDownButton", "reloadButton"].forEach(id => { $(`#${id}`).disabled = true; });
+  ["penUpButton", "penDownButton", "reloadButton"].forEach(id => { $(`#${id}`).disabled = false; });
   ["pauseSend", "resumeSend"].forEach(id => { $(`#${id}`).disabled = false; });
   ['[data-command="$$"]', '[data-command="$X"]'].forEach(selector => { $(selector).disabled = true; });
   $('[data-command="?"]').disabled = true;
+  $("#stsZJogControls").hidden = false;
   $(".keyboard-jog-toggle").title = `矢印キーでID ${state.settings.stsAxisXId}(X) / ID ${state.settings.stsAxisYId}(Y)の安全JOG`;
   feed.min = "3400"; feed.max = "3400"; feed.value = "3400"; feed.disabled = true;
   $$('[data-jog-axis="Y"]').forEach(button => { button.disabled = false; });
@@ -1059,6 +1065,7 @@ function updateJogProfileUi() {
   const testMode = isXl330TestJog(), stepSelect = $("#jogStep"), feed = $("#jogFeed");
   feed.disabled = false;
   $('[data-command="?"]').disabled = false;
+  $("#stsZJogControls").hidden = true;
   const mode = testMode ? "xl330-test" : "standard";
   if (stepSelect.dataset.mode !== mode) {
     const values = testMode ? XL330_TEST_JOG_STEPS : STANDARD_JOG_STEPS;
@@ -1111,7 +1118,8 @@ function updateJogPreview() {
   const step=+$("#jogStep").value||1,feed=+$("#jogFeed").value||1000;
   if (isSts3215TestJog()) {
     const pulses = Math.round(step * 4096 / 360);
-    $("#jogCommandPreview").textContent = `TESTJOG ID${state.settings.stsAxisXId}/ID${state.settings.stsAxisYId} ±${pulses} pulse`;
+    const zPulses = Math.round(5 * 4096 / 360);
+    $("#jogCommandPreview").textContent = `XY: ID${state.settings.stsAxisXId}/ID${state.settings.stsAxisYId} ±${pulses} pulse | Z: ID${state.settings.stsAxisZId} ±${zPulses} pulse`;
     return;
   }
   $("#jogCommandPreview").textContent = isXl330TestJog()
@@ -1154,20 +1162,20 @@ function handleKeyboardJog(event) {
   flashKeyboardJogButton(direction.axis, direction.sign);
   void sendJog(direction.axis, direction.sign);
 }
-async function sendJog(axis, sign) {
+async function sendJog(axis, sign, degreesOverride = null) {
   if (!state.writer) return toast("先にSerial接続してください");
   if (state.sdManagementActive) return toast("SDカード管理を終了してからジョグしてください");
   if (state.sending) return toast("G-code送信中はジョグできません");
   if (state.jogging) return;
   saveJogSettings();
-  const distance=sign*state.settings.jogStep;
+  const distance=sign*(degreesOverride ?? state.settings.jogStep);
   let command, successText;
   if (isSts3215TestJog()) {
-    if (!["X", "Y"].includes(axis)) return toast("STS3215安全JOGはX/Yだけ使用できます");
+    if (!["X", "Y", "Z"].includes(axis)) return toast("STS3215安全JOGはX/Y/Zだけ使用できます");
     const delta = Math.round(distance * 4096 / 360);
     if (!delta) return toast("角度が小さすぎます");
     if (Math.abs(delta) > 28672) return toast("多回転JOGは1操作7回転（2520度）以下にしてください");
-    const id = +(axis === "X" ? state.settings.stsAxisXId : state.settings.stsAxisYId);
+    const id = +({ X: state.settings.stsAxisXId, Y: state.settings.stsAxisYId, Z: state.settings.stsAxisZId }[axis]);
     if (!id) return toast(`${axis}軸のSTS3215 IDが未設定です`);
     command = `TESTJOG ${id} ${delta}`;
     successText = `ID ${id}: ${distance > 0 ? "+" : ""}${fmt(distance)} deg 移動（現在位置を更新・Torque OFF）`;

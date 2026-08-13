@@ -235,6 +235,7 @@
                 <button class="jog-button jog-down" data-jog-axis="Y" data-jog-sign="1" aria-label="Y下方向"><span>↓</span><small>Y↓</small></button>
               </div>
               <div class="jog-options">
+                <div id="stsZJogControls" class="sts-z-jog-controls" hidden><button data-jog-axis="Z" data-jog-sign="-1" data-jog-degrees="5">Z −5°</button><button data-jog-axis="Z" data-jog-sign="1" data-jog-degrees="5">Z +5°</button></div>
                 <label><span id="jogStepLabel">移動量</span><select id="jogStep"><option value="0.15625">0.15625 mm</option><option value="0.625">0.625 mm</option><option value="0.1">0.1 mm</option><option value="1" selected>1 mm</option><option value="2.5">2.5 mm</option><option value="10">10 mm</option><option value="40">40 mm</option><option value="50">50 mm</option></select></label>
                 <label><span id="jogFeedLabel">速度</span><input id="jogFeed" type="number" min="1" max="50000" step="1" value="1000"><span id="jogFeedUnit">mm/min</span></label>
                 <div class="jog-command-preview" id="jogCommandPreview">$J=G91 G21 X±1 F1000</div>
@@ -470,7 +471,7 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260813-1"></script>
+  <script src="app.js?v=20260813-2"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js?v=20260812-2"></script>
   <script>
