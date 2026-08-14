@@ -30,6 +30,32 @@ for (let attempt = 0; attempt < 60; attempt++) {
   await delay(250);
 }
 const fontStatus = await evaluate(`document.querySelector('#textFontStatus')?.textContent`);
+const planarInitialTravel = await evaluate(`(() => {
+  const original = { ...state.settings };
+  Object.assign(state.settings, CONTROLLER_PROFILES['pico2-drv8835-planar'].settings, {
+    controllerProfile: 'pico2-drv8835-planar', yFlip: false, optimization: 'safe'
+  });
+  PlotterFlow.generateFromPaths([
+    [{ x: 10, y: 20 }, { x: 11, y: 21 }],
+    [{ x: 30, y: 40 }, { x: 31, y: 41 }]
+  ], 'planar-initial-travel.gcode');
+  const travel = document.querySelector('#gcodeEditor').value.split(/\\r?\\n/).filter(line => line.startsWith('G0 X') || line.startsWith('G0 Y'));
+  Object.keys(state.settings).forEach(key => delete state.settings[key]);
+  Object.assign(state.settings, original);
+  Object.assign(state.settings, CONTROLLER_PROFILES['grbl-fluidnc'].settings, {
+    controllerProfile: 'grbl-fluidnc', yFlip: false, optimization: 'safe'
+  });
+  PlotterFlow.generateFromPaths([[{ x: 10, y: 20 }, { x: 11, y: 21 }]], 'other-profile-travel.gcode');
+  const otherProfileTravel = document.querySelector('#gcodeEditor').value.split(/\\r?\\n/).find(line => line.startsWith('G0 X'));
+  Object.keys(state.settings).forEach(key => delete state.settings[key]);
+  Object.assign(state.settings, original);
+  return {
+    travel,
+    splitXThenY: travel[0] === 'G0 X10 F500' && travel[1] === 'G0 Y20 F500',
+    laterTravelCombined: travel.includes('G0 X30 Y40 F500'),
+    otherProfileUnchanged: /^G0 X10 Y20 F/.test(otherProfileTravel || '')
+  };
+})()`);
 await evaluate(`(() => { const input=document.querySelector('#drawingTextInput'); input.value='展示会'; document.querySelector('#drawingAddText').click(); return true; })()`);
 await delay(250);
 const added = await evaluate(`(() => { const path=document.querySelector('#drawingCanvas path.drawing-object.selected'); return { count:document.querySelectorAll('#drawingCanvas .drawing-object').length, pathLength:path?.getAttribute('d')?.length||0, propertiesVisible:!document.querySelector('#drawingProperties').hidden, stored:localStorage.getItem('plotterflow.drawing.last')?.includes('"type":"text"')||false }; })()`);
@@ -58,5 +84,5 @@ const mobile = await evaluate(`(() => { const r=document.querySelector('.text-qu
 await send("Page.reload",{ignoreCache:false});
 for(let attempt=0;attempt<60;attempt++){if(await evaluate(`document.querySelector('#textFontStatus')?.classList.contains('ready')||false`))break;await delay(250);}
 const reloaded=await evaluate(`({textPaths:document.querySelectorAll('#drawingCanvas path.drawing-object').length,stored:localStorage.getItem('plotterflow.drawing.last')?.includes('"renderMode":"outline"')||false})`);
-console.log(JSON.stringify({ fontStatus, added, move:{ before:{x:moveBefore.x,y:moveBefore.y}, after:moveAfter }, pinch:{ before:pinchBefore.fontSize, after:pinchAfter }, dialogOpen, gcode, mobile, reloaded, exceptions }, null, 2));
+console.log(JSON.stringify({ fontStatus, planarInitialTravel, added, move:{ before:{x:moveBefore.x,y:moveBefore.y}, after:moveAfter }, pinch:{ before:pinchBefore.fontSize, after:pinchAfter }, dialogOpen, gcode, mobile, reloaded, exceptions }, null, 2));
 socket.close();

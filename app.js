@@ -371,6 +371,26 @@ function requiredUpDelay(distance) {
   return +s.penUpDelay;
 }
 function dwell(lines, seconds) { if (seconds > 0.0001) lines.push(`G4 P${fmt(seconds)}`); }
+function appendTravelMove(lines, moves, from, to, feed, splitXThenY = false) {
+  if (!splitXThenY) {
+    lines.push(`G0 X${fmt(to.x)} Y${fmt(to.y)} F${fmt(feed)}`);
+    moves.push({ type: "travel", from, to });
+    return;
+  }
+
+  let current = from;
+  if (Math.abs(to.x - current.x) > 0.000001) {
+    const xTarget = { x: to.x, y: current.y };
+    lines.push(`G0 X${fmt(xTarget.x)} F${fmt(feed)}`);
+    moves.push({ type: "travel", from: current, to: xTarget });
+    current = xTarget;
+  }
+  if (Math.abs(to.y - current.y) > 0.000001) {
+    const yTarget = { x: current.x, y: to.y };
+    lines.push(`G0 Y${fmt(yTarget.y)} F${fmt(feed)}`);
+    moves.push({ type: "travel", from: current, to: yTarget });
+  }
+}
 function generateGcode(options = {}) {
   if (!state.paths.length) return setSvgStatus("先にSVGを読み込んでください。", true);
   state.paths = extractPaths(mountSvgForMeasurement(state.svgText));
@@ -388,9 +408,11 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
   const s = state.settings, lines = [], moves = [];
   lines.push(...String(s.header).split(/\r?\n/).filter(Boolean));
   let previous = { x: 0, y: 0 };
+  let isFirstDrawablePath = true;
   for (const path of paths) {
     if (path.length < 2) continue;
     const start = path[0], distance = Math.hypot(start.x - previous.x, start.y - previous.y);
+    const splitInitialTravel = isFirstDrawablePath && isPicoDrv8835Profile();
     lines.push(s.penUpCommand);
     const upDelay = Math.max(0, requiredUpDelay(distance));
     const travelSpeed = Math.max(1, +s.travelFeed) / 60;
@@ -401,13 +423,13 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
     if (s.optimization === "overlap_down" && distance > +s.downLeadDistance) {
       const lead = Math.min(distance, +s.downLeadDistance), ratio = (distance - lead) / distance;
       const leadPoint = { x: previous.x + (start.x - previous.x) * ratio, y: previous.y + (start.y - previous.y) * ratio };
-      lines.push(`G0 X${fmt(leadPoint.x)} Y${fmt(leadPoint.y)} F${fmt(+s.travelFeed)}`); moves.push({ type: "travel", from: previous, to: leadPoint });
+      appendTravelMove(lines, moves, previous, leadPoint, +s.travelFeed, splitInitialTravel);
       dwell(lines, Math.max(0, upDelay - preTravelDelay - (distance - lead) / travelSpeed));
       lines.push(s.penDownCommand);
       lines.push(`G0 X${fmt(start.x)} Y${fmt(start.y)} F${fmt(+s.travelFeed)}`); moves.push({ type: "travel", from: leadPoint, to: start });
       const absorbed = lead / travelSpeed; dwell(lines, Math.max(0, +s.requiredPenDownTime - absorbed));
     } else {
-      lines.push(`G0 X${fmt(start.x)} Y${fmt(start.y)} F${fmt(+s.travelFeed)}`); moves.push({ type: "travel", from: previous, to: start });
+      appendTravelMove(lines, moves, previous, start, +s.travelFeed, splitInitialTravel);
       if (overlapEnabled) dwell(lines, Math.max(0, upDelay - preTravelDelay - distance / travelSpeed));
       lines.push(s.penDownCommand); dwell(lines, +s.penDownDelay);
     }
@@ -415,6 +437,7 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
       const p = path[i], from = path[i - 1]; lines.push(`G1 X${fmt(p.x)} Y${fmt(p.y)} F${fmt(+s.drawFeed)}`); moves.push({ type: "draw", from, to: p });
     }
     previous = path[path.length - 1];
+    isFirstDrawablePath = false;
   }
   lines.push(s.penUpCommand); dwell(lines, +s.penUpDelay); lines.push(...String(s.footer).split(/\r?\n/).filter(Boolean));
   $("#gcodeEditor").value = lines.join("\n"); state.gcodeMoves = moves; state.previewNormalizeY = !!previewOptions.normalizeYPreview; state.currentId = null;
