@@ -248,7 +248,7 @@ Select `RP2040/RP2350-GEEK STS3215 XYZ直結G-code` to send generated G-code wit
 - Stop sends byte `0x85`
 - GRBL status polling is disabled; normal G-code and job transfer are enabled
 
-実機でID 1/2/3はいずれもmodel 777として応答しました。現在はID 3をペンZ軸へ暫定的に割り当て、
+7.4V版のmodel 777と12V版のmodel 2057は同じSTS3215プロファイルで使用できます。現在の12V版実機ではID 1/2/3がmodel 2057として応答しています。ID 3をペンZ軸へ暫定的に割り当て、
 ペンアップボタンは`G0 Z1`、ペンダウンボタンは`G0 Z0`を送ります。既定の128 pulse/mmでは
 上下差は128 pulse（約11.25度）です。電源投入後の`M17`時点がZ=0になり、取付方向が逆の場合は
 設定画面の「Z反転」を有効にします。各移動後にファームウェアが全軸をTorque OFFにします。
@@ -258,7 +258,7 @@ Serialタブには、ID 3を固定で−5度／+5度動かすZ確認ボタンも
 
 「矢印＋W/S」キージョグをONにすると、このプロファイルに限りWキーでZ正方向、SキーでZ負方向へ、角度欄で選択した量だけ`TESTJOG`します。入力欄の編集中、キー長押し、Serialタブ以外では動作しません。画面のZボタンは従来どおり固定±5度です。
 
-The current hardware scan found model 777 at IDs 1, 2, and 3. The default 128 pulses/mm makes 32 mm equal one servo turn. PlotterFlow does not rewrite servo IDs or EEPROM. `ENABLEMULTITURN <id>` remains an explicit maintenance command. The angle-based `TESTJOG` controls use the configured X/Y IDs, plus a temporary fixed ±5 degree Z control.
+Zephyr 0.2.6との実機確認では、model 2057のID 1/2/3に対してPlotterFlowと同じ初期化、XY 0.5 mm往復、`G0 Z1` / `G0 Z0`、5°確認ジョグが成功しました。既定の128 pulses/mmでは32 mmが1回転です。PlotterFlowはサーボIDやEEPROMを自動変更せず、`SETID`と`ENABLEMULTITURN`はファームウェアの明示的な保守コマンドとして扱います。角度指定の`TESTJOG`は設定されたX/Y/Z IDを使用します。
 
 Settings saved by the earlier jog-only profile (`SCAN 2` / `SCAN 3`) are migrated automatically to the direct-axis initialization sequence. The initialization field is multiline so saving settings preserves each command as a separate line.
 
