@@ -15,6 +15,12 @@ assert.match(html, /id="serialTrajectorySvg"/);
 assert.match(app, /function openSerialTrajectory\(code, name\)/);
 assert.match(app, /scrollIntoView\(\{ behavior: "smooth", block: "start" \}\)/);
 assert.match(app, /renderSerialTrajectory\(payload\.code, payload\.name\)/);
+assert.match(html, /id="developmentModeToggle"/);
+assert.match(html, /id="stsDirectAxesSettings" class="card" hidden/);
+assert.match(app, /const DEVELOPMENT_MODE_KEY = "plotterflow\.developmentModeV1"/);
+assert.equal((app.match(/development: true/g) || []).length, 5);
+assert.match(app, /function handleDevelopmentModeChange\(event\)/);
+assert.match(app, /state\.port \|\| state\.sending \|\| state\.jogging \|\| state\.sdUploading \|\| state\.sdManagementActive/);
 
 for (const id of ["drawingSelectionProperties", "drawingSelectionX", "drawingSelectionY", "drawingSelectionWidth", "drawingSelectionHeight", "drawingSelectionRotation", "drawingSelectionApply"]) {
   assert.match(html, new RegExp(`id="${id}"`));
