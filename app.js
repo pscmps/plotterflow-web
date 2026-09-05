@@ -18,6 +18,7 @@ const CONTROLLER_PROFILES = {
     }
   },
   "xl330-pio": {
+    development: true,
     label: "XL330 PIO / Pico・Pico 2（開発中）",
     phase: "開発中",
     summary: "PicoのPIOでXL330-M077-Tを直結し、X/Yを多回転制御する試作ファームウェア用です。",
@@ -36,6 +37,7 @@ const CONTROLLER_PROFILES = {
     }
   },
   "xl330-pio-id1-test": {
+    development: true,
     label: "XL330 ID1 単体安全テスト（開発中）",
     phase: "実機テスト",
     summary: "MOTION_LOCKED=1を維持したまま、ID 1のXL330を低速・小刻みで回転確認するCファーム専用プロファイルです。",
@@ -83,6 +85,7 @@ const CONTROLLER_PROFILES = {
     }
   },
   "pico2-tmc2209-planar": {
+    development: true,
     label: "Pico 2 TMC2209 XY Planar（開発中）",
     phase: "開発中",
     summary: "Pico 2とTMC2209 2個でA/B・C/D相のXY平面リニアステッパをG-code駆動する試作ファームウェア用です。",
@@ -103,6 +106,7 @@ const CONTROLLER_PROFILES = {
     }
   },
   "pico2-drv8835-planar": {
+    development: true,
     label: "Pico 2 DRV8835 XY Planar（開発中）",
     phase: "開発中",
     summary: "Pico 2とDRV8835 4個でXY平面リニアステッパを駆動し、GP12のPWMサーボでZ上下する試作ファームウェア用です。",
@@ -129,6 +133,7 @@ const CONTROLLER_PROFILES = {
     }
   },
   "m5stack-drv8835-planar": {
+    development: true,
     label: "M5Stack Basic DRV8835 XY Planar（開発中）",
     phase: "開発中",
     summary: "M5Stack BasicとDRV8835 4個でXY平面リニアステッパとPWMサーボを制御し、USB実行、microSD保存、SDファイル管理に対応する試作ファームウェア用です。",
@@ -184,7 +189,10 @@ G1 Y-7 F500
 G1 Y0 F500`
 };
 
+const DEVELOPMENT_MODE_KEY = "plotterflow.developmentModeV1";
+
 const state = {
+  developmentMode: false,
   settings: loadJSON("plotterflow.settings", DEFAULTS), svgText: "", paths: [], gcodeMoves: [],
   library: loadJSON("plotterflow.library", []), jobSets: loadJSON("plotterflow.jobSets", []), currentId: null, currentJobSetId: null, port: null, reader: null, writer: null,
   serialLogLimit: 200, lastSentLine: "", lastReceivedLine: "", lastOkAt: 0, lastSendAt: 0,
@@ -208,6 +216,22 @@ function loadJSON(key, fallback) {
   } catch { return Array.isArray(fallback) ? [...fallback] : { ...fallback }; }
 }
 function saveJSON(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+function isDevelopmentProfile(profileId = state.settings.controllerProfile) {
+  return CONTROLLER_PROFILES[profileId]?.development === true;
+}
+function migrateDevelopmentMode() {
+  const saved = localStorage.getItem(DEVELOPMENT_MODE_KEY);
+  if (saved === null) {
+    state.developmentMode = isDevelopmentProfile() || state.settings.optimization === "overlap_down";
+    localStorage.setItem(DEVELOPMENT_MODE_KEY, state.developmentMode ? "1" : "0");
+    return;
+  }
+  state.developmentMode = saved === "1";
+  if (!state.developmentMode && isDevelopmentProfile()) {
+    state.developmentMode = true;
+    localStorage.setItem(DEVELOPMENT_MODE_KEY, "1");
+  }
+}
 function migrateDrv8835RobustMode() {
   const migrationKey = "plotterflow.drv8835RobustModeV1";
   if (localStorage.getItem(migrationKey)) return;
@@ -267,8 +291,16 @@ function migrateSts3215DirectAxesProfile() {
 function toast(message) { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2200); }
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
 function switchTab(name) { $$(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === name)); $$(".panel").forEach(x => x.classList.toggle("active", x.id === `tab-${name}`)); }
+function installLocalTestBridge() {
+  if (!["127.0.0.1", "localhost"].includes(location.hostname)) return;
+  Object.defineProperties(window, {
+    state: { value: state, configurable: true },
+    CONTROLLER_PROFILES: { value: CONTROLLER_PROFILES, configurable: true }
+  });
+}
 
 function init() {
+  migrateDevelopmentMode();
   migrateDrv8835RobustMode();
   migrateDrv8835ServoDirection();
   migrateSts3215DirectAxesProfile();
@@ -277,6 +309,7 @@ function init() {
   bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindJobs();
   populateSettings(); refreshLibrary(); updateEditorStats(); renderJobs();
   if (!("serial" in navigator)) log("Web SerialはChrome/EdgeのHTTPSまたはlocalhostで利用できます。", "rx");
+  installLocalTestBridge();
   document.documentElement.dataset.plotterflowReady = "true";
 }
 
@@ -371,6 +404,26 @@ function requiredUpDelay(distance) {
   return +s.penUpDelay;
 }
 function dwell(lines, seconds) { if (seconds > 0.0001) lines.push(`G4 P${fmt(seconds)}`); }
+function appendTravelMove(lines, moves, from, to, feed, splitXThenY = false) {
+  if (!splitXThenY) {
+    lines.push(`G0 X${fmt(to.x)} Y${fmt(to.y)} F${fmt(feed)}`);
+    moves.push({ type: "travel", from, to });
+    return;
+  }
+
+  let current = from;
+  if (Math.abs(to.x - current.x) > 0.000001) {
+    const xTarget = { x: to.x, y: current.y };
+    lines.push(`G0 X${fmt(xTarget.x)} F${fmt(feed)}`);
+    moves.push({ type: "travel", from: current, to: xTarget });
+    current = xTarget;
+  }
+  if (Math.abs(to.y - current.y) > 0.000001) {
+    const yTarget = { x: current.x, y: to.y };
+    lines.push(`G0 Y${fmt(yTarget.y)} F${fmt(feed)}`);
+    moves.push({ type: "travel", from: current, to: yTarget });
+  }
+}
 function generateGcode(options = {}) {
   if (!state.paths.length) return setSvgStatus("先にSVGを読み込んでください。", true);
   state.paths = extractPaths(mountSvgForMeasurement(state.svgText));
@@ -388,9 +441,11 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
   const s = state.settings, lines = [], moves = [];
   lines.push(...String(s.header).split(/\r?\n/).filter(Boolean));
   let previous = { x: 0, y: 0 };
+  let isFirstDrawablePath = true;
   for (const path of paths) {
     if (path.length < 2) continue;
     const start = path[0], distance = Math.hypot(start.x - previous.x, start.y - previous.y);
+    const splitInitialTravel = isFirstDrawablePath && isPicoDrv8835Profile();
     lines.push(s.penUpCommand);
     const upDelay = Math.max(0, requiredUpDelay(distance));
     const travelSpeed = Math.max(1, +s.travelFeed) / 60;
@@ -401,13 +456,13 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
     if (s.optimization === "overlap_down" && distance > +s.downLeadDistance) {
       const lead = Math.min(distance, +s.downLeadDistance), ratio = (distance - lead) / distance;
       const leadPoint = { x: previous.x + (start.x - previous.x) * ratio, y: previous.y + (start.y - previous.y) * ratio };
-      lines.push(`G0 X${fmt(leadPoint.x)} Y${fmt(leadPoint.y)} F${fmt(+s.travelFeed)}`); moves.push({ type: "travel", from: previous, to: leadPoint });
+      appendTravelMove(lines, moves, previous, leadPoint, +s.travelFeed, splitInitialTravel);
       dwell(lines, Math.max(0, upDelay - preTravelDelay - (distance - lead) / travelSpeed));
       lines.push(s.penDownCommand);
       lines.push(`G0 X${fmt(start.x)} Y${fmt(start.y)} F${fmt(+s.travelFeed)}`); moves.push({ type: "travel", from: leadPoint, to: start });
       const absorbed = lead / travelSpeed; dwell(lines, Math.max(0, +s.requiredPenDownTime - absorbed));
     } else {
-      lines.push(`G0 X${fmt(start.x)} Y${fmt(start.y)} F${fmt(+s.travelFeed)}`); moves.push({ type: "travel", from: previous, to: start });
+      appendTravelMove(lines, moves, previous, start, +s.travelFeed, splitInitialTravel);
       if (overlapEnabled) dwell(lines, Math.max(0, upDelay - preTravelDelay - distance / travelSpeed));
       lines.push(s.penDownCommand); dwell(lines, +s.penDownDelay);
     }
@@ -415,6 +470,7 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
       const p = path[i], from = path[i - 1]; lines.push(`G1 X${fmt(p.x)} Y${fmt(p.y)} F${fmt(+s.drawFeed)}`); moves.push({ type: "draw", from, to: p });
     }
     previous = path[path.length - 1];
+    isFirstDrawablePath = false;
   }
   lines.push(s.penUpCommand); dwell(lines, +s.penUpDelay); lines.push(...String(s.footer).split(/\r?\n/).filter(Boolean));
   $("#gcodeEditor").value = lines.join("\n"); state.gcodeMoves = moves; state.previewNormalizeY = !!previewOptions.normalizeYPreview; state.currentId = null;
@@ -533,11 +589,53 @@ function escapeHtml(s) { const d = document.createElement("div"); d.textContent 
 
 function bindSettings() {
   $("#settingsForm").addEventListener("submit", e => { e.preventDefault(); readSettings(); saveJSON("plotterflow.settings", state.settings); $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; updateSerialProfileDisplay(); $("#settingsStatus").textContent = "保存しました。"; toast("設定を保存しました"); });
+  $("#developmentModeToggle").addEventListener("change", handleDevelopmentModeChange);
   $("#controllerProfile").addEventListener("change", event => applyControllerProfile(event.target.value));
   $("#resetSettings").addEventListener("click", () => { if (confirm("設定を初期値へ戻しますか？")) { state.settings = { ...DEFAULTS }; populateSettings(); saveJSON("plotterflow.settings", state.settings); } });
 }
-function populateSettings() { const f = $("#settingsForm"); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; populateJogSettings(); renderControllerProfile(); updateSerialProfileDisplay(); }
+function populateSettings() { const f = $("#settingsForm"); renderDevelopmentMode(); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; populateJogSettings(); renderControllerProfile(); updateSerialProfileDisplay(); }
 function readSettings() { const f = $("#settingsForm"); for (const k of Object.keys(DEFAULTS)) if (f.elements[k]) state.settings[k] = f.elements[k].type === "checkbox" ? f.elements[k].checked : f.elements[k].type === "number" ? +f.elements[k].value : f.elements[k].value; }
+function developmentModeBusy() {
+  return !!(state.port || state.sending || state.jogging || state.sdUploading || state.sdManagementActive);
+}
+function renderDevelopmentMode() {
+  const toggle = $("#developmentModeToggle"), select = $("#controllerProfile");
+  if (toggle) toggle.checked = state.developmentMode;
+  document.documentElement.dataset.developmentMode = state.developmentMode ? "true" : "false";
+  if (select) {
+    const selected = state.settings.controllerProfile;
+    select.replaceChildren(...Object.entries(CONTROLLER_PROFILES)
+      .filter(([, profile]) => state.developmentMode || !profile.development)
+      .map(([id, profile]) => new Option(profile.label, id, false, id === selected)));
+  }
+  const experimentalOptimization = $('#settingsForm [name="optimization"] option[value="overlap_down"]');
+  if (experimentalOptimization) {
+    experimentalOptimization.hidden = !state.developmentMode;
+    experimentalOptimization.disabled = !state.developmentMode;
+  }
+  const stsSettings = $("#stsDirectAxesSettings");
+  if (stsSettings) stsSettings.hidden = !isSts3215DirectAxes();
+}
+function handleDevelopmentModeChange(event) {
+  const requested = event.target.checked;
+  if (developmentModeBusy()) {
+    event.target.checked = state.developmentMode;
+    return toast("Serial接続・送信・ジョグ・SD操作中は開発中機能を切り替えられません");
+  }
+  const leavesDevelopmentProfile = !requested && isDevelopmentProfile();
+  const leavesExperimentalOptimization = !requested && state.settings.optimization === "overlap_down";
+  if ((leavesDevelopmentProfile || leavesExperimentalOptimization) && !confirm("開発中機能を非表示にして、通常設定へ切り替えますか？")) {
+    event.target.checked = true;
+    return;
+  }
+  state.developmentMode = requested;
+  localStorage.setItem(DEVELOPMENT_MODE_KEY, requested ? "1" : "0");
+  if (leavesExperimentalOptimization) state.settings.optimization = "overlap_up";
+  if (leavesDevelopmentProfile) return applyControllerProfile("grbl-fluidnc");
+  populateSettings();
+  saveJSON("plotterflow.settings", state.settings);
+  toast(requested ? "開発中機能を表示しました" : "開発中機能を非表示にしました");
+}
 function applyControllerProfile(profileId) {
   if (state.sdManagementActive && profileId !== state.settings.controllerProfile) {
     $("#controllerProfile").value = state.settings.controllerProfile;
@@ -545,6 +643,10 @@ function applyControllerProfile(profileId) {
   }
   const previousProfile = state.settings.controllerProfile;
   const profile = CONTROLLER_PROFILES[profileId] || CONTROLLER_PROFILES.custom;
+  if (profile.development && !state.developmentMode) {
+    $("#controllerProfile").value = previousProfile;
+    return toast("先に「開発中機能を表示」を有効にしてください");
+  }
   if (previousProfile === "pico2-drv8835-planar" && profileId !== previousProfile && state.positionTelemetryEnabled) void setPositionTelemetryEnabled(false);
   state.settings.controllerProfile = profileId;
   if (profile.settings) Object.assign(state.settings, profile.settings);
@@ -582,6 +684,8 @@ function updateSerialProfileDisplay() {
   updatePlanarArmVisibility();
   const sdDownload = $("#downloadSdGcode");
   if (sdDownload) sdDownload.hidden = !isSts3215DirectAxes();
+  const stsSettings = $("#stsDirectAxesSettings");
+  if (stsSettings) stsSettings.hidden = !isSts3215DirectAxes();
 }
 
 function isPicoDrv8835Profile() { return state.settings.controllerProfile === "pico2-drv8835-planar"; }

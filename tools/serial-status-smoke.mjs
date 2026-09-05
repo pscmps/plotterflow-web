@@ -1,56 +1,58 @@
 const base = process.env.PLOTTERFLOW_CDP_BASE || "http://127.0.0.1:9333";
 const appUrl = process.argv[2] || "http://127.0.0.1:8765/";
-const target = await (await fetch(`${base}/json/new?${encodeURIComponent(appUrl)}`, { method: "PUT" })).json();
+const target = await (await fetch(`${base}/json/new?about:blank`, { method: "PUT" })).json();
 const socket = new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once: true }); socket.addEventListener("error", reject, { once: true }); });
 let sequence=0;const pending=new Map(),exceptions=[];
 socket.addEventListener("message",event=>{const message=JSON.parse(event.data);if(message.id&&pending.has(message.id)){const callbacks=pending.get(message.id);pending.delete(message.id);message.error?callbacks.reject(new Error(message.error.message)):callbacks.resolve(message.result);}if(message.method==="Runtime.exceptionThrown")exceptions.push(message.params.exceptionDetails.text);});
 function send(method,params={}){const id=++sequence;return new Promise((resolve,reject)=>{pending.set(id,{resolve,reject});socket.send(JSON.stringify({id,method,params}));});}
-async function evaluate(expression){const response=await send("Runtime.evaluate",{expression,returnByValue:true,awaitPromise:true});if(response.exceptionDetails)throw new Error(response.exceptionDetails.exception?.description||response.exceptionDetails.text);return response.result.value;}
 const delay=milliseconds=>new Promise(resolve=>setTimeout(resolve,milliseconds));
+async function evaluate(expression){for(let attempt=0;attempt<40;attempt++){try{const response=await send("Runtime.evaluate",{expression,returnByValue:true,awaitPromise:true});if(response.exceptionDetails)throw new Error(response.exceptionDetails.exception?.description||response.exceptionDetails.text);return response.result.value;}catch(error){if(!/execution context|Cannot find context/i.test(error.message)||attempt===39)throw error;await delay(50);}}}
 await send("Runtime.enable");await send("Page.enable");
+await send("Page.navigate",{url:appUrl});
 let appReady=false;
-for(let attempt=0;attempt<100;attempt++){if(await evaluate(`document.documentElement.dataset.plotterflowReady==='true'`)){appReady=true;break;}await delay(100);}
+for(let attempt=0;attempt<100;attempt++){if(await evaluate(`document.documentElement?.dataset.plotterflowReady==='true'`)){appReady=true;break;}await delay(100);}
 if(!appReady){const pageState=await evaluate(`({url:location.href,readyState:document.readyState,title:document.title,scripts:[...document.scripts].map(script=>script.src)})`);throw new Error(`PlotterFlow did not become ready: ${JSON.stringify(pageState)}`);}
+await evaluate(`(() => { const toggle=document.querySelector('#developmentModeToggle'); if(!toggle.checked){toggle.checked=true;toggle.dispatchEvent(new Event('change',{bubbles:true}));} return true; })()`);
 await evaluate(`handleSerialLine('<Idle|MPos:12.500,-3.000,0.000|WCO:2.500,-1.000,0.000>')`);
 const derived=await evaluate(`({x:document.querySelector('#serialXPosition').textContent,y:document.querySelector('#serialYPosition').textContent,status:document.querySelector('#machineState').textContent,source:document.querySelector('#positionSource').textContent})`);
 await evaluate(`handleSerialLine('<Jog|WPos:4.250,5.500,0.000>')`);
 const direct=await evaluate(`({x:document.querySelector('#serialXPosition').textContent,y:document.querySelector('#serialYPosition').textContent,status:document.querySelector('#machineState').textContent})`);
-await evaluate(`(() => { window.__serialWrites=[];state.writer={write:async bytes=>window.__serialWrites.push(new TextDecoder().decode(bytes))};document.querySelector('#setXyZero').click();setTimeout(()=>handleSerialLine('ok'),20);return true;})()`);
+await evaluate(`(() => { window.__serialWrites=[];window.state.writer={write:async bytes=>window.__serialWrites.push(new TextDecoder().decode(bytes))};document.querySelector('#setXyZero').click();setTimeout(()=>handleSerialLine('ok'),20);return true;})()`);
 await delay(100);
 const zero=await evaluate(`({writes:window.__serialWrites,x:document.querySelector('#serialXPosition').textContent,y:document.querySelector('#serialYPosition').textContent})`);
 const pfdbg=await evaluate(`(() => {
   const log=document.querySelector('#serialLog');
-  log.innerHTML='';state.sending=true;state.settings.controllerProfile='pico2-tmc2209-planar';
+  log.innerHTML='';window.state.sending=true;window.state.settings.controllerProfile='pico2-tmc2209-planar';
   handleSerialLine('[MSG:PFDBG END axis=X result=ok]');
   handleSerialLine('[MSG:ordinary message]');
   const planar=[...log.children].map(item=>item.textContent);
-  log.innerHTML='';state.settings.controllerProfile='grbl-fluidnc';
+  log.innerHTML='';window.state.settings.controllerProfile='grbl-fluidnc';
   handleSerialLine('[MSG:PFDBG END axis=X result=ok]');
   const grbl=[...log.children].map(item=>item.textContent);
-  state.sending=false;
+  window.state.sending=false;
   return {planar,grbl};
 })()`);
-const planarProfile=await evaluate(`({footer:CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.footer,initializeCommand:CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.initializeCommand,jogAutoDisable:CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.jogAutoDisable,grblFooter:CONTROLLER_PROFILES['grbl-fluidnc'].settings.footer,grblJogAutoDisable:CONTROLLER_PROFILES['grbl-fluidnc'].settings.jogAutoDisable})`);
-const planarJog=await evaluate(`(() => { applyControllerProfile('pico2-tmc2209-planar'); return {stateStep:state.settings.jogStep,stateFeed:state.settings.jogFeed,uiStep:document.querySelector('#jogStep').value,uiFeed:document.querySelector('#jogFeed').value,preview:document.querySelector('#jogCommandPreview').textContent}; })()`);
+const planarProfile=await evaluate(`({footer:window.CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.footer,initializeCommand:window.CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.initializeCommand,jogAutoDisable:window.CONTROLLER_PROFILES['pico2-tmc2209-planar'].settings.jogAutoDisable,grblFooter:window.CONTROLLER_PROFILES['grbl-fluidnc'].settings.footer,grblJogAutoDisable:window.CONTROLLER_PROFILES['grbl-fluidnc'].settings.jogAutoDisable})`);
+const planarJog=await evaluate(`(() => { applyControllerProfile('pico2-tmc2209-planar'); return {stateStep:window.state.settings.jogStep,stateFeed:window.state.settings.jogFeed,uiStep:document.querySelector('#jogStep').value,uiFeed:document.querySelector('#jogFeed').value,preview:document.querySelector('#jogCommandPreview').textContent}; })()`);
 const drvDebug=await evaluate(`(() => {
   const log=document.querySelector('#serialLog');
-  log.innerHTML='';state.sending=true;state.settings.controllerProfile='pico2-drv8835-planar';
+  log.innerHTML='';window.state.sending=true;window.state.settings.controllerProfile='pico2-drv8835-planar';
   handleSerialLine('[MSG:DRV8835 armed=1 outputs=HiZ]');
   handleSerialLine('[MSG:ordinary message]');
   const lines=[...log.children].map(item=>item.textContent);
-  state.sending=false;
+  window.state.sending=false;
   return lines;
 })()`);
-const drvProfile=await evaluate(`(() => { applyControllerProfile('pico2-drv8835-planar'); const profile=CONTROLLER_PROFILES['pico2-drv8835-planar']; return {header:profile.settings.header,footer:profile.settings.footer,initializeCommand:profile.settings.initializeCommand,jogAutoDisable:profile.settings.jogAutoDisable,stateStep:state.settings.jogStep,stateFeed:state.settings.jogFeed,uiStep:document.querySelector('#jogStep').value,uiFeed:document.querySelector('#jogFeed').value}; })()`);
+const drvProfile=await evaluate(`(() => { applyControllerProfile('pico2-drv8835-planar'); const profile=window.CONTROLLER_PROFILES['pico2-drv8835-planar']; return {header:profile.settings.header,footer:profile.settings.footer,initializeCommand:profile.settings.initializeCommand,jogAutoDisable:profile.settings.jogAutoDisable,stateStep:window.state.settings.jogStep,stateFeed:window.state.settings.jogFeed,uiStep:document.querySelector('#jogStep').value,uiFeed:document.querySelector('#jogFeed').value}; })()`);
 const armTelemetry=await evaluate(`new Promise(resolve => {
   applyControllerProfile('pico2-drv8835-planar');
-  state.armCalibration={offset1:0,offset2:0,invert1:false,invert2:false,calibrated:false};
+  window.state.armCalibration={offset1:0,offset2:0,invert1:false,invert2:false,calibrated:false};
   localStorage.removeItem('plotterflow.armCalibration');
   renderPlanarArm();
-  const initial={hidden:document.querySelector('#planarArmPanel').hidden,enabled:state.positionTelemetryEnabled};
+  const initial={hidden:document.querySelector('#planarArmPanel').hidden,enabled:window.state.positionTelemetryEnabled};
   window.__armWrites=[];
-  state.writer={write:async bytes=>window.__armWrites.push(new TextDecoder().decode(bytes))};
+  window.state.writer={write:async bytes=>window.__armWrites.push(new TextDecoder().decode(bytes))};
   const toggle=document.querySelector('#positionTelemetryToggle');
   toggle.checked=true;
   toggle.dispatchEvent(new Event('change',{bubbles:true}));
@@ -58,17 +60,17 @@ const armTelemetry=await evaluate(`new Promise(resolve => {
   setTimeout(()=>{
     handleSerialLine('<Idle|WPos:1.000,2.000,0.000|AS5600:3,3,1024,2048,90.000,180.000>');
     setTimeout(()=>{
-      const live={enabled:state.positionTelemetryEnabled,toggle:toggle.checked,j1:document.querySelector('#armJ1Angle').textContent,j2:document.querySelector('#armJ2Angle').textContent,j1Status:document.querySelector('#armJ1Status').textContent,j2Status:document.querySelector('#armJ2Status').textContent};
+      const live={enabled:window.state.positionTelemetryEnabled,toggle:toggle.checked,j1:document.querySelector('#armJ1Angle').textContent,j2:document.querySelector('#armJ2Angle').textContent,j1Status:document.querySelector('#armJ1Status').textContent,j2Status:document.querySelector('#armJ2Status').textContent};
       document.querySelector('#calibrateArmDown').click();
-      const calibrated={j1:document.querySelector('#armJ1Angle').textContent,j2:document.querySelector('#armJ2Angle').textContent,saved:state.armCalibration.calibrated};
+      const calibrated={j1:document.querySelector('#armJ1Angle').textContent,j2:document.querySelector('#armJ2Angle').textContent,saved:window.state.armCalibration.calibrated};
       toggle.checked=false;
       toggle.dispatchEvent(new Event('change',{bubbles:true}));
       setTimeout(()=>handleSerialLine('ok'),20);
       setTimeout(()=>{
-        const stopped={enabled:state.positionTelemetryEnabled,toggle:toggle.checked};
-        state.writer=null;
+        const stopped={enabled:window.state.positionTelemetryEnabled,toggle:toggle.checked};
+        window.state.writer=null;
         applyControllerProfile('grbl-fluidnc');
-        resolve({initial,live,calibrated,stopped,writes:window.__armWrites,hiddenAfterProfileChange:document.querySelector('#planarArmPanel').hidden,capability:CONTROLLER_PROFILES['pico2-drv8835-planar'].capabilities?.positionSensors});
+        resolve({initial,live,calibrated,stopped,writes:window.__armWrites,hiddenAfterProfileChange:document.querySelector('#planarArmPanel').hidden,capability:window.CONTROLLER_PROFILES['pico2-drv8835-planar'].capabilities?.positionSensors});
       },70);
     },180);
   },80);
@@ -76,7 +78,7 @@ const armTelemetry=await evaluate(`new Promise(resolve => {
 const keyboardJog=await evaluate(`new Promise(resolve => {
   switchTab('serial');
   window.__serialWrites=[];
-  state.writer={write:async bytes=>window.__serialWrites.push(new TextDecoder().decode(bytes))};
+  window.state.writer={write:async bytes=>window.__serialWrites.push(new TextDecoder().decode(bytes))};
   const toggle=document.querySelector('#keyboardJogToggle');
   toggle.checked=true;
   toggle.dispatchEvent(new Event('change',{bubbles:true}));
@@ -85,7 +87,7 @@ const keyboardJog=await evaluate(`new Promise(resolve => {
   setTimeout(()=>handleSerialLine('ok'),20);
   setTimeout(()=>{
     const afterJog=window.__serialWrites.length;
-    const enabled={checked:toggle.checked,label:document.querySelector('#keyboardJogState').textContent,state:state.keyboardJogEnabled};
+    const enabled={checked:toggle.checked,label:document.querySelector('#keyboardJogState').textContent,state:window.state.keyboardJogEnabled};
     const feed=document.querySelector('#jogFeed');
     feed.focus();
     feed.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true,cancelable:true}));
@@ -95,17 +97,17 @@ const keyboardJog=await evaluate(`new Promise(resolve => {
     toggle.checked=false;
     toggle.dispatchEvent(new Event('change',{bubbles:true}));
     document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
-    resolve({handled,writes:window.__serialWrites,afterJog,afterIgnored,enabled,disabled:{checked:toggle.checked,label:document.querySelector('#keyboardJogState').textContent,state:state.keyboardJogEnabled},directions:KEYBOARD_JOG_DIRECTIONS});
+    resolve({handled,writes:window.__serialWrites,afterJog,afterIgnored,enabled,disabled:{checked:toggle.checked,label:document.querySelector('#keyboardJogState').textContent,state:window.state.keyboardJogEnabled},directions:KEYBOARD_JOG_DIRECTIONS});
   },100);
 })`);
 const sdUpload=await evaluate(`(async () => {
   applyControllerProfile('m5stack-drv8835-planar');
-  state.settings.serialDestination='sd';
+  window.state.settings.serialDestination='sd';
   updateSerialDestinationUi();
   document.querySelector('#sdFilename').value=sanitizeSdFilename('テスト file.gcode');
   window.__sdWrites=[];
   const decoder=new TextDecoder();
-  state.writer={write:async bytes=>{
+  window.state.writer={write:async bytes=>{
     const text=decoder.decode(bytes);
     window.__sdWrites.push(text);
     if(text.endsWith('\\n'))setTimeout(()=>handleSerialLine('ok'),0);
@@ -117,14 +119,14 @@ const sdUpload=await evaluate(`(async () => {
     startText:document.querySelector('#startSend').textContent,
     filename:document.querySelector('#sdFilename').value
   };
-  const profile=CONTROLLER_PROFILES['m5stack-drv8835-planar'];
+  const profile=window.CONTROLLER_PROFILES['m5stack-drv8835-planar'];
   applyControllerProfile('grbl-fluidnc');
   return {
     writes:window.__sdWrites,
     m5Ui,
     capability:profile.capabilities?.sdUpload,
-    busy:state.sending,
-    uploading:state.sdUploading,
+    busy:window.state.sending,
+    uploading:window.state.sdUploading,
     progress:document.querySelector('#sendProgressText').textContent,
     hiddenForGrbl:document.querySelector('#serialDestinationGroup').hidden,
     sanitized:sanitizeSdFilename('日本語 name?.gcode')
@@ -135,7 +137,7 @@ const sdManagement=await evaluate(`(async () => {
   window.__sdManagerWrites=[];
   let listRound=0;
   const decoder=new TextDecoder();
-  state.writer={write:async bytes=>{
+  window.state.writer={write:async bytes=>{
     const text=decoder.decode(bytes);
     window.__sdManagerWrites.push(text);
     setTimeout(()=>{
@@ -165,25 +167,25 @@ const sdManagement=await evaluate(`(async () => {
   updateSerialDestinationUi();
   await enterSdManagement();
   const entered={
-    active:state.sdManagementActive,
+    active:window.state.sdManagementActive,
     cardHidden:document.querySelector('#sdManager').hidden,
     transferHidden:document.querySelector('#serialTransferControls').hidden,
-    files:state.sdFiles.map(file=>file.name),
+    files:window.state.sdFiles.map(file=>file.name),
     rows:document.querySelectorAll('.sd-file-row').length
   };
   await renameSdFile('alpha.gcode','renamed.gcode');
-  const renamed=state.sdFiles.map(file=>file.name);
+  const renamed=window.state.sdFiles.map(file=>file.name);
   window.confirm=()=>true;
   await deleteSdFile('renamed.gcode');
-  const deleted=state.sdFiles.map(file=>file.name);
+  const deleted=window.state.sdFiles.map(file=>file.name);
   await exitSdManagement();
   stopStatusPolling();
-  const exited={active:state.sdManagementActive,files:state.sdFiles.length};
+  const exited={active:window.state.sdManagementActive,files:window.state.sdFiles.length};
   applyControllerProfile('grbl-fluidnc');
   return {
     writes:window.__sdManagerWrites,
     entered,renamed,deleted,exited,
-    capability:CONTROLLER_PROFILES['m5stack-drv8835-planar'].capabilities?.sdManagement,
+    capability:window.CONTROLLER_PROFILES['m5stack-drv8835-planar'].capabilities?.sdManagement,
     hiddenForGrbl:document.querySelector('#serialDestinationGroup').hidden
   };
 })()`);
