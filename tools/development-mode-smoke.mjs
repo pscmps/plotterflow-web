@@ -68,7 +68,7 @@ const initial = await evaluate(`(() => {
   };
 })()`);
 if (initial.enabled || initial.toggle || initial.profile !== "grbl-fluidnc") throw new Error(`initial mode mismatch: ${JSON.stringify(initial)}`);
-if (initial.options.length !== 3 || initial.options.includes("pico2-drv8835-planar") || !initial.stsSettingsHidden || !initial.experimentalOptimizationHidden) throw new Error(`initial visibility mismatch: ${JSON.stringify(initial)}`);
+if (initial.options.length !== 4 || !initial.options.includes("rtheta-control-web") || initial.options.includes("pico2-drv8835-planar") || !initial.stsSettingsHidden || !initial.experimentalOptimizationHidden) throw new Error(`initial visibility mismatch: ${JSON.stringify(initial)}`);
 
 const stableProfile = await evaluate(`(() => {
   applyControllerProfile('rp2040-geek-sts3215-id2-id3');
@@ -77,6 +77,23 @@ const stableProfile = await evaluate(`(() => {
   return result;
 })()`);
 if (stableProfile.enabled || stableProfile.profile !== "rp2040-geek-sts3215-id2-id3" || stableProfile.stsSettingsHidden) throw new Error(`stable profile mismatch: ${JSON.stringify(stableProfile)}`);
+
+const rthetaPlacement = await evaluate(`(() => {
+  applyControllerProfile('rtheta-control-web');
+  const code = window.PlotterFlow.generateFromPaths([[{x:0,y:0},{x:30,y:30}]], 'rtheta-placement');
+  const moves = window.PlotterFlow.parseGcodeMoves(code);
+  const xs = moves.filter(move => Number.isFinite(move.to?.x)).map(move => move.to.x);
+  const ys = moves.filter(move => Number.isFinite(move.to?.y)).map(move => move.to.y);
+  const result = {
+    profile: window.state.settings.controllerProfile,
+    xCenter: (Math.min(...xs) + Math.max(...xs)) / 2,
+    yCenter: (Math.min(...ys) + Math.max(...ys)) / 2,
+    code
+  };
+  applyControllerProfile('grbl-fluidnc');
+  return result;
+})()`);
+if (rthetaPlacement.profile !== "rtheta-control-web" || Math.abs(rthetaPlacement.xCenter) > 1e-9 || Math.abs(rthetaPlacement.yCenter + 100) > 1e-9) throw new Error(`Rtheta placement mismatch: ${JSON.stringify(rthetaPlacement)}`);
 
 const enabled = await evaluate(`(() => {
   const toggle = document.querySelector('#developmentModeToggle');
@@ -91,7 +108,7 @@ const enabled = await evaluate(`(() => {
     stored: localStorage.getItem('plotterflow.developmentModeV1')
   };
 })()`);
-if (!enabled.enabled || enabled.profile !== "pico2-drv8835-planar" || enabled.options.length !== 8 || enabled.armHidden || enabled.stored !== "1") throw new Error(`enabled mode mismatch: ${JSON.stringify(enabled)}`);
+if (!enabled.enabled || enabled.profile !== "pico2-drv8835-planar" || enabled.options.length !== 9 || enabled.armHidden || enabled.stored !== "1") throw new Error(`enabled mode mismatch: ${JSON.stringify(enabled)}`);
 
 await reload();
 const persisted = await evaluate(`({enabled:window.state.developmentMode,profile:window.state.settings.controllerProfile,toggle:document.querySelector('#developmentModeToggle').checked,armHidden:document.querySelector('#planarArmPanel').hidden})`);
@@ -119,7 +136,7 @@ const disabled = await evaluate(`(() => {
     stored: localStorage.getItem('plotterflow.developmentModeV1')
   };
 })()`);
-if (disabled.enabled || disabled.profile !== "grbl-fluidnc" || disabled.options.length !== 3 || !disabled.armHidden || disabled.stored !== "0") throw new Error(`disable mismatch: ${JSON.stringify(disabled)}`);
+if (disabled.enabled || disabled.profile !== "grbl-fluidnc" || disabled.options.length !== 4 || !disabled.options.includes("rtheta-control-web") || !disabled.armHidden || disabled.stored !== "0") throw new Error(`disable mismatch: ${JSON.stringify(disabled)}`);
 
 await evaluate(`(() => {
   const saved = JSON.parse(localStorage.getItem('plotterflow.settings'));
@@ -147,5 +164,5 @@ await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, devi
 const mobile = await evaluate(`(() => { document.querySelector('[data-tab="settings"]').click(); const toggle=document.querySelector('.development-mode-toggle').getBoundingClientRect(); return {clientWidth:document.documentElement.clientWidth,scrollWidth:document.documentElement.scrollWidth,toggleWidth:toggle.width,toggleRight:toggle.right}; })()`);
 if (mobile.scrollWidth > mobile.clientWidth || mobile.toggleWidth <= 0 || mobile.toggleRight > mobile.clientWidth) throw new Error(`mobile overflow: ${JSON.stringify(mobile)}`);
 
-console.log(JSON.stringify({ initial, stableProfile, enabled, persisted, cancelled, disabled, migrated, busy, mobile }, null, 2));
+console.log(JSON.stringify({ initial, stableProfile, rthetaPlacement, enabled, persisted, cancelled, disabled, migrated, busy, mobile }, null, 2));
 socket.close();

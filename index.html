@@ -168,7 +168,8 @@
         <article class="card">
           <div class="card-title"><h2>G-code編集</h2><div class="actions"><button id="sendFromEditor" class="primary">Serialで送信</button><span id="gcodeStats" class="muted">0行</span></div></div>
           <label>名前<input id="gcodeName" value="untitled.gcode"></label>
-          <div class="actions"><button id="saveGcode" class="primary">保存</button><button id="downloadGcode">ダウンロード</button><button id="downloadSdGcode" hidden>SD用ダウンロード</button></div>
+          <div class="actions"><button id="saveGcode" class="primary">保存</button><button id="downloadGcode">ダウンロード</button><button id="transferToRtheta">Rθ Control Webへ転送</button><button id="downloadSdGcode" hidden>SD用ダウンロード</button></div>
+          <p id="rthetaTransferStatus" class="status" aria-live="polite"></p>
           <textarea id="gcodeEditor" class="code" rows="24" spellcheck="false"></textarea>
         </article>
       </div>
@@ -437,7 +438,7 @@
       <form id="settingsForm" class="settings-grid">
         <article class="card controller-profile-card">
           <div class="development-heading"><div><h2>コントローラープロファイル</h2><p>選択すると関連する接続・出力設定をまとめて反映します。</p></div><label class="development-mode-toggle"><input id="developmentModeToggle" type="checkbox"><span>開発中機能を表示</span></label></div>
-          <label>プロファイル<select id="controllerProfile" name="controllerProfile"><option value="grbl-fluidnc">GRBL / FluidNC（標準）</option><option value="rp2040-geek-sts3215-id2-id3">RP2040/RP2350-GEEK STS3215 XYZ直結G-code（XY実機テスト）</option><option value="custom">カスタム（値を維持）</option></select></label>
+          <label>プロファイル<select id="controllerProfile" name="controllerProfile"><option value="grbl-fluidnc">GRBL / FluidNC（標準）</option><option value="rp2040-geek-sts3215-id2-id3">RP2040/RP2350-GEEK STS3215 XYZ直結G-code（XY実機テスト）</option><option value="rtheta-control-web">Rθ Control Web互換</option><option value="custom">カスタム（値を維持）</option></select></label>
           <div id="controllerProfileDescription" class="controller-profile-description" aria-live="polite"></div>
         </article>
         <article id="stsDirectAxesSettings" class="card" hidden><h2>STS3215 直結軸</h2>
@@ -460,6 +461,7 @@
           <label>down lead距離 (mm)<input name="downLeadDistance" type="number" min="0" step="0.1"></label><label>必要down時間 (秒)<input name="requiredPenDownTime" type="number" min="0" step="0.01"></label>
         </article>
         <article class="card"><h2>出力・接続</h2>
+          <label>Rθ Control Web URL<input name="rthetaControlUrl" type="url" placeholder="http://127.0.0.1:8768/"></label><p class="muted">G-codeの転送先です。転送は入力欄への読み込みだけを行い、自動実行しません。</p>
           <label>Baudrate<input name="baudrate" type="number"></label><label>ok応答 timeout (ms)<input name="okTimeoutMs" type="number" min="1000" step="1000"></label>
           <label>停止方式<select name="stopStrategy"><option value="hold-pen-up">feed hold (!) → ペンアップ</option><option value="cancel-pen-up">motion cancel (0x85) → ペンアップ</option></select></label>
           <label>初期化 command<textarea name="initializeCommand" rows="5"></textarea></label><label>切断 command<input name="disconnectCommand"></label>
@@ -471,7 +473,7 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260906-1"></script>
+  <script src="app.js?v=20260906-4"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js?v=20260812-2"></script>
   <script>

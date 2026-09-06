@@ -84,6 +84,28 @@ const CONTROLLER_PROFILES = {
       stsAxisXInvert: false, stsAxisYInvert: false, stsAxisZInvert: false, stsAxisZEnabled: true
     }
   },
+  "rtheta-control-web": {
+    label: "Rθ Control Web互換",
+    phase: "連携",
+    summary: "PlotterFlowのXY G-codeをRθ Control Webへ渡し、受信側でR・θ・Zへ変換するための互換プロファイルです。",
+    outputCenter: { x: 0, y: -100 },
+    notes: [
+      "Rθ Control Webが対応するG90 / G0 / G1 / X / Y / Z / Fだけを出力します。",
+      "ペンアップはG0 Z1、ペンダウンはG1 Z0です。Z=0を紙面、Z=1を退避位置として扱います。",
+      "生成時に描画範囲の中心をRθ用紙中心 X0 / Y-100へ自動配置します。offset X/Yは中心からの微調整です。",
+      "G21、M3、M5、M17、M18、G4など、受信側が対応していない機器固有命令は出力しません。",
+      "転送後はControl WebでTool、Backend、校正状態を確認し、手動でRUN G-CODEを押してください。"
+    ],
+    settings: {
+      baudrate: 115200, header: "G90", footer: "",
+      penUpCommand: "G0 Z1", penDownCommand: "G1 Z0",
+      penUpDelay: 0, penDownDelay: 0, penUpClearanceDelay: 0,
+      penUpDelayShort: 0, penUpDelayLong: 0, baseDelay: 0, delayPer100: 0, maxDelay: 0,
+      upDelayMode: "fixed", optimization: "safe", requiredPenDownTime: 0,
+      okTimeoutMs: 15000, stopStrategy: "cancel-pen-up",
+      initializeCommand: "", disconnectCommand: ""
+    }
+  },
   "pico2-tmc2209-planar": {
     development: true,
     label: "Pico 2 TMC2209 XY Planar（開発中）",
@@ -167,6 +189,12 @@ const CONTROLLER_PROFILES = {
   }
 };
 
+function defaultRthetaControlUrl() {
+  const octets = location.hostname.split(".").map(Number);
+  const tailscale = octets.length === 4 && octets.every(value => Number.isInteger(value) && value >= 0 && value <= 255) && octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127;
+  return tailscale ? `http://${location.hostname}:8768/` : "http://127.0.0.1:8768/";
+}
+
 const DEFAULTS = {
   controllerProfile: "grbl-fluidnc",
   penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
@@ -176,6 +204,7 @@ const DEFAULTS = {
   travelFeed: 500, drawFeed: 500, sampleInterval: 0.5,
   scale: 1, offsetX: 0, offsetY: 0, yFlip: true,
   optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1,
+  rthetaControlUrl: defaultRthetaControlUrl(),
   baudrate: 115200, jogStep: 1, jogFeed: 1000, jogAutoDisable: false, header: "G21\nG90", footer: "",
   okTimeoutMs: 15000, stopStrategy: "hold-pen-up", initializeCommand: "", disconnectCommand: "",
   stsAxisXId: 2, stsAxisYId: 3, stsAxisZId: 1,
@@ -199,7 +228,7 @@ const state = {
   serialUiTimer: null, pendingSerialProgress: null, pendingPositionDisplay: false, pendingJobProgress: null,
   readBuffer: "", okWaiters: [], sending: false, sdUploading: false, sdManagementActive: false, sdFiles: [], sdListReceiving: false, jogging: false, keyboardJogEnabled: false, paused: false, stopped: false, jobStopped: false,
   previewMode: "svg", previewNormalizeY: false, position: null, machinePosition: null, workPosition: null, workOffset: null, controllerState: "未接続", statusPollTimer: null,
-  positionTelemetryEnabled: false,
+  positionTelemetryEnabled: false, rthetaTransfer: null,
   positionSensors: { presentMask: 0, magnetMask: 0, joints: [{ raw: 0, degrees: 180 }, { raw: 0, degrees: 180 }] },
   armCalibration: loadJSON("plotterflow.armCalibration", { offset1: 0, offset2: 0, invert1: false, invert2: false, calibrated: false })
 };
@@ -389,11 +418,19 @@ function transformedPaths() {
 }
 function transformOutputPaths(sourcePaths) {
   const s = state.settings; const scale = +s.scale || 1, ox = +s.offsetX || 0, oy = +s.offsetY || 0;
-  let paths = sourcePaths.map(path => path.map(p => ({ x: p.x * scale + ox, y: p.y * scale + oy })));
+  const outputCenter = CONTROLLER_PROFILES[s.controllerProfile]?.outputCenter;
+  let paths = sourcePaths.map(path => path.map(p => ({ x: p.x * scale, y: p.y * scale })));
   if (s.yFlip && paths.length) {
     const ys = paths.flat().map(p => p.y), axis = Math.min(...ys) + Math.max(...ys);
     paths = paths.map(path => path.map(p => ({ x: p.x, y: axis - p.y })));
   }
+  if (paths.length && outputCenter) {
+    const points = paths.flat(), xs = points.map(p => p.x), ys = points.map(p => p.y);
+    const dx = outputCenter.x + ox - (Math.min(...xs) + Math.max(...xs)) / 2;
+    const dy = outputCenter.y + oy - (Math.min(...ys) + Math.max(...ys)) / 2;
+    return paths.map(path => path.map(p => ({ x: p.x + dx, y: p.y + dy })));
+  }
+  paths = paths.map(path => path.map(p => ({ x: p.x + ox, y: p.y + oy })));
   return paths;
 }
 
@@ -540,12 +577,76 @@ function bindEditor() {
   $("#gcodeEditor").addEventListener("input", () => { state.previewNormalizeY = false; updateEditorStats(); if (state.previewMode === "gcode") renderGcodePreview(); });
   $("#gcodeName").addEventListener("input", () => updateSdFilenameFromSource(true));
   $("#saveGcode").addEventListener("click", saveCurrentGcode); $("#downloadGcode").addEventListener("click", downloadGcode); $("#downloadSdGcode").addEventListener("click", downloadSdGcode);
+  $("#transferToRtheta").addEventListener("click", transferToRthetaControl);
   $("#newGcode").addEventListener("click", () => loadEditor(null)); $("#duplicateGcode").addEventListener("click", duplicateGcode);
   $("#renameGcode").addEventListener("click", renameGcode); $("#deleteGcode").addEventListener("click", deleteGcode);
   $("#gcodeLibrary").addEventListener("change", e => loadEditor(e.target.value));
   $("#gcodeFile").addEventListener("change", event => event.target.files[0] && loadGcodeFile(event.target.files[0]));
   $("#sendFromEditor").addEventListener("click", () => { const code=$("#gcodeEditor").value,name=$("#gcodeName").value; openSerialTrajectory(code,name); $("#sdFilename").value = sanitizeSdFilename(name); startConfiguredTransfer(code,name); });
 }
+function rthetaTransferStatus(message, failed = false) {
+  const status = $("#rthetaTransferStatus");
+  status.textContent = message;
+  status.classList.toggle("error", failed);
+}
+function clearRthetaTransfer() {
+  if (!state.rthetaTransfer) return;
+  clearInterval(state.rthetaTransfer.timer);
+  clearTimeout(state.rthetaTransfer.timeout);
+  state.rthetaTransfer = null;
+}
+function transferToRthetaControl() {
+  const gcode = $("#gcodeEditor").value;
+  if (!gcode.trim()) return toast("転送するG-codeがありません");
+  readSettings();
+  let url;
+  try {
+    url = new URL(state.settings.rthetaControlUrl || DEFAULTS.rthetaControlUrl, location.href);
+    if (!/^https?:$/.test(url.protocol)) throw new Error("unsupported protocol");
+  } catch (_) {
+    rthetaTransferStatus("設定のRθ Control Web URLを確認してください。", true);
+    return toast("Rθ Control Web URLが正しくありません");
+  }
+  saveJSON("plotterflow.settings", state.settings);
+  clearRthetaTransfer();
+  const target = window.open(url.href, "plotterflow-rtheta-control");
+  if (!target) {
+    rthetaTransferStatus("ポップアップを許可して、もう一度転送してください。", true);
+    return toast("Rθ Control Webを開けませんでした");
+  }
+  const payload = {
+    type: "plotterflow:gcode-transfer", version: 1,
+    name: ensureExt($("#gcodeName").value.trim() || "untitled.gcode"), gcode
+  };
+  const send = () => {
+    try {
+      target.postMessage({ type: "plotterflow:hello", version: 1 }, url.origin);
+      target.postMessage(payload, url.origin);
+    } catch (_) { /* navigation中は次のretryへ任せる */ }
+  };
+  const transfer = { target, origin: url.origin, payload, timer: setInterval(send, 500), timeout: 0 };
+  transfer.timeout = setTimeout(() => {
+    if (state.rthetaTransfer !== transfer) return;
+    clearRthetaTransfer();
+    rthetaTransferStatus("Control Webの起動を確認し、必要ならもう一度転送してください。", true);
+  }, 15000);
+  state.rthetaTransfer = transfer;
+  rthetaTransferStatus("Rθ Control Webを開いて転送しています…");
+  send();
+}
+window.addEventListener("message", event => {
+  const transfer = state.rthetaTransfer;
+  if (!transfer || event.source !== transfer.target || event.origin !== transfer.origin) return;
+  if (event.data?.type === "rtheta-control:ready") {
+    transfer.target.postMessage(transfer.payload, transfer.origin);
+  }
+  if (event.data?.type === "rtheta-control:gcode-accepted") {
+    const name = event.data.name || transfer.payload.name;
+    clearRthetaTransfer();
+    rthetaTransferStatus(`${name}を転送しました。Control Webで内容を確認してから実行してください。`);
+    toast("Rθ Control Webへ転送しました");
+  }
+});
 async function loadGcodeFile(file) {
   if (!/\.(gcode|nc|tap|txt)$/i.test(file.name)) return toast("G-codeファイルを選択してください");
   state.currentId = null; state.previewNormalizeY = false;
