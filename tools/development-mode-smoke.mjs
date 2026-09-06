@@ -78,6 +78,23 @@ const stableProfile = await evaluate(`(() => {
 })()`);
 if (stableProfile.enabled || stableProfile.profile !== "rp2040-geek-sts3215-id2-id3" || stableProfile.stsSettingsHidden) throw new Error(`stable profile mismatch: ${JSON.stringify(stableProfile)}`);
 
+const rthetaPlacement = await evaluate(`(() => {
+  applyControllerProfile('rtheta-control-web');
+  const code = window.PlotterFlow.generateFromPaths([[{x:0,y:0},{x:30,y:30}]], 'rtheta-placement');
+  const moves = window.PlotterFlow.parseGcodeMoves(code);
+  const xs = moves.filter(move => Number.isFinite(move.to?.x)).map(move => move.to.x);
+  const ys = moves.filter(move => Number.isFinite(move.to?.y)).map(move => move.to.y);
+  const result = {
+    profile: window.state.settings.controllerProfile,
+    xCenter: (Math.min(...xs) + Math.max(...xs)) / 2,
+    yCenter: (Math.min(...ys) + Math.max(...ys)) / 2,
+    code
+  };
+  applyControllerProfile('grbl-fluidnc');
+  return result;
+})()`);
+if (rthetaPlacement.profile !== "rtheta-control-web" || Math.abs(rthetaPlacement.xCenter) > 1e-9 || Math.abs(rthetaPlacement.yCenter + 100) > 1e-9) throw new Error(`Rtheta placement mismatch: ${JSON.stringify(rthetaPlacement)}`);
+
 const enabled = await evaluate(`(() => {
   const toggle = document.querySelector('#developmentModeToggle');
   toggle.checked = true;
@@ -147,5 +164,5 @@ await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, devi
 const mobile = await evaluate(`(() => { document.querySelector('[data-tab="settings"]').click(); const toggle=document.querySelector('.development-mode-toggle').getBoundingClientRect(); return {clientWidth:document.documentElement.clientWidth,scrollWidth:document.documentElement.scrollWidth,toggleWidth:toggle.width,toggleRight:toggle.right}; })()`);
 if (mobile.scrollWidth > mobile.clientWidth || mobile.toggleWidth <= 0 || mobile.toggleRight > mobile.clientWidth) throw new Error(`mobile overflow: ${JSON.stringify(mobile)}`);
 
-console.log(JSON.stringify({ initial, stableProfile, enabled, persisted, cancelled, disabled, migrated, busy, mobile }, null, 2));
+console.log(JSON.stringify({ initial, stableProfile, rthetaPlacement, enabled, persisted, cancelled, disabled, migrated, busy, mobile }, null, 2));
 socket.close();

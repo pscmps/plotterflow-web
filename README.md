@@ -157,6 +157,8 @@ GitHub Pagesは`main`ブランチのrepository rootを直接公開します。�
 
 Rθ Control Webへ転送するG-codeを生成するときの専用プロファイルです。設定タブでこのプロファイルを選択してからSVGまたは編集内容をG-codeへ変換し、「Rθ Control Webへ転送」を押します。STS3215 XYZ直結プロファイルとは異なり、X/YをサーボIDへ直接割り当てず、Control Web側がXYをR・θ・Zへ変換します。
 
+生成時は描画範囲の中心をRθの用紙中心 `X0 / Y-100` へ自動配置します。設定のoffset X/Yは、この用紙中心から配置を微調整する値として扱います。プロファイル変更前に生成した `X0 / Y0` 付近のG-codeは回転中心の到達不能範囲を通るため、Rθ Control Web互換プロファイルを選んだ状態でG-codeを再生成してください。
+
 - Header: `G90`
 - Pen up: `G0 Z1`
 - Pen down: `G1 Z0`

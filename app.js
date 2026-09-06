@@ -88,9 +88,11 @@ const CONTROLLER_PROFILES = {
     label: "Rθ Control Web互換",
     phase: "連携",
     summary: "PlotterFlowのXY G-codeをRθ Control Webへ渡し、受信側でR・θ・Zへ変換するための互換プロファイルです。",
+    outputCenter: { x: 0, y: -100 },
     notes: [
       "Rθ Control Webが対応するG90 / G0 / G1 / X / Y / Z / Fだけを出力します。",
       "ペンアップはG0 Z1、ペンダウンはG1 Z0です。Z=0を紙面、Z=1を退避位置として扱います。",
+      "生成時に描画範囲の中心をRθ用紙中心 X0 / Y-100へ自動配置します。offset X/Yは中心からの微調整です。",
       "G21、M3、M5、M17、M18、G4など、受信側が対応していない機器固有命令は出力しません。",
       "転送後はControl WebでTool、Backend、校正状態を確認し、手動でRUN G-CODEを押してください。"
     ],
@@ -416,11 +418,19 @@ function transformedPaths() {
 }
 function transformOutputPaths(sourcePaths) {
   const s = state.settings; const scale = +s.scale || 1, ox = +s.offsetX || 0, oy = +s.offsetY || 0;
-  let paths = sourcePaths.map(path => path.map(p => ({ x: p.x * scale + ox, y: p.y * scale + oy })));
+  const outputCenter = CONTROLLER_PROFILES[s.controllerProfile]?.outputCenter;
+  let paths = sourcePaths.map(path => path.map(p => ({ x: p.x * scale, y: p.y * scale })));
   if (s.yFlip && paths.length) {
     const ys = paths.flat().map(p => p.y), axis = Math.min(...ys) + Math.max(...ys);
     paths = paths.map(path => path.map(p => ({ x: p.x, y: axis - p.y })));
   }
+  if (paths.length && outputCenter) {
+    const points = paths.flat(), xs = points.map(p => p.x), ys = points.map(p => p.y);
+    const dx = outputCenter.x + ox - (Math.min(...xs) + Math.max(...xs)) / 2;
+    const dy = outputCenter.y + oy - (Math.min(...ys) + Math.max(...ys)) / 2;
+    return paths.map(path => path.map(p => ({ x: p.x + dx, y: p.y + dy })));
+  }
+  paths = paths.map(path => path.map(p => ({ x: p.x + ox, y: p.y + oy })));
   return paths;
 }
 
