@@ -176,6 +176,7 @@ const DEFAULTS = {
   travelFeed: 500, drawFeed: 500, sampleInterval: 0.5,
   scale: 1, offsetX: 0, offsetY: 0, yFlip: true,
   optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1,
+  rthetaControlUrl: "http://127.0.0.1:8768/",
   baudrate: 115200, jogStep: 1, jogFeed: 1000, jogAutoDisable: false, header: "G21\nG90", footer: "",
   okTimeoutMs: 15000, stopStrategy: "hold-pen-up", initializeCommand: "", disconnectCommand: "",
   stsAxisXId: 2, stsAxisYId: 3, stsAxisZId: 1,
@@ -199,7 +200,7 @@ const state = {
   serialUiTimer: null, pendingSerialProgress: null, pendingPositionDisplay: false, pendingJobProgress: null,
   readBuffer: "", okWaiters: [], sending: false, sdUploading: false, sdManagementActive: false, sdFiles: [], sdListReceiving: false, jogging: false, keyboardJogEnabled: false, paused: false, stopped: false, jobStopped: false,
   previewMode: "svg", previewNormalizeY: false, position: null, machinePosition: null, workPosition: null, workOffset: null, controllerState: "未接続", statusPollTimer: null,
-  positionTelemetryEnabled: false,
+  positionTelemetryEnabled: false, rthetaTransfer: null,
   positionSensors: { presentMask: 0, magnetMask: 0, joints: [{ raw: 0, degrees: 180 }, { raw: 0, degrees: 180 }] },
   armCalibration: loadJSON("plotterflow.armCalibration", { offset1: 0, offset2: 0, invert1: false, invert2: false, calibrated: false })
 };
@@ -540,12 +541,76 @@ function bindEditor() {
   $("#gcodeEditor").addEventListener("input", () => { state.previewNormalizeY = false; updateEditorStats(); if (state.previewMode === "gcode") renderGcodePreview(); });
   $("#gcodeName").addEventListener("input", () => updateSdFilenameFromSource(true));
   $("#saveGcode").addEventListener("click", saveCurrentGcode); $("#downloadGcode").addEventListener("click", downloadGcode); $("#downloadSdGcode").addEventListener("click", downloadSdGcode);
+  $("#transferToRtheta").addEventListener("click", transferToRthetaControl);
   $("#newGcode").addEventListener("click", () => loadEditor(null)); $("#duplicateGcode").addEventListener("click", duplicateGcode);
   $("#renameGcode").addEventListener("click", renameGcode); $("#deleteGcode").addEventListener("click", deleteGcode);
   $("#gcodeLibrary").addEventListener("change", e => loadEditor(e.target.value));
   $("#gcodeFile").addEventListener("change", event => event.target.files[0] && loadGcodeFile(event.target.files[0]));
   $("#sendFromEditor").addEventListener("click", () => { const code=$("#gcodeEditor").value,name=$("#gcodeName").value; openSerialTrajectory(code,name); $("#sdFilename").value = sanitizeSdFilename(name); startConfiguredTransfer(code,name); });
 }
+function rthetaTransferStatus(message, failed = false) {
+  const status = $("#rthetaTransferStatus");
+  status.textContent = message;
+  status.classList.toggle("error", failed);
+}
+function clearRthetaTransfer() {
+  if (!state.rthetaTransfer) return;
+  clearInterval(state.rthetaTransfer.timer);
+  clearTimeout(state.rthetaTransfer.timeout);
+  state.rthetaTransfer = null;
+}
+function transferToRthetaControl() {
+  const gcode = $("#gcodeEditor").value;
+  if (!gcode.trim()) return toast("転送するG-codeがありません");
+  readSettings();
+  let url;
+  try {
+    url = new URL(state.settings.rthetaControlUrl || DEFAULTS.rthetaControlUrl, location.href);
+    if (!/^https?:$/.test(url.protocol)) throw new Error("unsupported protocol");
+  } catch (_) {
+    rthetaTransferStatus("設定のRθ Control Web URLを確認してください。", true);
+    return toast("Rθ Control Web URLが正しくありません");
+  }
+  saveJSON("plotterflow.settings", state.settings);
+  clearRthetaTransfer();
+  const target = window.open(url.href, "plotterflow-rtheta-control");
+  if (!target) {
+    rthetaTransferStatus("ポップアップを許可して、もう一度転送してください。", true);
+    return toast("Rθ Control Webを開けませんでした");
+  }
+  const payload = {
+    type: "plotterflow:gcode-transfer", version: 1,
+    name: ensureExt($("#gcodeName").value.trim() || "untitled.gcode"), gcode
+  };
+  const send = () => {
+    try {
+      target.postMessage({ type: "plotterflow:hello", version: 1 }, url.origin);
+      target.postMessage(payload, url.origin);
+    } catch (_) { /* navigation中は次のretryへ任せる */ }
+  };
+  const transfer = { target, origin: url.origin, payload, timer: setInterval(send, 500), timeout: 0 };
+  transfer.timeout = setTimeout(() => {
+    if (state.rthetaTransfer !== transfer) return;
+    clearRthetaTransfer();
+    rthetaTransferStatus("Control Webの起動を確認し、必要ならもう一度転送してください。", true);
+  }, 15000);
+  state.rthetaTransfer = transfer;
+  rthetaTransferStatus("Rθ Control Webを開いて転送しています…");
+  send();
+}
+window.addEventListener("message", event => {
+  const transfer = state.rthetaTransfer;
+  if (!transfer || event.source !== transfer.target || event.origin !== transfer.origin) return;
+  if (event.data?.type === "rtheta-control:ready") {
+    transfer.target.postMessage(transfer.payload, transfer.origin);
+  }
+  if (event.data?.type === "rtheta-control:gcode-accepted") {
+    const name = event.data.name || transfer.payload.name;
+    clearRthetaTransfer();
+    rthetaTransferStatus(`${name}を転送しました。Control Webで内容を確認してから実行してください。`);
+    toast("Rθ Control Webへ転送しました");
+  }
+});
 async function loadGcodeFile(file) {
   if (!/\.(gcode|nc|tap|txt)$/i.test(file.name)) return toast("G-codeファイルを選択してください");
   state.currentId = null; state.previewNormalizeY = false;
