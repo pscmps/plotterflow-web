@@ -84,6 +84,26 @@ const CONTROLLER_PROFILES = {
       stsAxisXInvert: false, stsAxisYInvert: false, stsAxisZInvert: false, stsAxisZEnabled: true
     }
   },
+  "rtheta-control-web": {
+    label: "Rθ Control Web互換",
+    phase: "連携",
+    summary: "PlotterFlowのXY G-codeをRθ Control Webへ渡し、受信側でR・θ・Zへ変換するための互換プロファイルです。",
+    notes: [
+      "Rθ Control Webが対応するG90 / G0 / G1 / X / Y / Z / Fだけを出力します。",
+      "ペンアップはG0 Z1、ペンダウンはG1 Z0です。Z=0を紙面、Z=1を退避位置として扱います。",
+      "G21、M3、M5、M17、M18、G4など、受信側が対応していない機器固有命令は出力しません。",
+      "転送後はControl WebでTool、Backend、校正状態を確認し、手動でRUN G-CODEを押してください。"
+    ],
+    settings: {
+      baudrate: 115200, header: "G90", footer: "",
+      penUpCommand: "G0 Z1", penDownCommand: "G1 Z0",
+      penUpDelay: 0, penDownDelay: 0, penUpClearanceDelay: 0,
+      penUpDelayShort: 0, penUpDelayLong: 0, baseDelay: 0, delayPer100: 0, maxDelay: 0,
+      upDelayMode: "fixed", optimization: "safe", requiredPenDownTime: 0,
+      okTimeoutMs: 15000, stopStrategy: "cancel-pen-up",
+      initializeCommand: "", disconnectCommand: ""
+    }
+  },
   "pico2-tmc2209-planar": {
     development: true,
     label: "Pico 2 TMC2209 XY Planar（開発中）",

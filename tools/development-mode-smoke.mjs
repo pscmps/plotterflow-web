@@ -68,7 +68,7 @@ const initial = await evaluate(`(() => {
   };
 })()`);
 if (initial.enabled || initial.toggle || initial.profile !== "grbl-fluidnc") throw new Error(`initial mode mismatch: ${JSON.stringify(initial)}`);
-if (initial.options.length !== 3 || initial.options.includes("pico2-drv8835-planar") || !initial.stsSettingsHidden || !initial.experimentalOptimizationHidden) throw new Error(`initial visibility mismatch: ${JSON.stringify(initial)}`);
+if (initial.options.length !== 4 || !initial.options.includes("rtheta-control-web") || initial.options.includes("pico2-drv8835-planar") || !initial.stsSettingsHidden || !initial.experimentalOptimizationHidden) throw new Error(`initial visibility mismatch: ${JSON.stringify(initial)}`);
 
 const stableProfile = await evaluate(`(() => {
   applyControllerProfile('rp2040-geek-sts3215-id2-id3');
@@ -91,7 +91,7 @@ const enabled = await evaluate(`(() => {
     stored: localStorage.getItem('plotterflow.developmentModeV1')
   };
 })()`);
-if (!enabled.enabled || enabled.profile !== "pico2-drv8835-planar" || enabled.options.length !== 8 || enabled.armHidden || enabled.stored !== "1") throw new Error(`enabled mode mismatch: ${JSON.stringify(enabled)}`);
+if (!enabled.enabled || enabled.profile !== "pico2-drv8835-planar" || enabled.options.length !== 9 || enabled.armHidden || enabled.stored !== "1") throw new Error(`enabled mode mismatch: ${JSON.stringify(enabled)}`);
 
 await reload();
 const persisted = await evaluate(`({enabled:window.state.developmentMode,profile:window.state.settings.controllerProfile,toggle:document.querySelector('#developmentModeToggle').checked,armHidden:document.querySelector('#planarArmPanel').hidden})`);
@@ -119,7 +119,7 @@ const disabled = await evaluate(`(() => {
     stored: localStorage.getItem('plotterflow.developmentModeV1')
   };
 })()`);
-if (disabled.enabled || disabled.profile !== "grbl-fluidnc" || disabled.options.length !== 3 || !disabled.armHidden || disabled.stored !== "0") throw new Error(`disable mismatch: ${JSON.stringify(disabled)}`);
+if (disabled.enabled || disabled.profile !== "grbl-fluidnc" || disabled.options.length !== 4 || !disabled.options.includes("rtheta-control-web") || !disabled.armHidden || disabled.stored !== "0") throw new Error(`disable mismatch: ${JSON.stringify(disabled)}`);
 
 await evaluate(`(() => {
   const saved = JSON.parse(localStorage.getItem('plotterflow.settings'));

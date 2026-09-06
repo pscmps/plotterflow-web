@@ -70,6 +70,25 @@ const planarInitialTravel = await evaluate(`(() => {
     otherProfileUnchanged: /^G0 X10 Y20 F/.test(otherProfileTravel || '')
   };
 })()`);
+const rthetaProfile = await evaluate(`(() => {
+  const original = { ...window.state.settings };
+  applyControllerProfile('rtheta-control-web');
+  PlotterFlow.generateFromPaths([[{ x: 10, y: 20 }, { x: 11, y: 21 }]], 'rtheta-compatible.gcode');
+  const lines = document.querySelector('#gcodeEditor').value.split(/\\r?\\n/).filter(Boolean);
+  const allowed = lines.every(line => /^(?:G90|G[01](?: [XYZF]-?(?:\\d+(?:\\.\\d+)?|\\.\\d+))+)$/.test(line));
+  const result = {
+    lines,
+    allowed,
+    header: lines[0],
+    penUp: lines.includes('G0 Z1'),
+    penDown: lines.includes('G1 Z0'),
+    unsupported: lines.filter(line => /^(?:G21|G4|M)/.test(line))
+  };
+  Object.keys(window.state.settings).forEach(key => delete window.state.settings[key]);
+  Object.assign(window.state.settings, original);
+  return result;
+})()`);
+if (!rthetaProfile.allowed || rthetaProfile.header !== 'G90' || !rthetaProfile.penUp || !rthetaProfile.penDown || rthetaProfile.unsupported.length) throw new Error(`Rtheta profile mismatch: ${JSON.stringify(rthetaProfile)}`);
 await evaluate(`(() => { const input=document.querySelector('#drawingTextInput'); input.value='展示会'; document.querySelector('#drawingAddText').click(); return true; })()`);
 await delay(250);
 const added = await evaluate(`(() => { const path=document.querySelector('#drawingCanvas path.drawing-object.selected'); return { count:document.querySelectorAll('#drawingCanvas .drawing-object').length, pathLength:path?.getAttribute('d')?.length||0, propertiesVisible:!document.querySelector('#drawingProperties').hidden, stored:localStorage.getItem('plotterflow.drawing.last')?.includes('"type":"text"')||false }; })()`);
@@ -99,5 +118,5 @@ await send("Page.reload",{ignoreCache:false});
 await delay(250);
 for(let attempt=0;attempt<60;attempt++){if(await evaluate(`document.querySelector('#textFontStatus')?.classList.contains('ready')||false`))break;await delay(250);}
 const reloaded=await evaluate(`({textPaths:document.querySelectorAll('#drawingCanvas path.drawing-object').length,stored:localStorage.getItem('plotterflow.drawing.last')?.includes('"renderMode":"outline"')||false})`);
-console.log(JSON.stringify({ fontStatus, planarInitialTravel, added, move:{ before:{x:moveBefore.x,y:moveBefore.y}, after:moveAfter }, pinch:{ before:pinchBefore.fontSize, after:pinchAfter }, dialogOpen, gcode, mobile, reloaded, exceptions }, null, 2));
+console.log(JSON.stringify({ fontStatus, planarInitialTravel, rthetaProfile, added, move:{ before:{x:moveBefore.x,y:moveBefore.y}, after:moveAfter }, pinch:{ before:pinchBefore.fontSize, after:pinchAfter }, dialogOpen, gcode, mobile, reloaded, exceptions }, null, 2));
 socket.close();
