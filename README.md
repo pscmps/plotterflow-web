@@ -28,7 +28,7 @@ G-codeタブでは生成結果のプレビューと編集を行い、`.gcode`、
 
 G-codeの送信操作はSerialタブのXYジョグより上に配置しています。G-codeタブから送信するとSerialタブへ切り替わり、送信対象の描画・空走軌跡まで自動スクロールするため、実機の動きと画面上の軌跡を見比べられます。
 
-G-codeタブの「Rθ Control Webへ転送」は、設定したControl Web URL（初期値`http://127.0.0.1:8768/`）を別ウィンドウで開き、現在のG-codeと名前を渡します。受信側ではPlotterタブの入力欄とプレビューだけを更新し、実行は開始しません。内容、Tool、Backend、校正状態をControl Webで確認してから、明示的に`RUN G-CODE`を押してください。GitHub Pages版またはlocalhost版PlotterFlowからの転送に対応します。
+G-codeタブの「Rθ Control Webへ転送」は、設定したControl Web URL（通常の初期値`http://127.0.0.1:8768/`）を別ウィンドウで開き、現在のG-codeと名前を渡します。Tailscaleの`100.64.0.0/10`アドレスからPlotterFlowを開いた場合は、同じホストの`8768`番を初期値にします。受信側ではPlotterタブの入力欄とプレビューだけを更新し、実行は開始しません。内容、Tool、Backend、校正状態をControl Webで確認してから、明示的に`RUN G-CODE`を押してください。GitHub Pages版、localhost版、Control Webと同じホストで配信するPlotterFlowからの転送に対応します。
 
 設定の「リロード動作 G-code」は用紙送り用の動作を初期値にしています。Serialの「リロード」ボタンと、ジョブ選択の「リロード動作（設定）」はこの共通設定を実行します。描画・空走Feedrateの初期値はともに `500 mm/min` です。
 

@@ -167,6 +167,12 @@ const CONTROLLER_PROFILES = {
   }
 };
 
+function defaultRthetaControlUrl() {
+  const octets = location.hostname.split(".").map(Number);
+  const tailscale = octets.length === 4 && octets.every(value => Number.isInteger(value) && value >= 0 && value <= 255) && octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127;
+  return tailscale ? `http://${location.hostname}:8768/` : "http://127.0.0.1:8768/";
+}
+
 const DEFAULTS = {
   controllerProfile: "grbl-fluidnc",
   penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
@@ -176,7 +182,7 @@ const DEFAULTS = {
   travelFeed: 500, drawFeed: 500, sampleInterval: 0.5,
   scale: 1, offsetX: 0, offsetY: 0, yFlip: true,
   optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1,
-  rthetaControlUrl: "http://127.0.0.1:8768/",
+  rthetaControlUrl: defaultRthetaControlUrl(),
   baudrate: 115200, jogStep: 1, jogFeed: 1000, jogAutoDisable: false, header: "G21\nG90", footer: "",
   okTimeoutMs: 15000, stopStrategy: "hold-pen-up", initializeCommand: "", disconnectCommand: "",
   stsAxisXId: 2, stsAxisYId: 3, stsAxisZId: 1,
