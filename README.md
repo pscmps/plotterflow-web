@@ -30,6 +30,8 @@ G-codeの送信操作はSerialタブのXYジョグより上に配置していま
 
 G-codeタブの「Rθ Control Webへ転送」は、設定したControl Web URL（通常の初期値`http://127.0.0.1:8768/`）を別ウィンドウで開き、現在のG-codeと名前を渡します。Tailscaleの`100.64.0.0/10`アドレスからPlotterFlowを開いた場合は、同じホストの`8768`番を初期値にします。受信側ではPlotterタブの入力欄とプレビューだけを更新し、実行は開始しません。内容、Tool、Backend、校正状態をControl Webで確認してから、明示的に`RUN G-CODE`を押してください。GitHub Pages版、localhost版、Control Webと同じホストで配信するPlotterFlowからの転送に対応します。
 
+PlotterFlowとRθ Control Webを同じ正本PCからまとめて配信するときは、`lerobot_robot_plotterflow_rtheta`正本の`scripts/windows/start-rtheta-stack.ps1`を使用できます。USBをラップトップへ置く場合も、ラップトップでは軽量Serial bridge 1ファイルだけを実行し、開発環境とControl Webは正本PCに維持できます。Serial実機の`RUN G-CODE`は、接続と`RTHZ_READY`を確認後、Control WebのToolタブで接続単位の「固定ペンを使用」を明示した場合だけ有効になります。
+
 設定の「リロード動作 G-code」は用紙送り用の動作を初期値にしています。Serialの「リロード」ボタンと、ジョブ選択の「リロード動作（設定）」はこの共通設定を実行します。描画・空走Feedrateの初期値はともに `500 mm/min` です。
 
 保存済みG-codeは「ジョブ実行」で回数、前後Delay、前後コマンド、全体ループを設定して連続実行できます。
