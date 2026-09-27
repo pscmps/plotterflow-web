@@ -6,6 +6,11 @@ const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
 
 assert.match(app, /"rp2040-geek-sts3215-id2-id3"/);
+assert.match(app, /"micropython-rp-stepdir"/);
+assert.match(app, /firmwareKind: "micropython"/);
+assert.match(app, /verification: "動作未確認"/);
+assert.match(app, /boardRecipe: "pico2-stepdir"/);
+assert.match(app, /supportsFileUpload: true/);
 assert.match(app, /jogCommand: "sts3215-test"/);
 assert.match(app, /directAxes: true, statusPolling: false/);
 assert.match(app, /initializeCommand: "M17\\nG21\\nG90\\nG10 L20 P0 X0 Y0"/);
@@ -38,7 +43,7 @@ assert.match(html, /<textarea name="initializeCommand" rows="5"><\/textarea>/);
 assert.match(html, /data-jog-axis="Z" data-jog-sign="-1" data-jog-degrees="5"/);
 assert.match(html, /data-jog-axis="Z" data-jog-sign="1" data-jog-degrees="5"/);
 assert.match(html, /id="keyboardJogLabel">矢印キー/);
-assert.match(html, /app\.js\?v=20260906-4/);
+assert.match(html, /app\.js\?v=20260927-1/);
 assert.match(readme, /M950/);
 
 console.log("STS3215 PlotterFlow profile smoke test passed");
