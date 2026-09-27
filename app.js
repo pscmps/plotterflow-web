@@ -217,6 +217,60 @@ const MICRO_PYTHON_BOARD_PROFILES = {
     },
     wiring: "設計検討版v0.7・発注前。STEP/DIR: X GP2/GP4 (J1-4/J1-6)、Y GP3/GP5 (J1-5/J1-7)、ENABLE GP7 (J1-10・active-low)、Z PWM GP12 (J1-16)。LIMIT: X GP6 (J1-9)、Y GP8 (J1-11)。ボタン: UP GP9 (J1-12)、DOWN GP10 (J1-14)、OK GP11 (J1-15)。TMC UART: TX GP0 (J1-1)、RX GP1 (J1-2)。シリアルサーボDATA: GP13 (J1-17)。"
   },
+  plotterflow_motor_shield_lcd147a: {
+    label: "PlotterFlow Motor Shield v0.7（RP2350-LCD-1.47-A / 開発中）",
+    firmwareUrl: "https://www.waveshare.com/rp2350-lcd-1.47-a.htm",
+    driveName: "RP2350",
+    boot: "RP2350-LCD-1.47-AのUSB-Cを接続し、公式ページのBOOT/RESET手順でRP2350ドライブを表示します。",
+    firmwareNote: "このボードは公式製品ページから対応するRP2350 MicroPython UF2の有無を確認してください。",
+    pins: [2, 4, 3, 5, 7, 9],
+    signals: {
+      X_STEP: { gpio: 2, physical: "J2-15" }, X_DIR: { gpio: 4, physical: "J2-17" },
+      Y_STEP: { gpio: 3, physical: "J2-16" }, Y_DIR: { gpio: 5, physical: "J2-18" },
+      ENABLE: { gpio: 7, physical: "J2-2" }, X_LIMIT: { gpio: 6, physical: "J2-1" },
+      Y_LIMIT: { gpio: 8, physical: "J2-3" }, Z_SERVO_PWM: { gpio: 9, physical: "J2-4" },
+      BUTTON_UP: { gpio: 25, physical: "J2-5" }, BUTTON_DOWN: { gpio: 26, physical: "J2-6" },
+      BUTTON_OK: { gpio: 27, physical: "J2-7" }, TMC_UART_TX: { gpio: 0, physical: "J2-13" },
+      TMC_UART_RX: { gpio: 1, physical: "J2-14" }, SERIAL_DATA_GPIO: { gpio: 28, physical: "J2-9" }
+    },
+    wiring: "設計検討版v0.7・発注前。STEP/DIR: X GP2/GP4 (J2-15/J2-17)、Y GP3/GP5 (J2-16/J2-18)、ENABLE GP7 (J2-2・active-low)、Z PWM GP9 (J2-4)。LIMIT: X GP6 (J2-1)、Y GP8 (J2-3)。ボタン: UP GP25 (J2-5)、DOWN GP26 (J2-6)、OK GP27 (J2-7)。TMC UART: TX GP0 (J2-13)、RX GP1 (J2-14)。シリアルサーボDATA: GP28 (J2-9)。SD/LCDで予約されるGP10〜24は使いません。"
+  },
+  plotterflow_motor_shield_touch2: {
+    label: "PlotterFlow Motor Shield v0.7（RP2350-Touch-LCD-2/-C / 開発中）",
+    firmwareUrl: "https://www.waveshare.com/product/rp2350-touch-lcd-2.htm",
+    driveName: "RP2350",
+    boot: "RP2350-Touch-LCD-2/-CのUSB-Cを接続し、公式ページのBOOT/RESET手順でRP2350ドライブを表示します。カメラ/FPCは外す構成です。",
+    firmwareNote: "このボードはカメラ/FPCを外す前提です。公式製品ページから対応するRP2350 MicroPython UF2の有無を確認してください。",
+    pins: [2, 4, 3, 5, 7, 9],
+    signals: {
+      X_STEP: { gpio: 2, physical: "J3-7" }, X_DIR: { gpio: 4, physical: "J3-11" },
+      Y_STEP: { gpio: 3, physical: "J3-9" }, Y_DIR: { gpio: 5, physical: "J3-19" },
+      ENABLE: { gpio: 7, physical: "J3-28" }, X_LIMIT: { gpio: 6, physical: "J3-20" },
+      Y_LIMIT: { gpio: 8, physical: "J3-26" }, Z_SERVO_PWM: { gpio: 9, physical: "J3-27" },
+      BUTTON_UP: { gpio: 10, physical: "J3-12" }, BUTTON_DOWN: { gpio: 11, physical: "J3-21" },
+      BUTTON_OK: { gpio: 22, physical: "J3-25" }, TMC_UART_TX: { gpio: 0, physical: "J3-10" },
+      TMC_UART_RX: { gpio: 1, physical: "J3-8" }, SERIAL_DATA_GPIO: { gpio: 21, physical: "J3-24" }
+    },
+    wiring: "設計検討版v0.7・発注前。STEP/DIR: X GP2/GP4 (J3-7/J3-11)、Y GP3/GP5 (J3-9/J3-19)、ENABLE GP7 (J3-28・active-low)、Z PWM GP9 (J3-27)。LIMIT: X GP6 (J3-20)、Y GP8 (J3-26)。ボタン: UP GP10 (J3-12)、DOWN GP11 (J3-21)、OK GP22 (J3-25)。TMC UART: TX GP0 (J3-10)、RX GP1 (J3-8)。シリアルサーボDATA: GP21 (J3-24)。カメラ・LCD・SD予約ピンは使いません。"
+  },
+  plotterflow_motor_shield_pizero: {
+    label: "PlotterFlow Motor Shield v0.7（RP2350-PiZero / 開発中）",
+    firmwareUrl: "https://www.waveshare.com/rp2350-pizero.htm",
+    driveName: "RP2350",
+    boot: "RP2350-PiZeroをUSB接続し、公式ページのBOOT/RESET手順でRP2350ドライブを表示します。Pi Zero Linux版とは別のRP2350版を選びます。",
+    firmwareNote: "この選択肢はRP2350-PiZero用です。LinuxのRaspberry Pi Zero（BCM番号）ではこのMicroPython RPファームウェアは動きません。",
+    pins: [17, 18, 22, 23, 14, 12],
+    signals: {
+      X_STEP: { gpio: 17, physical: "J4-11" }, X_DIR: { gpio: 18, physical: "J4-12" },
+      Y_STEP: { gpio: 22, physical: "J4-15" }, Y_DIR: { gpio: 23, physical: "J4-16" },
+      ENABLE: { gpio: 14, physical: "J4-7" }, X_LIMIT: { gpio: 2, physical: "J4-3" },
+      Y_LIMIT: { gpio: 3, physical: "J4-5" }, Z_SERVO_PWM: { gpio: 12, physical: "J4-32" },
+      BUTTON_UP: { gpio: null, physical: "HAT側UI" }, BUTTON_DOWN: { gpio: null, physical: "HAT側UI" },
+      BUTTON_OK: { gpio: null, physical: "HAT側UI" }, TMC_UART_TX: { gpio: 4, physical: "J4-8" },
+      TMC_UART_RX: { gpio: 5, physical: "J4-10" }, SERIAL_DATA_GPIO: { gpio: 9, physical: "J4-26" }
+    },
+    wiring: "設計検討版v0.7・発注前。RP2350-PiZeroはX STEP/DIR GP17/GP18 (J4-11/J4-12)、Y STEP/DIR GP22/GP23 (J4-15/J4-16)、ENABLE GP14 (J4-7・active-low)、Z PWM GP12 (J4-32)。LIMIT: X GP2 (J4-3)、Y GP3 (J4-5)。ボタンは基板未接続でHAT側UIです。TMC UART: TX GP4 (J4-8)、RX GP5 (J4-10)。シリアルサーボDATA: GP9 (J4-26)。"
+  },
   rp2040_geek: { label: "Waveshare RP2040-GEEK", firmwareUrl: "https://files.waveshare.com/wiki/RP2350-Plus/WAVESHARE-RP2040-Board.zip", driveName: "RPI-RP2", boot: "USB接続後、BOOTとRESETを同時に押し、RESET、BOOTの順に離します。", pins: [2, 4, 3, 5, 7, 12] },
   rp2350_geek: { label: "Waveshare RP2350-GEEK", firmwareUrl: "https://files.waveshare.com/wiki/RP2350-Plus/WAVESHARE-RP2350A-Board.zip", driveName: "RP2350", boot: "USB接続後、BOOTとRESETを同時に押し、RESET、BOOTの順に離します。", pins: [2, 4, 3, 5, 7, 12] },
   xiao_rp2040: { label: "Seeed Studio XIAO RP2040", firmwareUrl: "https://micropython.org/download/SEEED_XIAO_RP2040/", driveName: "RPI-RP2", boot: "BOOTを押したままUSB接続して離します。接続済みならBOOTを押しながらRESETを押して離し、最後にBOOTを離します。", pins: [2, 4, 3, 5, 7, 12] },
@@ -384,7 +438,7 @@ function renderMicroPythonBoard() {
   const guide = $("#microPythonInitialGuide");
   if (guide) guide.innerHTML = board.supported === false
     ? "このMicroPython STEP/DIR版はRP2040/RP2350向けです。ATOM LiteはESP32用実装を別途追加します。"
-    : "<strong>初回だけ:</strong> 上の公式ページからUF2を取得し、" + escapeHtml(board.boot) + " UF2を" + escapeHtml(board.driveName || "表示されたUF2ドライブ") + "へコピーします。再起動後、下のSerial接続を押してください。ブラウザからUF2を自動書き込みする機能はまだありません。";
+    : "<strong>初回だけ:</strong> " + escapeHtml(board.firmwareNote || "上の公式ページからUF2を取得してください。") + " " + escapeHtml(board.boot) + " UF2を" + escapeHtml(board.driveName || "表示されたUF2ドライブ") + "へコピーします。再起動後、下のSerial接続を押してください。ブラウザからUF2を自動書き込みする機能はまだありません。";
   const upload = $("#uploadMicroPythonFiles");
   if (upload) upload.disabled = board.supported === false;
 }

@@ -140,7 +140,7 @@ GitHub Pagesは`main`ブランチのrepository rootを直接公開します。�
 
 ### MicroPython RP STEP/DIR（開発中・動作未確認）
 
-「開発中」タブでMicroPython RP STEP/DIR XY（開発中・動作未確認）を選ぶと、Pico Blocksと同じボード候補（Pico / Pico W / Pico 2 / Pico 2 W / RP2040-GEEK / RP2350-GEEK / XIAO RP2040 / XIAO RP2350 / ATOM Lite）に加えて、PlotterFlow Motor Shield v0.7（Pico 2 W）を選択できます。ATOM LiteはこのRP2040/RP2350版の対象外として表示されます。
+「開発中」タブでMicroPython RP STEP/DIR XY（開発中・動作未確認）を選ぶと、Pico Blocksと同じボード候補（Pico / Pico W / Pico 2 / Pico 2 W / RP2040-GEEK / RP2350-GEEK / XIAO RP2040 / XIAO RP2350 / ATOM Lite）に加えて、PlotterFlow Motor Shield v0.7のPico 2 W、RP2350-LCD-1.47-A、RP2350-Touch-LCD-2/-C、RP2350-PiZeroを選択できます。ATOM LiteはこのRP2040/RP2350版の対象外として表示されます。
 
 初回だけ、次の手順でMicroPython本体を導入します。
 
@@ -152,6 +152,8 @@ GitHub Pagesは`main`ブランチのrepository rootを直接公開します。�
 初回UF2のブラウザ自動書き込みはまだ行わず、公式UF2の取得とコピーは手動です。MicroPython本体が入った後は、「PlotterFlow MicroPythonファームウェアを永続保存」を押すだけで、PlotterFlowに同梱したmain.py、G-code parser、planner、PIO stepper、pen、protocol、update storeをWeb Serialのraw REPL経由で転送します。ボード選択に応じたboard_config.pyを先頭に保存し、各ファイルを一時名からリネームしてからmain.pyを最後に保存するため、Pico Blocksの「保存して実行」と同じく再起動後もファイルシステムに残る永続保存です。任意の.pyファイルを選ぶ方式ではありません。
 
 PlotterFlow Motor Shield v0.7を選んだ場合は、基板のPico 2 Wソケットに合わせて次のGPIOをboard_config.pyへ書き込みます。X STEP/DIRはGP2/GP4（J1-4/J1-6）、Y STEP/DIRはGP3/GP5（J1-5/J1-7）、共通ENABLEはGP7（J1-10、active-low）、ZサーボPWMはGP12（J1-16）です。物理LIMITはX=GP6（J1-9）、Y=GP8（J1-11）、3ボタンはUP=GP9（J1-12）、DOWN=GP10（J1-14）、OK=GP11（J1-15）、TMC UARTはTX=GP0（J1-1）/RX=GP1（J1-2）、シリアルサーボDATAはGP13（J1-17）です。現在のMicroPython MVPが使用するのはSTEP/DIR・ENABLE・Z PWMで、LIMIT、ボタン、TMC UART、シリアルサーボDATAは設定値を保持し、後続backend用に予約します。
+
+同じMotor ShieldのLCD-1.47-A（J2）、Touch-LCD-2/-C（J3）、RP2350-PiZero（J4）も、選択したボードのGPIO・物理端子へ切り替わります。LCD-1.47-AはX/Y=GP2/4・GP3/5、ENABLE=GP7、Z=GP9、DATA=GP28、Touch-LCD-2/-CはX/Y=GP2/4・GP3/5、ENABLE=GP7、Z=GP9、DATA=GP21、RP2350-PiZeroはX/Y=GP17/18・GP22/23、ENABLE=GP14、Z=GP12、DATA=GP9です。各画面の配線案内にはJ2/J3/J4の物理端子も表示します。LinuxのPi Zero（BCM版）はRP2350用MicroPythonとは別物なので候補に含めていません。LCD/Touch/PiZeroの初回UF2は公式製品ページで対応版を確認してから導入してください。
 
 この機能はファームウェア・転送処理・PIO波形・モータ接続を含めて実機未確認です。まずはUSBシリアル接続、G-codeのG0/G1、G90/G91、M3/M5、M17/M18、G92を対象に確認します。公開ページから取得するため、転送バンドルのPythonソースはこのリポジトリにも含まれます。開発元の専用リポジトリは https://github.com/pscmps/plotterflow-micropython-rp です。
 
