@@ -140,7 +140,7 @@ GitHub Pagesは`main`ブランチのrepository rootを直接公開します。�
 
 ### MicroPython RP STEP/DIR（開発中・動作未確認）
 
-「開発中」タブでMicroPython RP STEP/DIR XY（開発中・動作未確認）を選ぶと、Pico Blocksと同じボード候補（Pico / Pico W / Pico 2 / Pico 2 W / RP2040-GEEK / RP2350-GEEK / XIAO RP2040 / XIAO RP2350 / ATOM Lite）から対象ボードを選択できます。ATOM LiteはこのRP2040/RP2350版の対象外として表示されます。
+「開発中」タブでMicroPython RP STEP/DIR XY（開発中・動作未確認）を選ぶと、Pico Blocksと同じボード候補（Pico / Pico W / Pico 2 / Pico 2 W / RP2040-GEEK / RP2350-GEEK / XIAO RP2040 / XIAO RP2350 / ATOM Lite）に加えて、PlotterFlow Motor Shield v0.7（Pico 2 W）を選択できます。ATOM LiteはこのRP2040/RP2350版の対象外として表示されます。
 
 初回だけ、次の手順でMicroPython本体を導入します。
 
@@ -150,6 +150,8 @@ GitHub Pagesは`main`ブランチのrepository rootを直接公開します。�
 4. 通常のUSBシリアルとして再接続し、同じ画面の「Serial接続」を押す。
 
 初回UF2のブラウザ自動書き込みはまだ行わず、公式UF2の取得とコピーは手動です。MicroPython本体が入った後は、「PlotterFlow MicroPythonファームウェアを永続保存」を押すだけで、PlotterFlowに同梱したmain.py、G-code parser、planner、PIO stepper、pen、protocol、update storeをWeb Serialのraw REPL経由で転送します。ボード選択に応じたboard_config.pyを先頭に保存し、各ファイルを一時名からリネームしてからmain.pyを最後に保存するため、Pico Blocksの「保存して実行」と同じく再起動後もファイルシステムに残る永続保存です。任意の.pyファイルを選ぶ方式ではありません。
+
+PlotterFlow Motor Shield v0.7を選んだ場合は、基板のPico 2 Wソケットに合わせて次のGPIOをboard_config.pyへ書き込みます。X STEP/DIRはGP2/GP4（J1-4/J1-6）、Y STEP/DIRはGP3/GP5（J1-5/J1-7）、共通ENABLEはGP7（J1-10、active-low）、ZサーボPWMはGP12（J1-16）です。物理LIMITはX=GP6（J1-9）、Y=GP8（J1-11）、3ボタンはUP=GP9（J1-12）、DOWN=GP10（J1-14）、OK=GP11（J1-15）、TMC UARTはTX=GP0（J1-1）/RX=GP1（J1-2）、シリアルサーボDATAはGP13（J1-17）です。現在のMicroPython MVPが使用するのはSTEP/DIR・ENABLE・Z PWMで、LIMIT、ボタン、TMC UART、シリアルサーボDATAは設定値を保持し、後続backend用に予約します。
 
 この機能はファームウェア・転送処理・PIO波形・モータ接続を含めて実機未確認です。まずはUSBシリアル接続、G-codeのG0/G1、G90/G91、M3/M5、M17/M18、G92を対象に確認します。公開ページから取得するため、転送バンドルのPythonソースはこのリポジトリにも含まれます。開発元の専用リポジトリは https://github.com/pscmps/plotterflow-micropython-rp です。
 

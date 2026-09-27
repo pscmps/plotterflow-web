@@ -200,6 +200,23 @@ const MICRO_PYTHON_BOARD_PROFILES = {
   picow: { label: "Raspberry Pi Pico W", firmwareUrl: "https://micropython.org/download/RPI_PICO_W/", driveName: "RPI-RP2", boot: "USBを外し、BOOTSELを押したままUSB接続してから離します。", pins: [2, 4, 3, 5, 7, 12] },
   pico2: { label: "Raspberry Pi Pico 2", firmwareUrl: "https://micropython.org/download/RPI_PICO2/", driveName: "RP2350", boot: "USBを外し、BOOTSELを押したままUSB接続してから離します。Pico 2はArm版UF2を選びます。", pins: [2, 4, 3, 5, 7, 12] },
   pico2w: { label: "Raspberry Pi Pico 2 W", firmwareUrl: "https://micropython.org/download/RPI_PICO2_W/", driveName: "RP2350", boot: "USBを外し、BOOTSELを押したままUSB接続してから離します。Pico 2 WはArm版UF2を選びます。", pins: [2, 4, 3, 5, 7, 12] },
+  plotterflow_motor_shield_pico2w: {
+    label: "PlotterFlow Motor Shield v0.7（Pico 2 W / 開発中）",
+    firmwareUrl: "https://micropython.org/download/RPI_PICO2_W/",
+    driveName: "RP2350",
+    boot: "シールドからPico 2 Wを外し、BOOTSELを押したままUSB接続してから離します。Pico 2 W用Arm版UF2を選びます。",
+    pins: [2, 4, 3, 5, 7, 12],
+    signals: {
+      X_STEP: { gpio: 2, physical: "J1-4" }, X_DIR: { gpio: 4, physical: "J1-6" },
+      Y_STEP: { gpio: 3, physical: "J1-5" }, Y_DIR: { gpio: 5, physical: "J1-7" },
+      ENABLE: { gpio: 7, physical: "J1-10" }, X_LIMIT: { gpio: 6, physical: "J1-9" },
+      Y_LIMIT: { gpio: 8, physical: "J1-11" }, Z_SERVO_PWM: { gpio: 12, physical: "J1-16" },
+      BUTTON_UP: { gpio: 9, physical: "J1-12" }, BUTTON_DOWN: { gpio: 10, physical: "J1-14" },
+      BUTTON_OK: { gpio: 11, physical: "J1-15" }, TMC_UART_TX: { gpio: 0, physical: "J1-1" },
+      TMC_UART_RX: { gpio: 1, physical: "J1-2" }, SERIAL_DATA_GPIO: { gpio: 13, physical: "J1-17" }
+    },
+    wiring: "設計検討版v0.7・発注前。STEP/DIR: X GP2/GP4 (J1-4/J1-6)、Y GP3/GP5 (J1-5/J1-7)、ENABLE GP7 (J1-10・active-low)、Z PWM GP12 (J1-16)。LIMIT: X GP6 (J1-9)、Y GP8 (J1-11)。ボタン: UP GP9 (J1-12)、DOWN GP10 (J1-14)、OK GP11 (J1-15)。TMC UART: TX GP0 (J1-1)、RX GP1 (J1-2)。シリアルサーボDATA: GP13 (J1-17)。"
+  },
   rp2040_geek: { label: "Waveshare RP2040-GEEK", firmwareUrl: "https://files.waveshare.com/wiki/RP2350-Plus/WAVESHARE-RP2040-Board.zip", driveName: "RPI-RP2", boot: "USB接続後、BOOTとRESETを同時に押し、RESET、BOOTの順に離します。", pins: [2, 4, 3, 5, 7, 12] },
   rp2350_geek: { label: "Waveshare RP2350-GEEK", firmwareUrl: "https://files.waveshare.com/wiki/RP2350-Plus/WAVESHARE-RP2350A-Board.zip", driveName: "RP2350", boot: "USB接続後、BOOTとRESETを同時に押し、RESET、BOOTの順に離します。", pins: [2, 4, 3, 5, 7, 12] },
   xiao_rp2040: { label: "Seeed Studio XIAO RP2040", firmwareUrl: "https://micropython.org/download/SEEED_XIAO_RP2040/", driveName: "RPI-RP2", boot: "BOOTを押したままUSB接続して離します。接続済みならBOOTを押しながらRESETを押して離し、最後にBOOTを離します。", pins: [2, 4, 3, 5, 7, 12] },
@@ -209,7 +226,9 @@ const MICRO_PYTHON_BOARD_PROFILES = {
 const MICRO_PYTHON_BUNDLE_FILES = ["board_config.py", "gcode.py", "planner.py", "pio_stepper.py", "pen.py", "protocol.py", "update_store.py", "main.py"];
 function microPythonBoardConfig(boardId) {
   const board = MICRO_PYTHON_BOARD_PROFILES[boardId] || MICRO_PYTHON_BOARD_PROFILES.pico;
-  return `\"\"\"PlotterFlow board recipe: ${board.label}\"\"\"\n\nBOARD = ${JSON.stringify(boardId + "-stepdir")}\nX_STEP = 2\nX_DIR = 4\nY_STEP = 3\nY_DIR = 5\nENABLE = 7\nPEN_PWM = 12\nENABLE_ACTIVE_LOW = True\nSTEPS_PER_MM_X = 80.0\nSTEPS_PER_MM_Y = 80.0\nMAX_FEED_MM_MIN = 2400.0\nPEN_UP_US = 1000\nPEN_DOWN_US = 1800\nPEN_PWM_FREQ = 50\n`;
+  const signals = board.signals || {};
+  const gpio = (name, fallback) => signals[name]?.gpio ?? fallback;
+  return `\"\"\"PlotterFlow board recipe: ${board.label}\"\"\"\n\nBOARD = ${JSON.stringify(boardId + "-stepdir")}\nX_STEP = ${gpio("X_STEP", board.pins[0])}\nX_DIR = ${gpio("X_DIR", board.pins[1])}\nY_STEP = ${gpio("Y_STEP", board.pins[2])}\nY_DIR = ${gpio("Y_DIR", board.pins[3])}\nENABLE = ${gpio("ENABLE", board.pins[4])}\nPEN_PWM = ${gpio("Z_SERVO_PWM", board.pins[5])}\nX_LIMIT = ${gpio("X_LIMIT", 6)}\nY_LIMIT = ${gpio("Y_LIMIT", 8)}\nBUTTON_UP = ${gpio("BUTTON_UP", 9)}\nBUTTON_DOWN = ${gpio("BUTTON_DOWN", 10)}\nBUTTON_OK = ${gpio("BUTTON_OK", 11)}\nTMC_UART_TX = ${gpio("TMC_UART_TX", 0)}\nTMC_UART_RX = ${gpio("TMC_UART_RX", 1)}\nSERIAL_DATA_GPIO = ${gpio("SERIAL_DATA_GPIO", 13)}\nENABLE_ACTIVE_LOW = True\nSTEPS_PER_MM_X = 80.0\nSTEPS_PER_MM_Y = 80.0\nMAX_FEED_MM_MIN = 2400.0\nPEN_UP_US = 1000\nPEN_DOWN_US = 1800\nPEN_PWM_FREQ = 50\n`;
 }
 const DEFAULTS = {
   controllerProfile: "grbl-fluidnc",
@@ -355,6 +374,8 @@ function renderMicroPythonBoard() {
   const board = MICRO_PYTHON_BOARD_PROFILES[selected] || MICRO_PYTHON_BOARD_PROFILES.pico;
   const hint = $("#microPythonBoardHint");
   if (hint) hint.textContent = board.boot + (board.driveName ? " UF2ドライブ名の目安: " + board.driveName + "。" : "");
+  const wiring = $("#microPythonBoardWiring");
+  if (wiring) wiring.textContent = board.wiring || "STEP/DIR: X GP2/GP4、Y GP3/GP5、ENABLE GP7、PEN PWM GP12。";
   const link = $("#microPythonFirmwareLink");
   if (link) {
     link.href = board.firmwareUrl;

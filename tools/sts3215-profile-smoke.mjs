@@ -46,10 +46,14 @@ assert.match(html, /id="microPythonTransferCard"/);
 assert.match(html, /id="microPythonBoard"/);
 assert.match(html, /id="microPythonFirmwareLink"/);
 assert.match(html, /id="microPythonInitialGuide"/);
+assert.match(html, /id="microPythonBoardWiring"/);
 assert.match(html, /id="uploadMicroPythonFiles"/);
 assert.doesNotMatch(html, /id="microPythonFiles"/);
 assert.match(html, /id="developmentConnectSerial"/);
-assert.match(html, /app\.js\?v=20260927-4/);
+assert.match(html, /app\.js\?v=20260927-5/);
+assert.match(app, /plotterflow_motor_shield_pico2w/);
+assert.match(app, /SERIAL_DATA_GPIO: \{ gpio: 13, physical: "J1-17" \}/);
+assert.match(app, /ENABLE GP7 \(J1-10・active-low\)/);
 assert.match(readme, /M950/);
 
 console.log("STS3215 PlotterFlow profile smoke test passed");
