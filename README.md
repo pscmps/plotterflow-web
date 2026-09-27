@@ -148,6 +148,8 @@ GitHub Pagesは`main`ブランチのrepository rootを直接公開します。�
 
 配線図の上にある「機能配線図 / 基板の端子位置」トグルで、必要なときだけ実端子位置を表示できます。Pico系・XIAOはPico Blocksの外形・端子配列を流用したUSBが上の表面図で、ピン変更に合わせて実端子から配線が出ます。Motor Shield v0.7はKiCadから照合したコネクタ側の裏面図で、J5/J6（モータ）、J7/J8（電源）、J9（PWMサーボ）の位置とピン番号を示します。表示選択は保存しますが、ファームウェア設定は変更しません。GEEKはコネクタ実物の向きが未照合のため実端子位置図を保留し、公式回路図への案内を表示します。外形は模式図・縮尺不同です。[表示の対象・出典・注意点](docs/micropython-wiring-views.md)も参照してください。
 
+接続先もBIGTREETECH TMC2209 V1.2の長方形StepStickとして表示します。金色の放熱面（TOP）・右上のトリマ・左右16端子を描き、X/YのSTEP/DIR/共通ENだけでなく、VDD・VM・GND、モータ巻線、PWMサーボ・外部電源まで線をつなぎます。単体ボード例はUARTなし・MS1=MS2=GNDの1/8マイクロステップなので、`steps/mm`は機構に合わせて設定してください。シールド側のMS/UARTは基板内配線に従います。全電源OFFで実物の印字と照合し、電流調整・放熱を行ってください。図は横スクロールできます。
+
 実装は`micropython-setup.js`（ピン候補・検証・Python設定生成・SVG）、`app.js`（設定保存・画面・転送）に分離しています。ホスト側確認は`node tools/micropython-setup-test.cjs`、`python tools/micropython-pio-test.py`で実行できます。公開バンドルのPIOはXをOUT、Yをside-setへ割り当て、非連番のSTEP GPIOでも同じ命令で出力する構成です。PWM・PIO波形・電圧・実機配線は未検証です。現状の試作は速度指令の厳密な反映、加減速、移動中の即時STOP、FIFO完了待ちが未完成なので、機械を接続した通常運転にはまだ使用しないでください。TMC UART設定、シリアルサーボ、LCD/SD操作もこのSTEP/DIR版には含みません。
 
 初回だけ、次の手順でMicroPython本体を導入します。

@@ -23,4 +23,5 @@ html[data-development-mode="true"] .controller-profile-card{border:2px solid #d5
 #microPythonWiringDiagram > p { padding: 16px; }
 #microPythonWiringDiagram { overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; background: white; }
 #microPythonWiringDiagram svg { display: block; width: 100%; min-width: 700px; max-width: 1100px; margin: auto; }
+#microPythonWiringDiagram svg.physical-wiring { min-width: 1424px; max-width: 1780px; }
 @media (max-width: 600px) { .micropython-pin-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

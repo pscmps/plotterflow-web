@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const setup = require('../micropython-setup.js');
 global.MicroPythonSetup = setup;
+global.MicroPythonTmcView = require('../micropython-tmc-view.js');
 const boardView = require('../micropython-board-view.js');
 const app = fs.readFileSync(new URL('../app.js', `file://${__filename.replaceAll('\\', '/')}`), 'utf8');
 const start = app.indexOf('const MICRO_PYTHON_BOARD_PROFILES =');
@@ -12,7 +13,7 @@ const boards = vm.runInNewContext(app.slice(start, end) + '; MICRO_PYTHON_BOARD_
 // never share any nonzero-length segment (including diagonal pin escapes).
 function assertNoSignalOverlap(svg) {
   const lines = [];
-  for (const match of svg.matchAll(/<path d="([^"]+)"[^>]*data-signal="([^"]+)"/g)) {
+  for (const match of svg.matchAll(/<path d="([^"]+)"[^>]*data-(?:signal|net)="([^"]+)"/g)) {
     let cursor;
     for (const command of match[1].matchAll(/([MLHV])([\d. -]+)/g)) {
       const values = command[2].trim().split(/\s+/).map(Number);
@@ -46,6 +47,7 @@ function checkPhysical(config) {
     assert.ok(!svg.includes('<svg'));
   } else if (!setup.isShield(config.id)) {
     assertNoSignalOverlap(svg);
+    checkNetwork(boardView.standaloneNetwork(config).network, false);
     for(const signal of setup.signals) {
       const pad=boardView.layout(config).pads.find(p=>p.gpio===config.pins[signal]);
       assert.ok(svg.includes(`M${pad.x} ${pad.y} `));
@@ -53,9 +55,51 @@ function checkPhysical(config) {
     }
     physicalCount++;
   } else {
+    assertNoSignalOverlap(svg);
+    checkNetwork(boardView.shieldNetwork().network, true);
     assert.ok(svg.includes('裏面'));
     for(const connector of boardView.shieldConnectors) connector.pads.forEach((_,i)=>
       assert.ok(svg.includes(`data-connector="${connector.ref}" data-terminal="${i+1}"`)));
+  }
+}
+function checkNetwork(n, shield) {
+  for(const e of n.edges) {
+    assert.ok(n.points[e.from] && n.points[e.to], `missing endpoint ${e.from}/${e.to}`);
+    for(const p of [n.points[e.from],...e.via,n.points[e.to]]) assert.ok(Number.isFinite(p.x)&&Number.isFinite(p.y));
+  }
+  function connected(net, terminals) {
+    const visited=new Set([terminals[0]]);
+    for(let changed=true;changed;) {
+      changed=false;
+      for(const e of n.edges.filter(e=>e.net===net)) if(visited.has(e.from)||visited.has(e.to)) {
+        for(const id of [e.from,e.to]) if(!visited.has(id)) {visited.add(id);changed=true;}
+      }
+    }
+    for(const id of terminals) assert.ok(visited.has(id), `${net}: disconnected ${id}`);
+  }
+  if(shield) {
+    for(const [ref,axis] of [['J5','X'],['J6','Y']]) ['A1','A2','B1','B2'].forEach((pin,i)=>connected(`${axis}_${pin}`,[`${ref}.${i+1}`,`${axis}.${pin}`]));
+    connected('VM',['J7.1','vm.PLUS']);connected('GND',['J7.2','vm.GND']);
+    connected('SERVO_5V',['J8.1','five.PLUS']);connected('GND',['J8.2','five.GND']);
+    connected('PEN_PWM',['J9.3','servo.PWM']);connected('SERVO_5V',['J9.2','servo.VPLUS']);connected('GND',['J9.1','servo.GND']);
+    return;
+  }
+  connected('ENABLE',['mcu.ENABLE','X.EN','Y.EN']);
+  connected('PEN_PWM',['mcu.PEN_PWM','servo.PWM']);
+  connected('VDD',['mcu.VDD','X.VDD','Y.VDD']);
+  connected('VM',['vm.PLUS','X.VM','Y.VM']);
+  connected('SERVO_5V',['five.PLUS','servo.VPLUS']);
+  connected('GND',['mcu.GND','vm.GND','five.GND','servo.GND',...['X','Y'].flatMap(a=>['GND1','GND2','MS1','MS2','CLK'].map(p=>`${a}.${p}`))]);
+  for(const axis of ['X','Y']) {
+    for(const pin of ['STEP','DIR']) connected(`${axis}_${pin}`,[`mcu.${axis}_${pin}`,`${axis}.${pin}`]);
+    for(const pin of ['A1','A2','B1','B2']) connected(`${axis}_${pin}`,[`${axis}.${pin}`,`${axis}motor.${pin}`]);
+    for(const pin of ['PDN4','PDN5']) assert.ok(!n.edges.some(e=>e.from===`${axis}.${pin}`||e.to===`${axis}.${pin}`),'PDN must remain NC');
+  }
+  // Supply positive nets must not share any physical terminal.
+  const assigned=new Map();
+  for(const e of n.edges) for(const id of [e.from,e.to]) {
+    assert.ok(!assigned.has(id)||assigned.get(id)===e.net,`shorted terminal ${id}`);
+    assigned.set(id,e.net);
   }
 }
 for (const [id, board] of Object.entries(boards)) {
@@ -111,3 +155,10 @@ const xiaoPads=boardView.layout(setup.configuration('xiao_rp2040',boards.xiao_rp
 assert.equal(xiaoPads.find(p=>p.gpio===26).side,'left');
 assert.equal(xiaoPads.find(p=>p.gpio===3).physical,'右上から4番');
 assert.ok(boardView.shieldPoint(58,42.85).x>boardView.shieldPoint(63.08,42.85).x,'bottom view must mirror X');
+const tmc=global.MicroPythonTmcView, tmcPins=tmc.ports(900,180);
+assert.deepEqual(tmc.left,['EN','MS1','MS2','PDN4','PDN5','CLK','STEP','DIR']);
+assert.deepEqual(tmc.right,['VM','GND1','A2','A1','B1','B2','VDD','GND2']);
+assert.deepEqual(tmcPins.EN,{x:900,y:180});assert.deepEqual(tmcPins.VM,{x:1100,y:180});
+assert.deepEqual(tmcPins.DIR,{x:900,y:460});assert.deepEqual(tmcPins.GND2,{x:1100,y:460});
+assert.equal(Object.keys(tmcPins).length,16);
+console.log('BTT V1.2: 16-pin orientation, complete power/signal/motor/servo connectivity and NC checks passed');

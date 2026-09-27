@@ -4,6 +4,17 @@ async (page) => {
   if (!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(page.url()))
     throw new Error('Use an isolated local-server session; this test changes browser preferences.');
   const check = (ok, message) => { if (!ok) throw new Error(message); };
+  const captureWiring = async name => {
+    // Export exactly the live SVG to an isolated preview so screenshots do not
+    // clip the destination devices behind the production horizontal scroller.
+    const svg=await page.locator('#microPythonWiringDiagram svg').evaluate(n=>n.outerHTML);
+    const preview=await page.context().newPage();
+    try {
+      await preview.setViewportSize({width:1800,height:1700});
+      await preview.setContent(`<style>body{margin:0;background:white}svg{display:block;width:1780px}</style>${svg}`);
+      await preview.locator('svg').screenshot({path:`output/playwright/physical-${name}.png`});
+    } finally { await preview.close(); }
+  };
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.evaluate(() => localStorage.removeItem('plotterflow.micropythonSetupV2'));
   await page.reload();
@@ -68,22 +79,36 @@ async (page) => {
   check(await physicalView.getAttribute('aria-pressed')==='true','physical toggle pressed');
   check(await page.locator('#microPythonWiringDiagram').textContent().then(t=>t.includes('裏面')),'shield bottom orientation');
   check(await page.locator('[data-connector="J9"]').count()===3,'three servo terminals');
+  check(await page.locator('[data-tmc]').count()===2,'two physical BTT modules on shield');
+  check(await page.locator('[data-motor]').count()===2,'both actual motor destinations');
+  check(await page.locator('[data-device="servo"]').count()===1,'servo shape and terminals');
   check(configBefore===await page.evaluate(()=>microPythonBoardConfig(selectedMicroPythonBoardId())),'view must not change firmware');
-  await page.locator('#microPythonWiringDiagram').screenshot({path:'output/playwright/physical-shield.png'});
+  // Full-width captures include the destinations beyond the scroll container.
+  await page.setViewportSize({width:2000,height:1200});
+  await page.locator('.toast').evaluateAll(nodes=>nodes.forEach(n=>n.remove()));
+  await captureWiring('shield');
   await custom.check();
   await board.selectOption('pico');
   check(await page.locator('path[data-signal="X_STEP"]').getAttribute('data-physical')==='4','Pico GP2 physical pin4');
-  await page.locator('#microPythonWiringDiagram').screenshot({path:'output/playwright/physical-pico.png'});
+  check(await page.locator('[data-driver="X"]').count()===16,'all 16 X module pins');
+  check(await page.locator('[data-driver="Y"]').count()===16,'all 16 Y module pins');
+  check(await page.locator('path[data-from="mcu.X_STEP"][data-to="X.STEP"]').count()===1,'STEP terminates at physical driver pin');
+  check(await page.locator('path[data-from="enable.branch"][data-to="Y.EN"]').count()===1,'common enable reaches second driver');
+  await captureWiring('pico');
   await board.selectOption('xiao_rp2350');
   const previousOrigin=await page.locator('path[data-signal="PEN_PWM"]').getAttribute('d');
   await pen.selectOption('1');
   check(previousOrigin!==await page.locator('path[data-signal="PEN_PWM"]').getAttribute('d'),'physical wire moves across sides');
   check(await page.locator('path[data-signal="PEN_PWM"]').getAttribute('data-physical')==='右上から7番','XIAO D7 actual right bottom pin');
-  await page.locator('#microPythonWiringDiagram').screenshot({path:'output/playwright/physical-xiao.png'});
+  await captureWiring('xiao');
   await page.reload();
   await page.getByRole('button',{name:'開発中',exact:true}).click();
   check(await physicalView.getAttribute('aria-pressed')==='true','view persisted');
   check(await pen.inputValue()==='1','view reload keeps pin config');
+  await page.setViewportSize({width:390,height:844});
+  check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'physical view does not overflow mobile page');
+  check(await page.locator('#microPythonWiringDiagram').evaluate(n=>n.scrollWidth>n.clientWidth),'physical diagram scrolls within its panel');
+  await page.setViewportSize({width:1280,height:900});
   await board.selectOption('rp2040_geek');
   check(await page.locator('#microPythonWiringDiagram').textContent().then(t=>t.includes('未照合')),'unverified geometry not invented');
   await schematicView.click();
