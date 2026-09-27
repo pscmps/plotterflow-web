@@ -319,6 +319,117 @@ function migrateSts3215DirectAxesProfile() {
 function toast(message) { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2200); }
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
 function switchTab(name) { $$(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === name)); $$(".panel").forEach(x => x.classList.toggle("active", x.id === `tab-${name}`)); }
+function isMicroPythonProfile() {
+  return activeControllerProfile().firmwareKind === "micropython";
+}
+function renderDevelopmentPanel() {
+  const select = $("#developmentFirmwareProfile");
+  if (!select) return;
+  const entries = Object.entries(CONTROLLER_PROFILES).filter(([, profile]) => profile.development);
+  const selected = entries.some(([id]) => id === state.settings.controllerProfile) ? state.settings.controllerProfile : entries[0]?.[0];
+  select.replaceChildren(...entries.map(([id, profile]) => new Option(profile.label, id, false, id === selected)));
+  const profile = CONTROLLER_PROFILES[selected] || CONTROLLER_PROFILES["micropython-rp-stepdir"];
+  const description = $("#developmentFirmwareDescription");
+  if (description && profile) description.innerHTML = `<div class="profile-description-heading"><strong>${escapeHtml(profile.label)}</strong><span>${escapeHtml(profile.phase)}</span></div>${profile.verification ? `<em class="profile-verification">${escapeHtml(profile.verification)}</em>` : ""}<p>${escapeHtml(profile.summary)}</p><ul>${profile.notes.map(note => `<li>${escapeHtml(note)}</li>`).join("")}</ul>`;
+  const card = $("#microPythonTransferCard");
+  if (card) card.hidden = profile?.firmwareKind !== "micropython";
+  const current = $("#developmentFirmwareCurrent");
+  if (current) current.textContent = profile?.label || "—";
+}
+function bindDevelopment() {
+  const select = $("#developmentFirmwareProfile");
+  if (select) select.addEventListener("change", event => {
+    if (!state.developmentMode) {
+      state.developmentMode = true;
+      localStorage.setItem(DEVELOPMENT_MODE_KEY, "1");
+    }
+    applyControllerProfile(event.target.value);
+    renderDevelopmentPanel();
+  });
+  $("#uploadMicroPythonFiles")?.addEventListener("click", uploadMicroPythonFiles);
+  renderDevelopmentPanel();
+}
+function bytesToBase64(bytes) {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  return btoa(binary);
+}
+async function readRawUntil(reader, token, timeoutMs) {
+  const decoder = new TextDecoder();
+  let text = "";
+  while (!text.includes(token)) {
+    let timer;
+    const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`raw REPL応答待ちがタイムアウトしました: ${token}`)), timeoutMs); });
+    try {
+      const result = await Promise.race([reader.read(), timeout]);
+      if (result.done) throw new Error("Serialが切断されました");
+      text += decoder.decode(result.value, { stream: true });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return text;
+}
+async function rawReplExec(writer, reader, code) {
+  await writer.write(new TextEncoder().encode(code));
+  await writer.write(new Uint8Array([0x04]));
+  const output = await readRawUntil(reader, ">", 5000);
+  if (/Traceback|Error|OSError|ValueError/i.test(output)) throw new Error(output.replace(/[\x00-\x04]/g, " ").trim());
+  return output;
+}
+async function uploadMicroPythonFiles() {
+  if (!isMicroPythonProfile()) return toast("開発中タブでMicroPythonプロファイルを選択してください");
+  if (!state.writer || !state.port) return toast("先にSerial接続してください");
+  if (state.sending || state.jogging || state.sdUploading) return toast("送信・ジョグ中はファイル更新できません");
+  const files = Array.from($("#microPythonFiles")?.files || []).filter(file => /\.py$/i.test(file.name));
+  if (!files.length) return toast(".pyファイルを選択してください");
+  if (files.some(file => !/^[A-Za-z0-9_.-]+$/.test(file.name))) return toast("ファイル名は英数字・._-だけにしてください");
+  state.sending = true;
+  const status = $("#microPythonTransferStatus");
+  if (status) status.textContent = "停止してraw REPLへ切り替えています…";
+  let reader = null;
+  let raw = false;
+  try {
+    try { await state.writer.write(new Uint8Array([0x85])); } catch {}
+    await sleep(100);
+    try { await rawWrite("M18\n", false); } catch {}
+    await sleep(100);
+    try { await state.reader?.cancel(); } catch {}
+    await sleep(100);
+    state.reader = null;
+    reader = state.port.readable.getReader();
+    await state.writer.write(new Uint8Array([0x03, 0x03, 0x01]));
+    await readRawUntil(reader, ">", 4000);
+    raw = true;
+    for (const file of files) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const encoded = bytesToBase64(bytes);
+      const tempName = `${file.name}.tmp`;
+      await rawReplExec(state.writer, reader, `import ubinascii\nf=open(${JSON.stringify(tempName)},"wb")\nf.close()`);
+      for (let offset = 0; offset < encoded.length; offset += 512) {
+        const chunk = encoded.slice(offset, offset + 512);
+        await rawReplExec(state.writer, reader, `import ubinascii\nf=open(${JSON.stringify(tempName)},"ab")\nf.write(ubinascii.a2b_base64(${JSON.stringify(chunk)}))\nf.close()`);
+      }
+      await rawReplExec(state.writer, reader, `import os\nos.rename(${JSON.stringify(tempName)},${JSON.stringify(file.name)})`);
+      if (status) status.textContent = `${file.name}を転送しました (${bytes.length} bytes)`;
+    }
+    await state.writer.write(new Uint8Array([0x02]));
+    raw = false;
+    await sleep(100);
+    await state.writer.write(new Uint8Array([0x04]));
+    toast("MicroPythonファイルを転送しました。再起動後に反映されます");
+    if (status) status.textContent = "転送完了。ボードを再起動するとmain.pyが実行されます。";
+  } catch (error) {
+    log(`MicroPythonファイル転送エラー: ${error.message}`, "rx");
+    if (status) status.textContent = `転送失敗: ${error.message}`;
+    toast("MicroPythonファイル転送に失敗しました");
+  } finally {
+    if (raw) { try { await state.writer.write(new Uint8Array([0x02])); } catch {} }
+    try { reader?.releaseLock(); } catch {}
+    if (state.port && !state.reader) readSerial();
+    state.sending = false;
+  }
+}
 function installLocalTestBridge() {
   if (!["127.0.0.1", "localhost"].includes(location.hostname)) return;
   Object.defineProperties(window, {
@@ -334,7 +445,7 @@ function init() {
   migrateSts3215DirectAxesProfile();
   if (!localStorage.getItem("plotterflow.svgOrientationV1")) { state.settings.yFlip = true; saveJSON("plotterflow.settings", state.settings); localStorage.setItem("plotterflow.svgOrientationV1", "1"); }
   $$(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
-  bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindJobs();
+  bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindDevelopment(); bindJobs();
   populateSettings(); refreshLibrary(); updateEditorStats(); renderJobs();
   if (!("serial" in navigator)) log("Web SerialはChrome/EdgeのHTTPSまたはlocalhostで利用できます。", "rx");
   installLocalTestBridge();
@@ -621,7 +732,7 @@ function bindSettings() {
   $("#controllerProfile").addEventListener("change", event => applyControllerProfile(event.target.value));
   $("#resetSettings").addEventListener("click", () => { if (confirm("設定を初期値へ戻しますか？")) { state.settings = { ...DEFAULTS }; populateSettings(); saveJSON("plotterflow.settings", state.settings); } });
 }
-function populateSettings() { const f = $("#settingsForm"); renderDevelopmentMode(); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; populateJogSettings(); renderControllerProfile(); updateSerialProfileDisplay(); }
+function populateSettings() { const f = $("#settingsForm"); renderDevelopmentMode(); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; populateJogSettings(); renderControllerProfile(); updateSerialProfileDisplay();  renderDevelopmentPanel(); }
 function readSettings() { const f = $("#settingsForm"); for (const k of Object.keys(DEFAULTS)) if (f.elements[k]) state.settings[k] = f.elements[k].type === "checkbox" ? f.elements[k].checked : f.elements[k].type === "number" ? +f.elements[k].value : f.elements[k].value; }
 function developmentModeBusy() {
   return !!(state.port || state.sending || state.jogging || state.sdUploading || state.sdManagementActive);
@@ -710,6 +821,7 @@ function updateSerialProfileDisplay() {
   }
   updateSerialDestinationUi();
   updateJogProfileUi();
+  renderDevelopmentPanel();
   updatePlanarArmVisibility();
   const sdDownload = $("#downloadSdGcode");
   if (sdDownload) sdDownload.hidden = !isSts3215DirectAxes();

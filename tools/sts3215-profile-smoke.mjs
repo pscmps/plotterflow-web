@@ -41,7 +41,10 @@ assert.match(html, /<textarea name="initializeCommand" rows="5"><\/textarea>/);
 assert.match(html, /data-jog-axis="Z" data-jog-sign="-1" data-jog-degrees="5"/);
 assert.match(html, /data-jog-axis="Z" data-jog-sign="1" data-jog-degrees="5"/);
 assert.match(html, /id="keyboardJogLabel">矢印キー/);
-assert.match(html, /app\.js\?v=20260906-1/);
+assert.match(html, /data-tab="development">開発中/);
+assert.match(html, /id="microPythonTransferCard"/);
+assert.match(html, /id="uploadMicroPythonFiles"/);
+assert.match(html, /app\.js\?v=20260927-2/);
 assert.match(readme, /M950/);
 
 console.log("STS3215 PlotterFlow profile smoke test passed");

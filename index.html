@@ -7,7 +7,7 @@
   <title>PlotterFlow - Pen Plotter Layout Editor</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css?v=20260715-1">
-  <link rel="stylesheet" href="profile.css?v=20260906-1">
+  <link rel="stylesheet" href="profile.css?v=20260927-1">
   <link rel="stylesheet" href="drawing.css?v=20260812-2">
   <link rel="stylesheet" href="serial.css?v=20260806-1">
   <link rel="stylesheet" href="conversion.css">
@@ -29,6 +29,7 @@
     <button class="tab" data-tab="jobs">ジョブ実行</button>
     <button class="tab" data-tab="serial">Serial</button>
     <button class="tab" data-tab="settings">設定</button>
+    <button class="tab" data-tab="development">開発中</button>
     <button class="tab" data-tab="help">ヘルプ</button>
   </nav>
 
@@ -433,6 +434,26 @@
         </ul>
       </article>
     </section>
+    <section id="tab-development" class="panel">
+      <div class="grid two">
+        <article class="card">
+          <h2>開発中ファームウェア</h2>
+          <p class="muted">ここに表示されるファームウェアは開発中です。実機書き込み・通信・モータ動作は未確認です。</p>
+          <label>ファームウェア構成<select id="developmentFirmwareProfile"></select></label>
+          <div id="developmentFirmwareDescription" class="controller-profile-description"></div>
+        </article>
+        <article id="microPythonTransferCard" class="card" hidden>
+          <h2>MicroPythonファイル転送</h2>
+          <p>MicroPython UF2を初回だけ手動導入した後、ここから
+<code>main.py</code>などのPythonファイルをWeb Serialで更新します。</p>
+          <p class="muted">現在のプロファイル: <strong id="developmentFirmwareCurrent">—</strong></p>
+          <label class="file-drop compact-file-drop"><input id="microPythonFiles" type="file" accept=".py,text/x-python" multiple><strong>Pythonファイルを選択</strong><span>.pyを複数選択できます</span></label>
+          <button id="uploadMicroPythonFiles" class="primary wide">MicroPythonファイルを転送</button>
+          <p id="microPythonTransferStatus" class="status">シリアル接続後に実行できます。転送中はジョブを停止します。</p>
+          <p class="muted">初回UF2のブラウザ自動書き込みはまだ対応していません。転送処理は動作未確認です。</p>
+        </article>
+      </div>
+    </section>
     <section id="tab-settings" class="panel">
       <form id="settingsForm" class="settings-grid">
         <article class="card controller-profile-card">
@@ -471,7 +492,7 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260906-1"></script>
+  <script src="app.js?v=20260927-2"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js?v=20260812-2"></script>
   <script>
