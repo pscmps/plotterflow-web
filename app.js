@@ -119,6 +119,7 @@ const CONTROLLER_PROFILES = {
       "初回のMicroPython UF2導入、Pythonファイル転送、PIO波形、モータ接続を含めて実機未確認です。現在はCPythonホストテストのみ確認済みです。",
       "初期対象はPico 2 / Pico 2 W recipeとTMC2209等のSTEP/DIRドライバです。TMC UART設定は後段オプションで、MVPではSTEP/DIRを使用します。",
       "M17、G21、G90、G92を初期化時に送り、M3/M5またはG0 Z0/Z1でPWMペンを操作します。",
+      "基板r2はLIMIT内部プルアップ対応。M119で入力を確認できます。LIMIT作動中はM17/G0/G1を拒否しますが、移動中の即時停止・ホーミングは未実装です。起動直後のPWMはLOWで、ペン命令までサーボを動かしません。",
       "Python側でXYの同期ステップ列を計画し、パルス生成はPIOへ分離する構成です。加減速とFIFO余裕は未検証です。",
       "STS3215、Dynamixel、DRV8835 planar、Rθはこのプロファイルへ混在させず、別backendとして追加します。",
       "開発中タブから対象ボードを選び、PlotterFlowのWeb SerialでG-code対応Python一式を永続保存できます。初期UF2のブラウザ自動書込みは別フェーズです。"
@@ -277,7 +278,8 @@ const MICRO_PYTHON_BOARD_PROFILES = {
   xiao_rp2350: { label: "Seeed Studio XIAO RP2350", firmwareUrl: "https://micropython.org/download/SEEED_XIAO_RP2350/", driveName: "RP2350", boot: "BOOTを押したままUSB接続して離します。接続済みならBOOTを押しながらRESETを押して離し、最後にBOOTを離します。", pins: [2, 4, 3, 5, 7, 12] },
   atom_lite: { label: "M5Stack ATOM Lite（このRP版では対象外）", firmwareUrl: "https://micropython.org/download/ESP32_GENERIC/", driveName: "", supported: false, boot: "ATOM LiteはRP2040/RP2350版とは別のESP32実装が必要です。", pins: [] }
 };
-const MICRO_PYTHON_BUNDLE_FILES = ["board_config.py", "gcode.py", "planner.py", "pio_stepper.py", "pen.py", "protocol.py", "update_store.py", "main.py"];
+MicroPythonShieldRecipes.extend(MICRO_PYTHON_BOARD_PROFILES);
+const MICRO_PYTHON_BUNDLE_FILES = ["board_config.py", "gcode.py", "planner.py", "pio_stepper.py", "pen.py", "inputs.py", "protocol.py", "update_store.py", "main.py"];
 function microPythonBoardConfig(boardId) {
   return MicroPythonSetup.boardConfig(selectedMicroPythonConfiguration(boardId));
 }

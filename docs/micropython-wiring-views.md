@@ -14,9 +14,12 @@
 | Pico / Pico W / Pico 2 / Pico 2 W | 部品面・USBを上。左右20端子、物理ピン1〜40とGPIO名を表示 |
 | XIAO RP2040 / RP2350 | 部品面・USB-Cを上。左右7端子、D番号・GPIO名・上からの位置を表示。RP2350裏面の追加パッドは対象外 |
 | Motor Shield v0.7の4構成 | 共通シールドの裏面・切り欠きを左。MCU/LCDは反対面。外部コネクタJ5〜J9の実パッド位置と番号を表示 |
+| 専用2層 v0.1 r2の3構成 | Pico 2 W 60×40mm、LCD1.47-A 60×34mm、LCD2/-C 66×40mm。それぞれ実PCBから読んだ裏面端子位置、取付穴・切り欠き、横向きのBTTモジュールを表示 |
 | RP2040-GEEK / RP2350-GEEK | 実物コネクタの向きを未照合。推測した端子位置図は出さず、機能図と公式回路図を案内 |
 
 シールドの端子番号は四角いパッドが1番です。KiCad上面座標のXを基板幅70 mmで反転し、裏面から見た向きへ変換しています。U1/U2にはBTT TMC2209 V1.2の放熱面と端子を描き、左上EN・右上VMの挿入方向を示します。STEP/DIR/EN/VDD/GNDはシールド内で配線済みなので、外部ジャンパは描きません。J5/J6からモータ巻線、J7/J8から電源、J9からサーボまで外部配線を描きます。**Pico 2 W compact基板は別基板なので、このv0.7図を使わないでください。**
+
+専用2層版を選ぶと、上記の汎用図ではなく基板ごとの図へ切り替わります。小型版のTMC2209は放熱面を手前にして**ENが右上、VMが右下**の横向きです。J10/J11のLIMIT端子と、今回は使用しないJ12/J13のシリアル端子も位置を表示します。座標は基板リポジトリ`7c90efd`の各実PCBから読み取りました。基板の銅箔や製造データは変更していません。[r2の利用手順](micropython-shield-r2.md)も参照してください。
 
 単体ボード表示では、MCUの実端子からX/Yの**BIGTREETECH TMC2209 V1.2（長方形StepStick）**の実端子まで線をつなぎます。モータ、PWMサーボ、外部電源まで省略しません。詳細図は文字を読める大きさを保ち、狭い画面では図の内部だけ横スクロールできます。図は製造用の寸法図ではなく、主要部品のみの模式図です。実機での照合・通電検証はまだ行っていません。
 
@@ -54,6 +57,7 @@
 
 - `micropython-board-view.js`：ボード外形、端子位置、シールド裏面変換。Pico Blocksの`app.js`内の`picoBoardDrawing`／`xiaoBoardDrawing`を流用・拡張。
 - `micropython-tmc-view.js`：BTTモジュールの16端子・放熱面・トリマ、モータ巻線、サーボ、電源のSVG。端子ID付き配線モデルから描画します。
+- `micropython-shield-data.js`／`micropython-shield-recipes.js`：基板GPIO・reserved・disabled_signalsと小型版の実パッド座標。`tools/read-shield-handoff.py`はKiCad APIで基板を読み取るだけの再照合用エクスポータです。
 - `app.js`／`index.html`／`profile.css`：トグルと状態保存。`micropython-setup.js`のGPIO設定を読み、別の設定を作りません。
 - [Pico Blocks](https://github.com/pscmps/pico-blocks-studio)、[Pico 2公式ピン図](https://datasheets.raspberrypi.com/pico/Pico-2-Pinout.pdf)
 - [XIAO RP2040公式ピン図](https://wiki.seeedstudio.com/XIAO-RP2040/)、[XIAO RP2350公式ピン図](https://wiki.seeedstudio.com/xiao_rp2350_arduino/)

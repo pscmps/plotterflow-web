@@ -26,7 +26,7 @@ async (page) => {
   const board = page.locator('#microPythonBoard');
   const custom = page.locator('#microPythonCustomPins');
   check(await board.inputValue() === 'plotterflow_motor_shield_pico2w', 'shield default');
-  check(await board.locator('option').count() === 4, 'only four shields initially');
+  check(await board.locator('option').count() === 7, 'four generic + three compact shields');
   check(!await page.locator('#microPythonPinControls').isVisible(), 'hide custom pins');
   await board.selectOption('plotterflow_motor_shield_pizero');
   check(await page.evaluate(() => microPythonBoardConfig(selectedMicroPythonBoardId()).includes('BUTTON_UP = None\n')), 'absent buttons stay None');
@@ -42,7 +42,7 @@ async (page) => {
   // Read the actual bundle loader, not just the generator. No Serial/hardware.
   check(await page.evaluate(async () => {
     const files = await loadMicroPythonBundle(selectedMicroPythonBoardId());
-    return files.length === 8 && new TextDecoder().decode(files[0].bytes).includes('PEN_PWM = 27\n');
+    return files.length === 9 && new TextDecoder().decode(files[0].bytes).includes('PEN_PWM = 27\n') && files.some(f=>f.name==='inputs.py'||f.path==='inputs.py');
   }), 'transferred configuration matches UI');
   await page.reload();
   await page.getByRole('button', { name: '開発中', exact: true }).click();
@@ -87,6 +87,20 @@ async (page) => {
   await page.setViewportSize({width:2000,height:1200});
   await page.locator('.toast').evaluateAll(nodes=>nodes.forEach(n=>n.remove()));
   await captureWiring('shield');
+  for(const kind of ['pico2w','lcd147a','touch2']) {
+    await board.selectOption(`plotterflow_motor_shield_${kind}_compact`);
+    check((await page.locator('#microPythonBoardWiring').textContent()).includes('内部プルアップ'),'r2 safety notice');
+    check((await page.locator('#microPythonWiringDiagram').textContent()).includes('ENが右上・VMが右下'),'compact driver rotated');
+    check(await page.locator('[data-connector="J10"]').count()===3,'compact actual limit connector');
+    check(await page.locator('[data-tmc]').count()===2,'compact TMC shapes');
+    check(await page.evaluate(async()=>{
+      const files=await loadMicroPythonBundle(selectedMicroPythonBoardId());
+      const config=new TextDecoder().decode(files[0].bytes);
+      return files.length===9 && files.at(-1).name==='main.py' && config.includes('compact-v0.1-r2') && config.includes('LIMIT_PULL_UP = True');
+    }),'compact transfer bundle contains the r2 configuration');
+    if(kind==='touch2') check(await page.evaluate(()=>microPythonBoardConfig(selectedMicroPythonBoardId()).includes('BUTTON_UP = None\n')),'compact touch buttons NC');
+    await captureWiring(kind+'-compact');
+  }
   await custom.check();
   await board.selectOption('pico');
   check(await page.locator('path[data-signal="X_STEP"]').getAttribute('data-physical')==='4','Pico GP2 physical pin4');
@@ -116,5 +130,5 @@ async (page) => {
   await page.setViewportSize({width:390,height:844});
   check(await physicalView.isVisible() && await schematicView.isVisible(),'mobile toggle visible');
   await page.setViewportSize({width:1280,height:900});
-  console.log('PASS: defaults, pin/diagram/bundle sync, persistence, conflicts, LCD, mobile, profile isolation');
+  console.log('PASS: defaults, pin/diagram/bundle sync, persistence, conflicts, LCD, mobile, profile isolation, compact r2');
 }

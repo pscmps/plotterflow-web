@@ -4,12 +4,13 @@ from gcode import parse_words, ModalState
 
 
 class Controller:
-    def __init__(self, planner, stepper, pen):
+    def __init__(self, planner, stepper, pen, inputs=None):
         self.modal = ModalState()
         self.planner = planner
         self.stepper = stepper
         self.pen = pen
         self.stop_requested = False
+        self.inputs = inputs
 
     def execute(self, line):
         if line and line[0] == "\x85":
@@ -19,6 +20,11 @@ class Controller:
         command, words = parse_words(line)
         if not command:
             return "ok"
+        if command in ('M17', 'G0', 'G1') and self.inputs and self.inputs.blocked():
+            self.stepper.set_enabled(False)
+            self.stepper.stop()
+            self.modal.enabled = False
+            return 'error:limit_triggered'
         if command == "G0" or command == "G1":
             if not self.modal.enabled:
                 return "error:motors_disabled"
@@ -56,8 +62,9 @@ class Controller:
             self.pen.up()
             self.modal.pen_down = False
         elif command == "M115":
-            return "PlotterFlow MicroPython RP;caps=G0,G1,G90,G91,G20,G21,G92,M17,M18,M3,M5,STOP"
+            return "PlotterFlow MicroPython RP;caps=G0,G1,G90,G91,G20,G21,G92,M17,M18,M3,M5,M119,STOP"
+        elif command == 'M119':
+            return 'limits ' + (self.inputs.report() if self.inputs else 'X:NC Y:NC') + '\nok'
         else:
             return "error:unsupported"
         return "ok"
-

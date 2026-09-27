@@ -451,6 +451,7 @@
           <label class="check"><input id="microPythonCustomPins" type="checkbox">自分でPIN設定をする</label>
           <p class="muted">通常はPlotter基板の固定配線を使用します。単体ボードへ自分で配線する場合だけチェックしてください。</p>
           <label>対象ボード<select id="microPythonBoard"></select></label>
+          <p class="muted">抵抗改訂r2対応。新しい小型基板は「専用2層 … v0.1 r2」を選んでください。「汎用4層 v0.7 r2」とは端子位置が異なります。以前の選択は自動で変更しません。</p>
           <div id="microPythonPinControls" class="micropython-pin-grid" hidden></div>
           <p id="microPythonPinError" class="status" role="alert" hidden></p>
           </fieldset>
@@ -513,10 +514,12 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="micropython-setup.js?v=20260927-2"></script>
+  <script src="micropython-shield-data.js?v=20260928-1"></script>
+  <script src="micropython-shield-recipes.js?v=20260928-1"></script>
+  <script src="micropython-setup.js?v=20260928-1"></script>
   <script src="micropython-tmc-view.js?v=20260927-1"></script>
-  <script src="micropython-board-view.js?v=20260927-2"></script>
-  <script src="app.js?v=20260927-8"></script>
+  <script src="micropython-board-view.js?v=20260928-1"></script>
+  <script src="app.js?v=20260928-1"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js?v=20260812-2"></script>
   <script>

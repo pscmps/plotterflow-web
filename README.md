@@ -140,7 +140,7 @@ GitHub Pagesは`main`ブランチのrepository rootを直接公開します。�
 
 ### MicroPython RP STEP/DIR（開発中・動作未確認）
 
-「開発中」タブでMicroPython RP STEP/DIR XY（開発中・動作未確認）を選びます。標準はPlotterFlow Motor Shield v0.7の固定配線です。Pico 2 W、RP2350-LCD-1.47-A、RP2350-Touch-LCD-2/-C、RP2350-PiZeroの4構成から選択します（初期値はPico 2 W）。
+「開発中」タブでMicroPython RP STEP/DIR XY（開発中・動作未確認）を選びます。汎用4層 v0.7 r2の4構成（Pico 2 W、RP2350-LCD-1.47-A、RP2350-Touch-LCD-2/-C、RP2350-PiZero）と、専用2層 v0.1 r2の3構成（Pico 2 W、LCD1.47-A、LCD2/-C）を選べます。新基板は「専用2層」を選んでください。既存の選択・初期値（汎用Pico 2 W）は勝手に変更しません。[r2更新・制限事項](docs/micropython-shield-r2.md)を確認してください。
 
 単体ボードへ配線する場合だけ「自分でPIN設定をする」にチェックを入れます。Pico Blocksと同じPico / Pico W / Pico 2 / Pico 2 W / RP2040-GEEK / RP2350-GEEK / XIAO RP2040 / XIAO RP2350から選び、X_STEP・X_DIR・Y_STEP・Y_DIR・ENABLE・PEN_PWMを指定します。XIAOはD番号とGPIO番号を併記し、GEEKを含め外部に出ている端子だけを候補にしています。ATOM LiteはRP版対象外のため選択できません。固定基板と単体ボードの選択、およびボード別の自由配線をブラウザへ保存します。以前のボード選択だけから自由配線を自動で有効にはしません。
 
@@ -161,11 +161,13 @@ GitHub Pagesは`main`ブランチのrepository rootを直接公開します。�
 
 初回UF2のブラウザ自動書き込みはまだ行わず、公式UF2の取得とコピーは手動です。MicroPython本体が入った後は、「PlotterFlow MicroPythonファームウェアを永続保存」を押すだけで、PlotterFlowに同梱したmain.py、G-code parser、planner、PIO stepper、pen、protocol、update storeをWeb Serialのraw REPL経由で転送します。ボード選択に応じたboard_config.pyを先頭に保存し、各ファイルを一時名からリネームしてからmain.pyを最後に保存するため、Pico Blocksの「保存して実行」と同じく再起動後もファイルシステムに残る永続保存です。任意の.pyファイルを選ぶ方式ではありません。
 
-PlotterFlow Motor Shield v0.7を選んだ場合は、基板のPico 2 Wソケットに合わせて次のGPIOをboard_config.pyへ書き込みます。X STEP/DIRはGP2/GP4（J1-4/J1-6）、Y STEP/DIRはGP3/GP5（J1-5/J1-7）、共通ENABLEはGP7（J1-10、active-low）、ZサーボPWMはGP12（J1-16）です。物理LIMITはX=GP6（J1-9）、Y=GP8（J1-11）、3ボタンはUP=GP9（J1-12）、DOWN=GP10（J1-14）、OK=GP11（J1-15）、TMC UARTはTX=GP0（J1-1）/RX=GP1（J1-2）、シリアルサーボDATAはGP13（J1-17）です。現在のMicroPython MVPが使用するのはSTEP/DIR・ENABLE・Z PWMで、LIMIT、ボタン、TMC UART、シリアルサーボDATAは設定値を保持し、後続backend用に予約します。
+PlotterFlow Motor ShieldのPico 2 W版は、X STEP/DIR=GP2/GP4（J1-4/J1-6）、Y STEP/DIR=GP3/GP5（J1-5/J1-7）、共通ENABLE=GP7（J1-10、active-low）、Z PWM=GP12（J1-16）です。LIMITはX=GP6（J1-9）、Y=GP8（J1-11）。r2では内部プルアップを有効化し、コマンド開始前にLOWを検査します。3ボタンはUP=GP9、DOWN=GP10、OK=GP11をプルアップ入力に初期化しますが、ボタン操作の割り当ては未実装です。TMC UARTのTX=GP0/RX=GP1、シリアルサーボDATA=GP13は後続backend用の予約値です。LCD2小型版は3ボタンを`None`にしてGPIOを触りません。
 
 同じMotor ShieldのLCD-1.47-A（J2）、Touch-LCD-2/-C（J3）、RP2350-PiZero（J4）も、選択したボードのGPIO・物理端子へ切り替わります。LCD-1.47-AはX/Y=GP2/4・GP3/5、ENABLE=GP7、Z=GP9、DATA=GP28、Touch-LCD-2/-CはX/Y=GP2/4・GP3/5、ENABLE=GP7、Z=GP9、DATA=GP21、RP2350-PiZeroはX/Y=GP17/18・GP22/23、ENABLE=GP14、Z=GP12、DATA=GP9です。各画面の配線案内にはJ2/J3/J4の物理端子も表示します。LinuxのPi Zero（BCM版）はRP2350用MicroPythonとは別物なので候補に含めていません。LCD/Touch/PiZeroの初回UF2は公式製品ページで対応版を確認してから導入してください。
 
 この機能はファームウェア・転送処理・PIO波形・モータ接続を含めて実機未確認です。まずはUSBシリアル接続、G-codeのG0/G1、G90/G91、M3/M5、M17/M18、G92を対象に確認します。公開ページから取得するため、転送バンドルのPythonソースはこのリポジトリにも含まれます。開発元の専用リポジトリは https://github.com/pscmps/plotterflow-micropython-rp です。
+
+r2対応では入力処理の`inputs.py`を含む9ファイルを一括転送します。初期化はENABLE無効→STEP/DIR LOW→PIO初期化、PWMはPin出力LOW→duty=0です。最初のペン命令までPWMパルスを出しません。`M119`は`limits X:OPEN Y:OPEN`等と`ok`を返します。LIMIT作動中の`M17/G0/G1`は`error:limit_triggered`で拒否し、座標を進めずENABLEを無効化します。移動中の常時監視・即時停止・ホーミングはまだありません。電源投入からPython起動までの端子状態や実波形は、ソフトウェアテストでは保証できません。
 
 ### GRBL / FluidNC（標準）
 

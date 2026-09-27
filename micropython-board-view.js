@@ -174,7 +174,7 @@ const MicroPythonBoardView = (() => {
       const points=connector.pads.map(([x,y])=>shieldPoint(x,y));
       const xMin=Math.min(...points.map(p=>p.x)),xMax=Math.max(...points.map(p=>p.x));
       const yMin=Math.min(...points.map(p=>p.y)),yMax=Math.max(...points.map(p=>p.y));
-      svg+=`<rect x="${xMin-10}" y="${yMin-10}" width="${xMax-xMin+20}" height="${yMax-yMin+20}" rx="5" fill="#fff" stroke="${colour}"/>`;
+      svg+=`<rect x="${xMin-10}" y="${yMin-10}" width="${xMax-xMin+20}" height="${yMax-yMin+20}" rx="5" fill="none" stroke="${colour}"/>`;
       svg+=text(xMin,yMin-17,connector.ref,16);
       points.forEach((p,j)=>{
         const name=connector.pads[j][2], attrs=`data-connector="${connector.ref}" data-terminal="${j+1}"`;
@@ -209,8 +209,81 @@ const MicroPythonBoardView = (() => {
       return `<p class="muted">このボードは実物のコネクタの向きを未照合のため、実端子位置を表示しません。「機能配線図」と<a href="${source}" target="_blank" rel="noreferrer">公式回路図</a>を使用してください。回路図の端子番号は実物の左右方向を保証しません。</p>`;
     }
     const guide='<p class="muted">接続先は <strong>BIGTREETECH TMC2209 V1.2</strong> です。他社品・別バージョンは端子配置を照合してください。図は横にスクロールできます。<a href="https://github.com/bigtreetech/BIGTREETECH-TMC2209-V1.2/blob/master/manual/TMC2209-V1.2-manual.pdf" target="_blank" rel="noreferrer">公式マニュアル（端子図・電流調整）</a>。実機配線・動作は未確認です。</p>';
-    return guide+(MicroPythonSetup.isShield(config.id) ? renderShield(config) : renderStandalone(config));
+    return guide+(config.board.compact ? renderCompact(config) : MicroPythonSetup.isShield(config.id) ? renderShield(config) : renderStandalone(config));
   }
-  return {supported,layout,render,shieldConnectors,shieldPoint,standaloneNetwork,shieldNetwork};
+  const compactPoint=(board,x,y)=>({x:340+(board.outline.width-x)*8,y:160+y*8});
+  function compactNetwork(config) {
+    const board=config.board.compact,t=MicroPythonTmcView,n=t.network();
+    const point=(x,y)=>compactPoint(board,x,y);
+    for(const [ref,part] of Object.entries(board.parts)) if(ref.startsWith('J')) for(const [pin,[x,y]] of Object.entries(part.pads)) n.add(`${ref}.${pin}`,point(x,y));
+    const devices={X:t.motor('X',1470,650),Y:t.motor('Y',1470,900),servo:t.servo(1140,1150),vm:t.supply('モータ用 外部電源',1470,180,'VM'),five:t.supply('サーボ用 外部5V電源',1010,350,'5V')};
+    for(const [ref,device] of Object.entries(devices)) for(const [name,p] of Object.entries(device.ports)) n.add(`${ref}.${name}`,p);
+    const touch=board.variant==='touch2-compact';
+    for(const [ref,axis,y] of [['J5','X',550],['J6','Y',850]]) ['A1','A2','B1','B2'].forEach((name,i)=>{
+      const from=`${ref}.${i+1}`,to=`${axis}.${name}`,p=n.points[from],target=n.points[to],rail=1200+i*20;
+      // Leave Touch connectors to the right: leftward wires would run almost
+      // through J13's GND pad and falsely look electrically joined.
+      const via=touch?[{x:(axis==='X'?468:510)+i*6,y:p.y},{x:(axis==='X'?468:510)+i*6,y:y+i*16}]:[{x:p.x,y:y+i*16}];
+      n.wire(`${axis}_${name}`,from,to,[...via,{x:rail,y:y+i*16},{x:rail,y:target.y}]);
+    });
+    for(const [i,to,net] of [[1,'servo.GND','GND'],[2,'servo.VPLUS','SERVO_5V'],[3,'servo.PWM','PEN_PWM']]) {
+      const p=n.points[`J9.${i}`],target=n.points[to],y=1050+i*18,x=990+i*20;
+      const via=touch?[{x:260+i*16,y:p.y},{x:260+i*16,y}]:[{x:p.x,y}];
+      n.wire(net,`J9.${i}`,to,[...via,{x,y},{x,y:target.y}]);
+    }
+    for(const [i,net,name] of [[1,'VM','PLUS'],[2,'GND','GND']]) {
+      const p=n.points[`J7.${i}`],target=n.points[`vm.${name}`];
+      const via=touch?[{x:p.x,y:490+i*16},{x:1320+i*20,y:490+i*16}]:[{x:p.x,y:80+i*20},{x:1320+i*20,y:80+i*20}];
+      n.wire(net,`J7.${i}`,`vm.${name}`,[...via,{x:1320+i*20,y:target.y}]);
+    }
+    for(const [i,net,name] of [[1,'SERVO_5V','PLUS'],[2,'GND','GND']]) {
+      const p=n.points[`J8.${i}`],target=n.points[`five.${name}`],x=p.x+i*12,y=600+i*20;
+      n.wire(net,`J8.${i}`,`five.${name}`,[{x,y:p.y},{x,y},{x:950-i*20,y},{x:950-i*20,y:target.y}]);
+    }
+    return {network:n,devices:Object.values(devices).map(d=>d.svg).join('')};
+  }
+  function renderCompact(config) {
+    const board=config.board.compact,outline=board.outline,w=outline.width,h=outline.height;
+    let svg=start(config.board.label+'の裏面端子位置',1570,1780);
+    svg+=text(20,28,config.board.label,19)+text(20,55,'裏面／端子・ドライバ側。MCU・LCDは反対面。寸法・座標はPCB 7c90efdを参照。実機未確認。',16);
+    let edge=`M5 0H${w-5}A5 5 0 0 1 ${w} 5`;
+    if(outline.notch) {const [x1,y1,,y2]=outline.notch;edge+=`V${y1}H${x1}V${y2}H${w}`;}
+    edge+=`V${h-5}A5 5 0 0 1 ${w-5} ${h}H5A5 5 0 0 1 0 ${h-5}V5A5 5 0 0 1 5 0Z`;
+    svg+=`<g transform="translate(${340+w*8} 160) scale(-8 8)"><path d="${edge}" fill="#d1fae5" stroke="#475569" stroke-width=".3"/></g>`;
+    for(const [x,y] of outline.mounting_holes) {const p=compactPoint(board,x,y);svg+=`<circle cx="${p.x}" cy="${p.y}" r="12" fill="white" stroke="#475569"/>`;}
+    for(const ref of ['U1','U2']) {
+      const pads=board.parts[ref].pads,p=compactPoint(board,...pads['1']);
+      // TOP face: pin1 -> pin8 points left, pin1 -> pin16 points down.
+      svg+=`<g transform="translate(${p.x} ${p.y}) rotate(90)">${MicroPythonTmcView.moduleSvg(ref==='U1'?'X':'Y',0,0,20.32)}</g>`;
+    }
+    const wiring=compactNetwork(config);svg+=wiring.network.svg()+wiring.devices;
+    for(const [ref,part] of Object.entries(board.parts)) if(ref.startsWith('J')) {
+      const pins=Object.entries(part.pads).map(([pin,[x,y,net]])=>({pin,net,...compactPoint(board,x,y)}));
+      const minX=Math.min(...pins.map(p=>p.x)),minY=Math.min(...pins.map(p=>p.y));
+      const maxX=Math.max(...pins.map(p=>p.x)),maxY=Math.max(...pins.map(p=>p.y));
+      svg+=`<rect x="${minX-9}" y="${minY-9}" width="${maxX-minX+18}" height="${maxY-minY+18}" rx="4" fill="none" stroke="#64748b"/>`;
+      svg+=text(minX,minY-14,ref,13);
+      for(const p of pins) {
+        svg+=`<g data-connector="${ref}" data-terminal="${p.pin}"><title>${escape(`${ref}-${p.pin}: ${p.net}`)}</title>`;
+        svg+=p.pin==='1'?`<rect x="${p.x-4}" y="${p.y-4}" width="8" height="8" fill="#2563eb"/>`:`<circle cx="${p.x}" cy="${p.y}" r="4" fill="#2563eb"/>`;
+        svg+=text(p.x+7,p.y+15,p.pin,10)+'</g>';
+      }
+    }
+    svg+=text(960,200,'小型版のBTT TMC2209は横向きです。',17);
+    svg+=text(960,225,'放熱面が手前、ENが右上・VMが右下。',17);
+    svg+=text(960,250,'汎用4層版と装着方向・端子位置が異なります。',16);
+    svg+=text(950,475,'STEP / DIR / EN / 3V3 / 共通GNDは基板内配線。',16);
+    svg+=text(30,1210,'J10 X LIMIT / J11 Y LIMIT：1=SIGNAL、2=GND、3=3V3',16);
+    svg+=text(30,1240,'接点は1–2に接続（3は未接続）。内部プルアップ、LOWで作動。',16);
+    svg+=text(30,1280,'J12：1=GND / 2=SerialServoV / 3=DATA。J13：1=SerialServoV / 2=GND。',16);
+    svg+=text(30,1310,'J12/J13のシリアルサーボは今回のSTEP/DIR版では未使用・未配線です。',16);
+    svg+=text(30,1390,'r2：LIMITの外付けプルアップとPWMプルダウンを省略。起動時はEN無効、STEP/PWM LOW。',17);
+    svg+=text(30,1420,'LIMITはコマンド開始前チェックのみ。移動中の即時停止・ホーミングではありません。',17);
+    svg+=text(30,1460,'電源の＋同士を接続しないでください。全GNDは基板内で共通。VM電圧・VREF電流・放熱はモータに合わせます。',17);
+    svg+=text(30,1490,'全電源OFFで配線・装着。モータ線は巻線ペアを導通確認。サーボは実物のSIGNAL/V+/GNDを照合。',17);
+    svg+=text(30,1530,'●は接続、交差だけの線は非接続。四角パッドは1番です。実機配線・動作未確認。',17);
+    return svg+'</g></svg>';
+  }
+  return {supported,layout,render,shieldConnectors,shieldPoint,standaloneNetwork,shieldNetwork,compactPoint,compactNetwork};
 })();
 if(typeof module!=='undefined') module.exports=MicroPythonBoardView;

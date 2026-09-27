@@ -41,11 +41,14 @@ class StepperPIO:
         if len({x_step, y_step, x_dir, y_dir, enable}) != 5:
             raise ValueError("STEP/DIR/ENABLE pins must be distinct")
         if rp2:
+            # R1 holds EN off during reset; maintain that before configuring outputs.
+            self.enable_pin = Pin(enable, Pin.OUT, value=1 if enable_active_low else 0)
+            self.x_step_pin = Pin(x_step, Pin.OUT, value=0)
+            self.y_step_pin = Pin(y_step, Pin.OUT, value=0)
             self.x_dir_pin = Pin(x_dir, Pin.OUT, value=0)
             self.y_dir_pin = Pin(y_dir, Pin.OUT, value=0)
-            self.enable_pin = Pin(enable, Pin.OUT, value=1 if enable_active_low else 0)
             self.sm = rp2.StateMachine(sm_id, _step_program, freq=1_000_000,
-                                       out_base=Pin(x_step), sideset_base=Pin(y_step))
+                                       out_base=self.x_step_pin, sideset_base=self.y_step_pin)
             self.sm.active(1)
         else:
             self.x_dir_pin = self.y_dir_pin = self.enable_pin = None

@@ -38,7 +38,8 @@ const MicroPythonSetup = (() => {
     const { id, board, pins } = config;
     const extras = ["X_LIMIT", "Y_LIMIT", "BUTTON_UP", "BUTTON_DOWN", "BUTTON_OK", "TMC_UART_TX", "TMC_UART_RX", "SERIAL_DATA_GPIO"];
     const assignments = signals.map(name => `${name} = ${pins[name]}`);
-    for (const name of extras) assignments.push(`${name} = ${board.signals?.[name]?.gpio ?? "None"}`);
+    for (const name of extras) assignments.push(`${name} = ${board.disabledSignals?.includes(name) ? "None" : board.signals?.[name]?.gpio ?? "None"}`);
+    assignments.push(`HARDWARE_REVISION = ${JSON.stringify(board.hardwareRevision || 'standalone')}`, 'LIMIT_PULL_UP = True', 'LIMIT_ACTIVE_LOW = True', 'INPUT_DEBOUNCE_MS = 20');
     return `"""PlotterFlow board recipe: ${board.label}"""\n\nBOARD = ${JSON.stringify(id + "-stepdir")}\n${assignments.join("\n")}\nENABLE_ACTIVE_LOW = True\nSTEPS_PER_MM_X = 80.0\nSTEPS_PER_MM_Y = 80.0\nMAX_FEED_MM_MIN = 2400.0\nPEN_UP_US = 1000\nPEN_DOWN_US = 1800\nPEN_PWM_FREQ = 50\n`;
   }
   const escape = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));

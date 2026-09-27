@@ -4,11 +4,13 @@ const vm = require('node:vm');
 const setup = require('../micropython-setup.js');
 global.MicroPythonSetup = setup;
 global.MicroPythonTmcView = require('../micropython-tmc-view.js');
+global.MicroPythonShieldData = require('../micropython-shield-data.js');
+const recipes = require('../micropython-shield-recipes.js');
 const boardView = require('../micropython-board-view.js');
 const app = fs.readFileSync(new URL('../app.js', `file://${__filename.replaceAll('\\', '/')}`), 'utf8');
 const start = app.indexOf('const MICRO_PYTHON_BOARD_PROFILES =');
 const end = app.indexOf('const MICRO_PYTHON_BUNDLE_FILES', start);
-const boards = vm.runInNewContext(app.slice(start, end) + '; MICRO_PYTHON_BOARD_PROFILES');
+const boards = vm.runInNewContext(app.slice(start, end) + '; MICRO_PYTHON_BOARD_PROFILES', {MicroPythonShieldRecipes:recipes});
 // Crossings and common ENABLE branches are allowed; different signals must
 // never share any nonzero-length segment (including diagonal pin escapes).
 function assertNoSignalOverlap(svg) {
@@ -54,6 +56,36 @@ function checkPhysical(config) {
       assert.ok(svg.includes(`data-signal="${signal}" data-pin="${pad.gpio}" data-physical="${pad.physical}"`));
     }
     physicalCount++;
+  } else if (config.board.compact) {
+    assertNoSignalOverlap(svg);
+    const compact=config.board.compact;
+    const n=boardView.compactNetwork(config).network;
+    checkNetwork(n,true);
+    // A crossing is allowed, but not so near an unrelated physical pad that
+    // it looks connected (particularly Touch J13 next to the motor sockets).
+    for(const e of n.edges) {
+      const run=[n.points[e.from],...e.via,n.points[e.to]];
+      for(const [id,p] of Object.entries(n.points).filter(([id])=>id.startsWith('J')&&id!==e.from&&id!==e.to)) for(let i=1;i<run.length;i++) {
+        const a=run[i-1],b=run[i],dx=b.x-a.x,dy=b.y-a.y,len=dx*dx+dy*dy;
+        if(!len) continue;
+        const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/len));
+        assert.ok(Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy)>=6,`${config.id}: ${e.net} too close to ${id}`);
+      }
+    }
+    assert.ok(svg.includes('ENが右上・VMが右下'));
+    for(const [ref,part] of Object.entries(compact.parts)) if(ref.startsWith('J')) for(const pin of Object.keys(part.pads))
+      assert.ok(svg.includes(`data-connector="${ref}" data-terminal="${pin}"`));
+    const u=compact.parts.U1.pads;
+    const en=boardView.compactPoint(compact,...u['1']),dir=boardView.compactPoint(compact,...u['8']),vm=boardView.compactPoint(compact,...u['16']);
+    assert.ok(dir.x<en.x && dir.y===en.y && vm.x===en.x && vm.y>en.y);
+    for(const ref of ['U1','U2']) {
+      const pads=compact.parts[ref].pads,origin=boardView.compactPoint(compact,...pads['1']);
+      const standard=global.MicroPythonTmcView.ports(0,0,20.32);
+      for(const [names,numbers] of [[global.MicroPythonTmcView.left,[1,2,3,4,5,6,7,8]],[global.MicroPythonTmcView.right,[16,15,14,13,12,11,10,9]]]) names.forEach((name,i)=>{
+        const actual=boardView.compactPoint(compact,...pads[numbers[i]]),local=standard[name];
+        assert.ok(Math.abs(actual.x-(origin.x-local.y))<1e-6 && Math.abs(actual.y-(origin.y+local.x))<1e-6,`${ref} ${name} rotated pad mismatch`);
+      });
+    }
   } else {
     assertNoSignalOverlap(svg);
     checkNetwork(boardView.shieldNetwork().network, true);
@@ -143,6 +175,17 @@ for (const [id, board] of Object.entries(boards)) {
   count++;
 }
 const zero = setup.configuration('plotterflow_motor_shield_pizero', boards.plotterflow_motor_shield_pizero);
+for(const [id,board] of Object.entries(boards).filter(([id])=>setup.isShield(id))) {
+  const config=setup.configuration(id,board), py=setup.boardConfig(config);
+  assert.ok(py.includes('LIMIT_PULL_UP = True\n'));
+  assert.ok(py.includes('INPUT_DEBOUNCE_MS = 20\n'));
+  assert.ok(!board.reserved.some(pin=>Object.values(config.pins).includes(pin)));
+  for(const [name,signal] of Object.entries(board.signals)) if(signal.gpio!==null) assert.ok(!board.reserved.includes(signal.gpio),id+name);
+}
+const touch=setup.boardConfig(setup.configuration('plotterflow_motor_shield_touch2_compact',boards.plotterflow_motor_shield_touch2_compact));
+for(const name of ['BUTTON_UP','BUTTON_DOWN','BUTTON_OK']) assert.ok(touch.includes(`${name} = None\n`));
+assert.ok(touch.includes('X_LIMIT = 6\n') && touch.includes('Y_LIMIT = 8\n'));
+assert.equal(Object.keys(boards).filter(setup.isShield).length,7);
 assert.ok(setup.boardConfig(zero).includes('BUTTON_UP = None\n'));
 assert.equal(setup.pinLabel('xiao_rp2040', 26), 'D0 / GP26');
 console.log(`${count} board configurations: Python/SVG mapping, conflicts, fixed wiring, unused pins passed`);
