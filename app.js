@@ -108,7 +108,7 @@ const CONTROLLER_PROFILES = {
   "micropython-rp-stepdir": {
     development: true,
     firmwareKind: "micropython",
-    boardRecipe: "pico2-stepdir",
+    boardRecipe: "pico-stepdir",
     backendKind: "stepdir",
     supportsFileUpload: true,
     verification: "動作未確認",
@@ -121,7 +121,7 @@ const CONTROLLER_PROFILES = {
       "M17、G21、G90、G92を初期化時に送り、M3/M5またはG0 Z0/Z1でPWMペンを操作します。",
       "Python側でXYの同期ステップ列を計画し、パルス生成はPIOへ分離する構成です。加減速とFIFO余裕は未検証です。",
       "STS3215、Dynamixel、DRV8835 planar、Rθはこのプロファイルへ混在させず、別backendとして追加します。",
-      "MicroPythonファイル更新はPlotterFlowのWeb Serial拡張で追加予定です。初期UF2のブラウザ自動書込みは別フェーズです。"
+      "開発中タブから対象ボードを選び、PlotterFlowのWeb SerialでG-code対応Python一式を永続保存できます。初期UF2のブラウザ自動書込みは別フェーズです。"
     ],
     capabilities: { statusPolling: false, microPython: true, fileUpload: true },
     settings: {
@@ -195,6 +195,22 @@ const CONTROLLER_PROFILES = {
   }
 };
 
+const MICRO_PYTHON_BOARD_PROFILES = {
+  pico: { label: "Raspberry Pi Pico", firmwareUrl: "https://micropython.org/download/RPI_PICO/", driveName: "RPI-RP2", boot: "USBを外し、BOOTSELを押したままUSB接続してから離します。", pins: [2, 4, 3, 5, 7, 12] },
+  picow: { label: "Raspberry Pi Pico W", firmwareUrl: "https://micropython.org/download/RPI_PICO_W/", driveName: "RPI-RP2", boot: "USBを外し、BOOTSELを押したままUSB接続してから離します。", pins: [2, 4, 3, 5, 7, 12] },
+  pico2: { label: "Raspberry Pi Pico 2", firmwareUrl: "https://micropython.org/download/RPI_PICO2/", driveName: "RP2350", boot: "USBを外し、BOOTSELを押したままUSB接続してから離します。Pico 2はArm版UF2を選びます。", pins: [2, 4, 3, 5, 7, 12] },
+  pico2w: { label: "Raspberry Pi Pico 2 W", firmwareUrl: "https://micropython.org/download/RPI_PICO2_W/", driveName: "RP2350", boot: "USBを外し、BOOTSELを押したままUSB接続してから離します。Pico 2 WはArm版UF2を選びます。", pins: [2, 4, 3, 5, 7, 12] },
+  rp2040_geek: { label: "Waveshare RP2040-GEEK", firmwareUrl: "https://files.waveshare.com/wiki/RP2350-Plus/WAVESHARE-RP2040-Board.zip", driveName: "RPI-RP2", boot: "USB接続後、BOOTとRESETを同時に押し、RESET、BOOTの順に離します。", pins: [2, 4, 3, 5, 7, 12] },
+  rp2350_geek: { label: "Waveshare RP2350-GEEK", firmwareUrl: "https://files.waveshare.com/wiki/RP2350-Plus/WAVESHARE-RP2350A-Board.zip", driveName: "RP2350", boot: "USB接続後、BOOTとRESETを同時に押し、RESET、BOOTの順に離します。", pins: [2, 4, 3, 5, 7, 12] },
+  xiao_rp2040: { label: "Seeed Studio XIAO RP2040", firmwareUrl: "https://micropython.org/download/SEEED_XIAO_RP2040/", driveName: "RPI-RP2", boot: "BOOTを押したままUSB接続して離します。接続済みならBOOTを押しながらRESETを押して離し、最後にBOOTを離します。", pins: [2, 4, 3, 5, 7, 12] },
+  xiao_rp2350: { label: "Seeed Studio XIAO RP2350", firmwareUrl: "https://micropython.org/download/SEEED_XIAO_RP2350/", driveName: "RP2350", boot: "BOOTを押したままUSB接続して離します。接続済みならBOOTを押しながらRESETを押して離し、最後にBOOTを離します。", pins: [2, 4, 3, 5, 7, 12] },
+  atom_lite: { label: "M5Stack ATOM Lite（このRP版では対象外）", firmwareUrl: "https://micropython.org/download/ESP32_GENERIC/", driveName: "", supported: false, boot: "ATOM LiteはRP2040/RP2350版とは別のESP32実装が必要です。", pins: [] }
+};
+const MICRO_PYTHON_BUNDLE_FILES = ["board_config.py", "gcode.py", "planner.py", "pio_stepper.py", "pen.py", "protocol.py", "update_store.py", "main.py"];
+function microPythonBoardConfig(boardId) {
+  const board = MICRO_PYTHON_BOARD_PROFILES[boardId] || MICRO_PYTHON_BOARD_PROFILES.pico;
+  return `\"\"\"PlotterFlow board recipe: ${board.label}\"\"\"\n\nBOARD = ${JSON.stringify(boardId + "-stepdir")}\nX_STEP = 2\nX_DIR = 4\nY_STEP = 3\nY_DIR = 5\nENABLE = 7\nPEN_PWM = 12\nENABLE_ACTIVE_LOW = True\nSTEPS_PER_MM_X = 80.0\nSTEPS_PER_MM_Y = 80.0\nMAX_FEED_MM_MIN = 2400.0\nPEN_UP_US = 1000\nPEN_DOWN_US = 1800\nPEN_PWM_FREQ = 50\n`;
+}
 const DEFAULTS = {
   controllerProfile: "grbl-fluidnc",
   penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
@@ -322,6 +338,35 @@ function switchTab(name) { $$(".tab").forEach(x => x.classList.toggle("active", 
 function isMicroPythonProfile() {
   return activeControllerProfile().firmwareKind === "micropython";
 }
+const MICRO_PYTHON_BOARD_KEY = "plotterflow.micropythonBoardV1";
+function selectedMicroPythonBoardId() {
+  const saved = localStorage.getItem(MICRO_PYTHON_BOARD_KEY);
+  return MICRO_PYTHON_BOARD_PROFILES[saved] ? saved : "pico";
+}
+function renderMicroPythonBoard() {
+  const select = $("#microPythonBoard");
+  if (!select) return;
+  const selected = selectedMicroPythonBoardId();
+  select.replaceChildren(...Object.entries(MICRO_PYTHON_BOARD_PROFILES).map(([id, board]) => {
+    const option = new Option(board.label, id, false, id === selected);
+    option.disabled = board.supported === false;
+    return option;
+  }));
+  const board = MICRO_PYTHON_BOARD_PROFILES[selected] || MICRO_PYTHON_BOARD_PROFILES.pico;
+  const hint = $("#microPythonBoardHint");
+  if (hint) hint.textContent = board.boot + (board.driveName ? " UF2ドライブ名の目安: " + board.driveName + "。" : "");
+  const link = $("#microPythonFirmwareLink");
+  if (link) {
+    link.href = board.firmwareUrl;
+    link.textContent = board.supported === false ? "このボードのRP版MicroPythonは対象外" : "公式MicroPythonの取得ページを開く";
+  }
+  const guide = $("#microPythonInitialGuide");
+  if (guide) guide.innerHTML = board.supported === false
+    ? "このMicroPython STEP/DIR版はRP2040/RP2350向けです。ATOM LiteはESP32用実装を別途追加します。"
+    : "<strong>初回だけ:</strong> 上の公式ページからUF2を取得し、" + escapeHtml(board.boot) + " UF2を" + escapeHtml(board.driveName || "表示されたUF2ドライブ") + "へコピーします。再起動後、下のSerial接続を押してください。ブラウザからUF2を自動書き込みする機能はまだありません。";
+  const upload = $("#uploadMicroPythonFiles");
+  if (upload) upload.disabled = board.supported === false;
+}
 function renderDevelopmentPanel() {
   const select = $("#developmentFirmwareProfile");
   if (!select) return;
@@ -335,6 +380,7 @@ function renderDevelopmentPanel() {
   if (card) card.hidden = profile?.firmwareKind !== "micropython";
   const current = $("#developmentFirmwareCurrent");
   if (current) current.textContent = profile?.label || "—";
+  if (profile?.firmwareKind === "micropython") renderMicroPythonBoard();
 }
 function bindDevelopment() {
   const select = $("#developmentFirmwareProfile");
@@ -345,6 +391,10 @@ function bindDevelopment() {
     }
     applyControllerProfile(event.target.value);
     renderDevelopmentPanel();
+  });
+  $("#microPythonBoard")?.addEventListener("change", event => {
+    localStorage.setItem(MICRO_PYTHON_BOARD_KEY, event.target.value);
+    renderMicroPythonBoard();
   });
   $("#uploadMicroPythonFiles")?.addEventListener("click", uploadMicroPythonFiles);
   $("#developmentConnectSerial")?.addEventListener("click", connectSerial);
@@ -379,19 +429,33 @@ async function rawReplExec(writer, reader, code) {
   if (/Traceback|Error|OSError|ValueError/i.test(output)) throw new Error(output.replace(/[\x00-\x04]/g, " ").trim());
   return output;
 }
+async function loadMicroPythonBundle(boardId) {
+  const root = new URL("firmware/micropython/rp_stepdir/", document.baseURI);
+  const files = [];
+  for (const name of MICRO_PYTHON_BUNDLE_FILES) {
+    if (name === "board_config.py") continue;
+    const response = await fetch(new URL(name, root));
+    if (!response.ok) throw new Error(name + "の取得に失敗しました (" + response.status + ")");
+    files.push({ name, bytes: new Uint8Array(await response.arrayBuffer()) });
+  }
+  files.unshift({ name: "board_config.py", bytes: new TextEncoder().encode(microPythonBoardConfig(boardId)) });
+  return files;
+}
 async function uploadMicroPythonFiles() {
   if (!isMicroPythonProfile()) return toast("開発中タブでMicroPythonプロファイルを選択してください");
   if (!state.writer || !state.port) return toast("先にSerial接続してください");
   if (state.sending || state.jogging || state.sdUploading) return toast("送信・ジョグ中はファイル更新できません");
-  const files = Array.from($("#microPythonFiles")?.files || []).filter(file => /\.py$/i.test(file.name));
-  if (!files.length) return toast(".pyファイルを選択してください");
-  if (files.some(file => !/^[A-Za-z0-9_.-]+$/.test(file.name))) return toast("ファイル名は英数字・._-だけにしてください");
+  const boardId = $("#microPythonBoard")?.value || selectedMicroPythonBoardId();
+  const board = MICRO_PYTHON_BOARD_PROFILES[boardId];
+  if (!board || board.supported === false) return toast("このボードは現在のMicroPython版の対象外です");
   state.sending = true;
   const status = $("#microPythonTransferStatus");
-  if (status) status.textContent = "停止してraw REPLへ切り替えています…";
+  if (status) status.textContent = board.label + "用ファームウェアを準備しています…";
   let reader = null;
   let raw = false;
   try {
+    const files = await loadMicroPythonBundle(boardId);
+    if (status) status.textContent = files.length + "ファイルを停止してraw REPLへ永続保存します…";
     try { await state.writer.write(new Uint8Array([0x85])); } catch {}
     await sleep(100);
     try { await rawWrite("M18\n", false); } catch {}
@@ -404,7 +468,7 @@ async function uploadMicroPythonFiles() {
     await readRawUntil(reader, ">", 4000);
     raw = true;
     for (const file of files) {
-      const bytes = new Uint8Array(await file.arrayBuffer());
+      const bytes = file.bytes;
       const encoded = bytesToBase64(bytes);
       const tempName = `${file.name}.tmp`;
       await rawReplExec(state.writer, reader, `import ubinascii\nf=open(${JSON.stringify(tempName)},"wb")\nf.close()`);
@@ -419,8 +483,8 @@ async function uploadMicroPythonFiles() {
     raw = false;
     await sleep(100);
     await state.writer.write(new Uint8Array([0x04]));
-    toast("MicroPythonファイルを転送しました。再起動後に反映されます");
-    if (status) status.textContent = "転送完了。ボードを再起動するとmain.pyが実行されます。";
+    toast("MicroPythonファームウェアを永続保存しました");
+    if (status) status.textContent = "永続保存完了。ボードを再起動するとmain.pyが実行されます。";
   } catch (error) {
     log(`MicroPythonファイル転送エラー: ${error.message}`, "rx");
     if (status) status.textContent = `転送失敗: ${error.message}`;

@@ -138,6 +138,21 @@ Serial接続中、G-code送信中、Jog中、SD転送・管理中は、表示と
 
 GitHub Pagesは`main`ブランチのrepository rootを直接公開します。開発中の変更はbranchとPull Requestでsmoke testを通し、内容を確認してから`main`へmergeします。公開後はブラウザを再読込し、通常表示で試作機能が隠れることと、開発中モードで再表示できることを確認します。
 
+### MicroPython RP STEP/DIR（開発中・動作未確認）
+
+「開発中」タブでMicroPython RP STEP/DIR XY（開発中・動作未確認）を選ぶと、Pico Blocksと同じボード候補（Pico / Pico W / Pico 2 / Pico 2 W / RP2040-GEEK / RP2350-GEEK / XIAO RP2040 / XIAO RP2350 / ATOM Lite）から対象ボードを選択できます。ATOM LiteはこのRP2040/RP2350版の対象外として表示されます。
+
+初回だけ、次の手順でMicroPython本体を導入します。
+
+1. 画面の「公式MicroPythonの取得ページを開く」から対象ボードの公式ページを開き、UF2ファイルを取得する。
+2. ボードごとの案内に従い、BOOTSELまたはBOOTを押したままUSB接続してUF2ドライブを表示する。RP2350系は公式ページで指定されたArm版UF2を使う。
+3. UF2を表示されたドライブへコピーし、ボードが再起動するまで待つ。
+4. 通常のUSBシリアルとして再接続し、同じ画面の「Serial接続」を押す。
+
+初回UF2のブラウザ自動書き込みはまだ行わず、公式UF2の取得とコピーは手動です。MicroPython本体が入った後は、「PlotterFlow MicroPythonファームウェアを永続保存」を押すだけで、PlotterFlowに同梱したmain.py、G-code parser、planner、PIO stepper、pen、protocol、update storeをWeb Serialのraw REPL経由で転送します。ボード選択に応じたboard_config.pyを先頭に保存し、各ファイルを一時名からリネームしてからmain.pyを最後に保存するため、Pico Blocksの「保存して実行」と同じく再起動後もファイルシステムに残る永続保存です。任意の.pyファイルを選ぶ方式ではありません。
+
+この機能はファームウェア・転送処理・PIO波形・モータ接続を含めて実機未確認です。まずはUSBシリアル接続、G-codeのG0/G1、G90/G91、M3/M5、M17/M18、G92を対象に確認します。公開ページから取得するため、転送バンドルのPythonソースはこのリポジトリにも含まれます。開発元の専用リポジトリは https://github.com/pscmps/plotterflow-micropython-rp です。
+
 ### GRBL / FluidNC（標準）
 
 従来互換の既定プロファイルです。
