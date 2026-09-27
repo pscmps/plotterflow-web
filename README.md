@@ -140,7 +140,13 @@ GitHub Pagesは`main`ブランチのrepository rootを直接公開します。�
 
 ### MicroPython RP STEP/DIR（開発中・動作未確認）
 
-「開発中」タブでMicroPython RP STEP/DIR XY（開発中・動作未確認）を選ぶと、Pico Blocksと同じボード候補（Pico / Pico W / Pico 2 / Pico 2 W / RP2040-GEEK / RP2350-GEEK / XIAO RP2040 / XIAO RP2350 / ATOM Lite）に加えて、PlotterFlow Motor Shield v0.7のPico 2 W、RP2350-LCD-1.47-A、RP2350-Touch-LCD-2/-C、RP2350-PiZeroを選択できます。ATOM LiteはこのRP2040/RP2350版の対象外として表示されます。
+「開発中」タブでMicroPython RP STEP/DIR XY（開発中・動作未確認）を選びます。標準はPlotterFlow Motor Shield v0.7の固定配線です。Pico 2 W、RP2350-LCD-1.47-A、RP2350-Touch-LCD-2/-C、RP2350-PiZeroの4構成から選択します（初期値はPico 2 W）。
+
+単体ボードへ配線する場合だけ「自分でPIN設定をする」にチェックを入れます。Pico Blocksと同じPico / Pico W / Pico 2 / Pico 2 W / RP2040-GEEK / RP2350-GEEK / XIAO RP2040 / XIAO RP2350から選び、X_STEP・X_DIR・Y_STEP・Y_DIR・ENABLE・PEN_PWMを指定します。XIAOはD番号とGPIO番号を併記し、GEEKを含め外部に出ている端子だけを候補にしています。ATOM LiteはRP版対象外のため選択できません。固定基板と単体ボードの選択、およびボード別の自由配線をブラウザへ保存します。以前のボード選択だけから自由配線を自動で有効にはしません。
+
+ピン変更に追従するSVG配線図と、永続保存する`board_config.py`は同じ設定から生成します。GPIO重複・範囲外の設定では転送できません。図はPico Blocksの`wiring.js`にある色分け・SVG描画プリミティブ・信号マーカーを元に、XYのSTEP/DIRドライバ、モータ、共通ENABLE、PWMペンサーボへ拡張した機能接続図です。実物の端子順を示す図ではありません。電源は図の名前付き接続先で確認し、MCU・ドライバ・外部電源のGNDだけを共通にします。外部電源の＋同士をつないだり、サーボをGPIO/3V3から給電したりしないでください。シールドモードの信号配線は基板内部で固定です。
+
+実装は`micropython-setup.js`（ピン候補・検証・Python設定生成・SVG）、`app.js`（設定保存・画面・転送）に分離しています。ホスト側確認は`node tools/micropython-setup-test.cjs`、`python tools/micropython-pio-test.py`で実行できます。公開バンドルのPIOはXをOUT、Yをside-setへ割り当て、非連番のSTEP GPIOでも同じ命令で出力する構成です。PWM・PIO波形・電圧・実機配線は未検証です。現状の試作は速度指令の厳密な反映、加減速、移動中の即時STOP、FIFO完了待ちが未完成なので、機械を接続した通常運転にはまだ使用しないでください。TMC UART設定、シリアルサーボ、LCD/SD操作もこのSTEP/DIR版には含みません。
 
 初回だけ、次の手順でMicroPython本体を導入します。
 

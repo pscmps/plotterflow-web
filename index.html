@@ -7,7 +7,7 @@
   <title>PlotterFlow - Pen Plotter Layout Editor</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css?v=20260715-1">
-  <link rel="stylesheet" href="profile.css?v=20260927-1">
+  <link rel="stylesheet" href="profile.css?v=20260927-2">
   <link rel="stylesheet" href="drawing.css?v=20260812-2">
   <link rel="stylesheet" href="serial.css?v=20260806-1">
   <link rel="stylesheet" href="conversion.css">
@@ -446,15 +446,24 @@
           <h2>MicroPythonファームウェア転送</h2>
           <p>初回だけ公式MicroPythonのUF2を導入し、その後はこの画面からG-code対応Python一式をWeb Serialで保存します。</p>
           <p class="muted">現在のプロファイル: <strong id="developmentFirmwareCurrent">—</strong></p>
+          <fieldset id="microPythonSetupControls">
+          <legend>配線・ボード設定</legend>
+          <label class="check"><input id="microPythonCustomPins" type="checkbox">自分でPIN設定をする</label>
+          <p class="muted">通常はPlotter基板の固定配線を使用します。単体ボードへ自分で配線する場合だけチェックしてください。</p>
           <label>対象ボード<select id="microPythonBoard"></select></label>
+          <div id="microPythonPinControls" class="micropython-pin-grid" hidden></div>
+          <p id="microPythonPinError" class="status" role="alert" hidden></p>
+          </fieldset>
           <p id="microPythonBoardHint" class="muted"></p>
           <p id="microPythonBoardWiring" class="muted"></p>
+          <details open class="micropython-wiring"><summary>配線図（モータドライバ / PWMペンサーボ）</summary><div id="microPythonWiringDiagram"></div></details>
           <p><a id="microPythonFirmwareLink" target="_blank" rel="noreferrer">公式MicroPythonの取得ページを開く</a></p>
           <p id="microPythonInitialGuide" class="muted"></p>
           <div class="actions"><button id="developmentConnectSerial" class="primary">Serial接続</button><button id="developmentDisconnectSerial">切断</button></div>
           <button id="uploadMicroPythonFiles" class="primary wide">PlotterFlow MicroPythonファームウェアを永続保存</button>
           <p id="microPythonTransferStatus" class="status">Serial接続後に、main.pyと依存ファイルをまとめて転送できます。</p>
           <p class="muted">Pico Blocksの「保存して実行」と同じく、ファイルシステムへmain.pyを永続保存します。転送処理・実機動作は未確認です。</p>
+          <p class="muted">このSTEP/DIR版は試作です。速度・加減速・移動中の即時STOPは未完成のため、機械を接続した通常運転にはまだ使用しないでください。</p>
         </article>
       </div>
     </section>
@@ -496,7 +505,8 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260927-6"></script>
+  <script src="micropython-setup.js?v=20260927-1"></script>
+  <script src="app.js?v=20260927-7"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js?v=20260812-2"></script>
   <script>

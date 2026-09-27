@@ -1,3 +1,4 @@
 .server/
 .playwright-cli/
 output/playwright/
+__pycache__/

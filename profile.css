@@ -6,3 +6,17 @@ html[data-development-mode="true"] .controller-profile-card{border:2px solid #d5
 .controller-profile-description{padding:14px 16px;border:1px solid #e0c48c;border-radius:8px;background:#fff;color:#3d4549}.controller-profile-description p{margin:8px 0}.controller-profile-description ul{margin:8px 0 0;padding-left:20px;color:#59636a}.profile-description-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.profile-description-heading span{padding:2px 8px;border-radius:999px;background:#fff0cf;color:#78460d;font-size:11px;font-weight:800}.profile-verification{display:inline-block;margin-top:8px;padding:3px 8px;border-radius:999px;background:#ffe1e1;color:#9a2222;font-size:11px;font-style:normal;font-weight:800}
 .serial-profile-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 14px;padding:10px 12px;border:1px solid #c8d9da;border-radius:8px;background:#f3f8f8}.serial-profile-strip>div{display:grid;gap:2px}.serial-profile-strip small{color:var(--muted);font-size:10px}.serial-profile-strip strong{color:var(--primary);font-size:13px}.serial-profile-strip button{white-space:nowrap}
 @media(max-width:560px){.development-heading{display:block}.development-heading p{margin-top:4px}.development-mode-toggle{width:max-content;max-width:100%;margin-top:12px}.serial-profile-strip{align-items:flex-end}.serial-profile-strip strong{font-size:12px}}
+/* The wiring view belongs only to the development MicroPython installer. */
+#tab-development > .grid { grid-template-columns: minmax(0, 1fr); }
+#tab-development .card { min-width: 0; overflow-wrap: anywhere; }
+#microPythonTransferCard { grid-column: 1 / -1; }
+#microPythonSetupControls { border: 1px solid #cbd5e1; border-radius: 10px; padding: 16px; min-width: 0; }
+#microPythonSetupControls legend { padding: 0 8px; font-weight: 600; }
+.micropython-pin-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.micropython-pin-grid[hidden] { display: none; }
+#microPythonPinError { color: #b91c1c; }
+.micropython-wiring { margin: 16px 0; }
+.micropython-wiring summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+#microPythonWiringDiagram { overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; background: white; }
+#microPythonWiringDiagram svg { display: block; width: 100%; min-width: 700px; max-width: 1100px; margin: auto; }
+@media (max-width: 600px) { .micropython-pin-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

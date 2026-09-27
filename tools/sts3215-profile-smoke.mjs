@@ -50,7 +50,7 @@ assert.match(html, /id="microPythonBoardWiring"/);
 assert.match(html, /id="uploadMicroPythonFiles"/);
 assert.doesNotMatch(html, /id="microPythonFiles"/);
 assert.match(html, /id="developmentConnectSerial"/);
-assert.match(html, /app\.js\?v=20260927-6/);
+assert.match(html, /app\.js\?v=20260927-7/);
 assert.match(app, /plotterflow_motor_shield_pico2w/);
 assert.match(app, /SERIAL_DATA_GPIO: \{ gpio: 13, physical: "J1-17" \}/);
 assert.match(app, /ENABLE GP7 \(J1-10・active-low\)/);

@@ -279,10 +279,7 @@ const MICRO_PYTHON_BOARD_PROFILES = {
 };
 const MICRO_PYTHON_BUNDLE_FILES = ["board_config.py", "gcode.py", "planner.py", "pio_stepper.py", "pen.py", "protocol.py", "update_store.py", "main.py"];
 function microPythonBoardConfig(boardId) {
-  const board = MICRO_PYTHON_BOARD_PROFILES[boardId] || MICRO_PYTHON_BOARD_PROFILES.pico;
-  const signals = board.signals || {};
-  const gpio = (name, fallback) => signals[name]?.gpio ?? fallback;
-  return `\"\"\"PlotterFlow board recipe: ${board.label}\"\"\"\n\nBOARD = ${JSON.stringify(boardId + "-stepdir")}\nX_STEP = ${gpio("X_STEP", board.pins[0])}\nX_DIR = ${gpio("X_DIR", board.pins[1])}\nY_STEP = ${gpio("Y_STEP", board.pins[2])}\nY_DIR = ${gpio("Y_DIR", board.pins[3])}\nENABLE = ${gpio("ENABLE", board.pins[4])}\nPEN_PWM = ${gpio("Z_SERVO_PWM", board.pins[5])}\nX_LIMIT = ${gpio("X_LIMIT", 6)}\nY_LIMIT = ${gpio("Y_LIMIT", 8)}\nBUTTON_UP = ${gpio("BUTTON_UP", 9)}\nBUTTON_DOWN = ${gpio("BUTTON_DOWN", 10)}\nBUTTON_OK = ${gpio("BUTTON_OK", 11)}\nTMC_UART_TX = ${gpio("TMC_UART_TX", 0)}\nTMC_UART_RX = ${gpio("TMC_UART_RX", 1)}\nSERIAL_DATA_GPIO = ${gpio("SERIAL_DATA_GPIO", 13)}\nENABLE_ACTIVE_LOW = True\nSTEPS_PER_MM_X = 80.0\nSTEPS_PER_MM_Y = 80.0\nMAX_FEED_MM_MIN = 2400.0\nPEN_UP_US = 1000\nPEN_DOWN_US = 1800\nPEN_PWM_FREQ = 50\n`;
+  return MicroPythonSetup.boardConfig(selectedMicroPythonConfiguration(boardId));
 }
 const DEFAULTS = {
   controllerProfile: "grbl-fluidnc",
@@ -411,25 +408,56 @@ function switchTab(name) { $$(".tab").forEach(x => x.classList.toggle("active", 
 function isMicroPythonProfile() {
   return activeControllerProfile().firmwareKind === "micropython";
 }
-const MICRO_PYTHON_BOARD_KEY = "plotterflow.micropythonBoardV1";
+const MICRO_PYTHON_SETUP_KEY = "plotterflow.micropythonSetupV2";
+const microPythonSetup = loadJSON(MICRO_PYTHON_SETUP_KEY, {
+  custom: false, shield: "plotterflow_motor_shield_pico2w", standalone: "pico", pins: {}
+});
 function selectedMicroPythonBoardId() {
-  const saved = localStorage.getItem(MICRO_PYTHON_BOARD_KEY);
-  return MICRO_PYTHON_BOARD_PROFILES[saved] ? saved : "pico";
+  const saved = microPythonSetup.custom ? microPythonSetup.standalone : microPythonSetup.shield;
+  return MICRO_PYTHON_BOARD_PROFILES[saved]?.supported !== false && MICRO_PYTHON_BOARD_PROFILES[saved]
+    && MicroPythonSetup.isShield(saved) === !microPythonSetup.custom ? saved
+    : microPythonSetup.custom ? "pico" : "plotterflow_motor_shield_pico2w";
+}
+function selectedMicroPythonConfiguration(id = selectedMicroPythonBoardId()) {
+  return MicroPythonSetup.configuration(id, MICRO_PYTHON_BOARD_PROFILES[id], microPythonSetup.pins?.[id]);
 }
 function renderMicroPythonBoard() {
   const select = $("#microPythonBoard");
   if (!select) return;
   const selected = selectedMicroPythonBoardId();
-  select.replaceChildren(...Object.entries(MICRO_PYTHON_BOARD_PROFILES).map(([id, board]) => {
+  select.replaceChildren(...Object.entries(MICRO_PYTHON_BOARD_PROFILES)
+    .filter(([id]) => MicroPythonSetup.isShield(id) === !microPythonSetup.custom).map(([id, board]) => {
     const option = new Option(board.label, id, false, id === selected);
     option.disabled = board.supported === false;
     return option;
   }));
   const board = MICRO_PYTHON_BOARD_PROFILES[selected] || MICRO_PYTHON_BOARD_PROFILES.pico;
+  const config = selectedMicroPythonConfiguration(selected);
+  $("#microPythonCustomPins").checked = !!microPythonSetup.custom;
+  $("#microPythonPinControls").hidden = !microPythonSetup.custom;
+  $("#microPythonPinControls").replaceChildren(...MicroPythonSetup.signals.map(name => {
+    const label = document.createElement("label");
+    label.textContent = name;
+    const input = document.createElement("select");
+    input.dataset.signal = name;
+    input.setAttribute("aria-label", name);
+    input.replaceChildren(...MicroPythonSetup.availablePins(selected).map(pin =>
+      new Option(MicroPythonSetup.pinLabel(selected, pin), String(pin), false, pin === config.pins[name])));
+    // Do not silently display another pin if persisted configuration is corrupt.
+    if (!MicroPythonSetup.availablePins(selected).includes(config.pins[name]))
+      input.add(new Option("使用できないGPIO：再選択してください", String(config.pins[name]), true, true));
+    label.append(input);
+    return label;
+  }));
+  $("#microPythonPinError").textContent = config.errors.join(" ");
+  $("#microPythonPinError").hidden = !config.errors.length;
+  $("#microPythonWiringDiagram").innerHTML = config.errors.length ? "ピンの重複・範囲を修正すると配線図を表示します。" : MicroPythonSetup.render(config);
+  $("#microPythonSetupControls").disabled = state.sending;
   const hint = $("#microPythonBoardHint");
   if (hint) hint.textContent = board.boot + (board.driveName ? " UF2ドライブ名の目安: " + board.driveName + "。" : "");
   const wiring = $("#microPythonBoardWiring");
-  if (wiring) wiring.textContent = board.wiring || "STEP/DIR: X GP2/GP4、Y GP3/GP5、ENABLE GP7、PEN PWM GP12。";
+  if (wiring) wiring.textContent = microPythonSetup.custom
+    ? "単体ボードの外部端子から選択します。選択は配線図と転送するboard_config.pyへ同時に反映されます。" : board.wiring;
   const link = $("#microPythonFirmwareLink");
   if (link) {
     link.href = board.firmwareUrl;
@@ -440,7 +468,7 @@ function renderMicroPythonBoard() {
     ? "このMicroPython STEP/DIR版はRP2040/RP2350向けです。ATOM LiteはESP32用実装を別途追加します。"
     : "<strong>初回だけ:</strong> " + escapeHtml(board.firmwareNote || "上の公式ページからUF2を取得してください。") + " " + escapeHtml(board.boot) + " UF2を" + escapeHtml(board.driveName || "表示されたUF2ドライブ") + "へコピーします。再起動後、下のSerial接続を押してください。ブラウザからUF2を自動書き込みする機能はまだありません。";
   const upload = $("#uploadMicroPythonFiles");
-  if (upload) upload.disabled = board.supported === false;
+  if (upload) upload.disabled = board.supported === false || !!config.errors.length || state.sending;
 }
 function renderDevelopmentPanel() {
   const select = $("#developmentFirmwareProfile");
@@ -468,7 +496,22 @@ function bindDevelopment() {
     renderDevelopmentPanel();
   });
   $("#microPythonBoard")?.addEventListener("change", event => {
-    localStorage.setItem(MICRO_PYTHON_BOARD_KEY, event.target.value);
+    microPythonSetup[microPythonSetup.custom ? "standalone" : "shield"] = event.target.value;
+    saveJSON(MICRO_PYTHON_SETUP_KEY, microPythonSetup);
+    renderMicroPythonBoard();
+  });
+  $("#microPythonCustomPins")?.addEventListener("change", event => {
+    microPythonSetup.custom = event.target.checked;
+    saveJSON(MICRO_PYTHON_SETUP_KEY, microPythonSetup);
+    renderMicroPythonBoard();
+  });
+  $("#microPythonPinControls")?.addEventListener("change", event => {
+    const name = event.target.dataset.signal;
+    if (!MicroPythonSetup.signals.includes(name)) return;
+    const id = selectedMicroPythonBoardId();
+    microPythonSetup.pins ||= {};
+    microPythonSetup.pins[id] = { ...selectedMicroPythonConfiguration(id).pins, [name]: Number(event.target.value) };
+    saveJSON(MICRO_PYTHON_SETUP_KEY, microPythonSetup);
     renderMicroPythonBoard();
   });
   $("#uploadMicroPythonFiles")?.addEventListener("click", uploadMicroPythonFiles);
@@ -505,15 +548,17 @@ async function rawReplExec(writer, reader, code) {
   return output;
 }
 async function loadMicroPythonBundle(boardId) {
+  // Snapshot before the first await: diagram/config cannot diverge mid-transfer.
+  const boardConfig = microPythonBoardConfig(boardId);
   const root = new URL("firmware/micropython/rp_stepdir/", document.baseURI);
   const files = [];
   for (const name of MICRO_PYTHON_BUNDLE_FILES) {
     if (name === "board_config.py") continue;
-    const response = await fetch(new URL(name, root));
+    const response = await fetch(new URL(name, root), { cache: "no-cache" });
     if (!response.ok) throw new Error(name + "の取得に失敗しました (" + response.status + ")");
     files.push({ name, bytes: new Uint8Array(await response.arrayBuffer()) });
   }
-  files.unshift({ name: "board_config.py", bytes: new TextEncoder().encode(microPythonBoardConfig(boardId)) });
+  files.unshift({ name: "board_config.py", bytes: new TextEncoder().encode(boardConfig) });
   return files;
 }
 async function uploadMicroPythonFiles() {
@@ -523,7 +568,10 @@ async function uploadMicroPythonFiles() {
   const boardId = $("#microPythonBoard")?.value || selectedMicroPythonBoardId();
   const board = MICRO_PYTHON_BOARD_PROFILES[boardId];
   if (!board || board.supported === false) return toast("このボードは現在のMicroPython版の対象外です");
+  const errors = selectedMicroPythonConfiguration(boardId).errors;
+  if (errors.length) return toast(errors.join(" "));
   state.sending = true;
+  renderMicroPythonBoard();
   const status = $("#microPythonTransferStatus");
   if (status) status.textContent = board.label + "用ファームウェアを準備しています…";
   let reader = null;
@@ -569,6 +617,7 @@ async function uploadMicroPythonFiles() {
     try { reader?.releaseLock(); } catch {}
     if (state.port && !state.reader) readSerial();
     state.sending = false;
+    renderMicroPythonBoard();
   }
 }
 function installLocalTestBridge() {
