@@ -6,6 +6,9 @@ const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
 
 assert.match(app, /"rp2040-geek-sts3215-id2-id3"/);
+assert.match(app, /"micropython-rp-stepdir"/);
+assert.match(app, /firmwareKind: "micropython"/);
+assert.match(app, /verification: "動作未確認"/);
 assert.match(app, /jogCommand: "sts3215-test"/);
 assert.match(app, /directAxes: true, statusPolling: false/);
 assert.match(app, /initializeCommand: "M17\\nG21\\nG90\\nG10 L20 P0 X0 Y0"/);
