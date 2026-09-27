@@ -105,6 +105,34 @@ const CONTROLLER_PROFILES = {
       sampleInterval: 0.5, optimization: "safe", yFlip: true
     }
   },
+  "micropython-rp-stepdir": {
+    development: true,
+    firmwareKind: "micropython",
+    boardRecipe: "pico2-stepdir",
+    backendKind: "stepdir",
+    supportsFileUpload: true,
+    verification: "動作未確認",
+    label: "MicroPython RP STEP/DIR XY（開発中・動作未確認）",
+    phase: "開発中",
+    summary: "RP2040/RP2350 MicroPythonでG-codeを解釈し、PIO経由のSTEP/DIR 2軸とPWMペンを動かす新規試作です。",
+    notes: [
+      "初回のMicroPython UF2導入、Pythonファイル転送、PIO波形、モータ接続を含めて実機未確認です。現在はCPythonホストテストのみ確認済みです。",
+      "初期対象はPico 2 / Pico 2 W recipeとTMC2209等のSTEP/DIRドライバです。TMC UART設定は後段オプションで、MVPではSTEP/DIRを使用します。",
+      "M17、G21、G90、G92を初期化時に送り、M3/M5またはG0 Z0/Z1でPWMペンを操作します。",
+      "Python側でXYの同期ステップ列を計画し、パルス生成はPIOへ分離する構成です。加減速とFIFO余裕は未検証です。",
+      "STS3215、Dynamixel、DRV8835 planar、Rθはこのプロファイルへ混在させず、別backendとして追加します。",
+      "MicroPythonファイル更新はPlotterFlowのWeb Serial拡張で追加予定です。初期UF2のブラウザ自動書込みは別フェーズです。"
+    ],
+    capabilities: { statusPolling: false, microPython: true, fileUpload: true },
+    settings: {
+      baudrate: 115200, header: "G21\nG90", footer: "M18",
+      penUpCommand: "M5", penDownCommand: "M3",
+      okTimeoutMs: 30000, stopStrategy: "cancel-pen-up",
+      initializeCommand: "M17\nG21\nG90\nG92 X0 Y0", disconnectCommand: "M18", jogAutoDisable: false,
+      travelFeed: 500, drawFeed: 300, jogStep: 1, jogFeed: 500,
+      sampleInterval: 0.5, optimization: "safe", yFlip: true
+    }
+  },
   "pico2-drv8835-planar": {
     development: true,
     label: "Pico 2 DRV8835 XY Planar（開発中）",
@@ -669,7 +697,8 @@ function sts3215SetupLines() { return isSts3215DirectAxes() ? [sts3215AxisConfig
 function renderControllerProfile() {
   const profile = activeControllerProfile(), host = $("#controllerProfileDescription");
   if (!host) return;
-  host.innerHTML = `<div class="profile-description-heading"><strong>${escapeHtml(profile.label)}</strong><span>${escapeHtml(profile.phase)}</span></div><p>${escapeHtml(profile.summary)}</p><ul>${profile.notes.map(note => `<li>${escapeHtml(note)}</li>`).join("")}</ul>`;
+  const verification = profile.verification ? `<em class="profile-verification">${escapeHtml(profile.verification)}</em>` : "";
+  host.innerHTML = `<div class="profile-description-heading"><strong>${escapeHtml(profile.label)}</strong><span>${escapeHtml(profile.phase)}</span></div>${verification}<p>${escapeHtml(profile.summary)}</p><ul>${profile.notes.map(note => `<li>${escapeHtml(note)}</li>`).join("")}</ul>`;
 }
 function updateSerialProfileDisplay() {
   const profile = activeControllerProfile(), badge = $("#serialControllerProfile"), button = $("#initializeController");
