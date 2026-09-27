@@ -73,7 +73,7 @@ const MicroPythonSetup = (() => {
       // Avoid overlapping unrelated horizontal wires when a custom pin happens
       // to sit at a driver's input height. A short diagonal clears the pin bank.
       let exitY = p.y;
-      while (occupiedRows.some(y => Math.abs(y - exitY) < 8)) exitY += 8;
+      while (occupiedRows.some(y => Math.abs(y - exitY) < 12)) exitY += 12;
       occupiedRows.push(exitY);
       for (const [x, y] of endpoints[name]) {
         svg += path(`M${p.x} ${p.y} L282 ${exitY} H${rail} V${y} H${x}`, colour, `data-signal="${name}" data-pin="${pins[name]}"`);
