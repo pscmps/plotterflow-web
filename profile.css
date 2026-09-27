@@ -17,6 +17,10 @@ html[data-development-mode="true"] .controller-profile-card{border:2px solid #d5
 #microPythonPinError { color: #b91c1c; }
 .micropython-wiring { margin: 16px 0; }
 .micropython-wiring summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.wiring-view-toggle { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.wiring-view-toggle button[aria-pressed="true"] { background: var(--primary); color: white; border-color: var(--primary); }
+.wiring-view-toggle button:focus-visible { outline: 3px solid #d59b35; outline-offset: 3px; }
+#microPythonWiringDiagram > p { padding: 16px; }
 #microPythonWiringDiagram { overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; background: white; }
 #microPythonWiringDiagram svg { display: block; width: 100%; min-width: 700px; max-width: 1100px; margin: auto; }
 @media (max-width: 600px) { .micropython-pin-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

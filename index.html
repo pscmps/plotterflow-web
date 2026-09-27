@@ -7,7 +7,7 @@
   <title>PlotterFlow - Pen Plotter Layout Editor</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css?v=20260715-1">
-  <link rel="stylesheet" href="profile.css?v=20260927-2">
+  <link rel="stylesheet" href="profile.css?v=20260927-3">
   <link rel="stylesheet" href="drawing.css?v=20260812-2">
   <link rel="stylesheet" href="serial.css?v=20260806-1">
   <link rel="stylesheet" href="conversion.css">
@@ -456,7 +456,15 @@
           </fieldset>
           <p id="microPythonBoardHint" class="muted"></p>
           <p id="microPythonBoardWiring" class="muted"></p>
-          <details open class="micropython-wiring"><summary>配線図（モータドライバ / PWMペンサーボ）</summary><div id="microPythonWiringDiagram"></div></details>
+          <details open class="micropython-wiring">
+            <summary>配線図（モータドライバ / PWMペンサーボ）</summary>
+            <div class="wiring-view-toggle" role="group" aria-label="配線図の表示切替">
+              <button type="button" data-wiring-view="schematic" aria-pressed="true">機能配線図</button>
+              <button type="button" data-wiring-view="physical" aria-pressed="false">基板の端子位置</button>
+            </div>
+            <p class="muted">「基板の端子位置」でボードの形・向き・差し込み位置を確認できます。表示切替はファームウェア設定を変更しません。</p>
+            <div id="microPythonWiringDiagram"></div>
+          </details>
           <p><a id="microPythonFirmwareLink" target="_blank" rel="noreferrer">公式MicroPythonの取得ページを開く</a></p>
           <p id="microPythonInitialGuide" class="muted"></p>
           <div class="actions"><button id="developmentConnectSerial" class="primary">Serial接続</button><button id="developmentDisconnectSerial">切断</button></div>
@@ -506,7 +514,8 @@
   </main>
   <div id="toast" role="status"></div>
   <script src="micropython-setup.js?v=20260927-2"></script>
-  <script src="app.js?v=20260927-7"></script>
+  <script src="micropython-board-view.js?v=20260927-1"></script>
+  <script src="app.js?v=20260927-8"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js?v=20260812-2"></script>
   <script>

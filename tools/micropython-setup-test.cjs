@@ -2,6 +2,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const setup = require('../micropython-setup.js');
+global.MicroPythonSetup = setup;
+const boardView = require('../micropython-board-view.js');
 const app = fs.readFileSync(new URL('../app.js', `file://${__filename.replaceAll('\\', '/')}`), 'utf8');
 const start = app.indexOf('const MICRO_PYTHON_BOARD_PROFILES =');
 const end = app.indexOf('const MICRO_PYTHON_BUNDLE_FILES', start);
@@ -36,12 +38,33 @@ function assertNoSignalOverlap(svg) {
 }
 let count = 0;
 let wiringCount = 0;
+let physicalCount = 0;
+function checkPhysical(config) {
+  const svg = boardView.render(config);
+  if (!boardView.supported(config.id)) {
+    assert.ok(svg.includes('未照合'));
+    assert.ok(!svg.includes('<svg'));
+  } else if (!setup.isShield(config.id)) {
+    assertNoSignalOverlap(svg);
+    for(const signal of setup.signals) {
+      const pad=boardView.layout(config).pads.find(p=>p.gpio===config.pins[signal]);
+      assert.ok(svg.includes(`M${pad.x} ${pad.y} `));
+      assert.ok(svg.includes(`data-signal="${signal}" data-pin="${pad.gpio}" data-physical="${pad.physical}"`));
+    }
+    physicalCount++;
+  } else {
+    assert.ok(svg.includes('裏面'));
+    for(const connector of boardView.shieldConnectors) connector.pads.forEach((_,i)=>
+      assert.ok(svg.includes(`data-connector="${connector.ref}" data-terminal="${i+1}"`)));
+  }
+}
 for (const [id, board] of Object.entries(boards)) {
   if (board.supported === false) continue;
   const config = setup.configuration(id, board);
   assert.deepEqual(config.errors, [], id);
   const python = setup.boardConfig(config), svg = setup.render(config);
   assertNoSignalOverlap(svg);
+  checkPhysical(config);
   wiringCount++;
   for (const name of setup.signals) {
     assert.ok(python.includes(`${name} = ${config.pins[name]}\n`), id + name);
@@ -54,6 +77,7 @@ for (const [id, board] of Object.entries(boards)) {
       const variant = setup.configuration(id, board, { [name]: pin });
       if (!variant.errors.length) {
         assertNoSignalOverlap(setup.render(variant));
+        checkPhysical(variant);
         wiringCount++;
       }
     }
@@ -79,3 +103,11 @@ assert.ok(setup.boardConfig(zero).includes('BUTTON_UP = None\n'));
 assert.equal(setup.pinLabel('xiao_rp2040', 26), 'D0 / GP26');
 console.log(`${count} board configurations: Python/SVG mapping, conflicts, fixed wiring, unused pins passed`);
 console.log(`${wiringCount} wiring variants: no overlapping segments between different signals`);
+console.log(`${physicalCount} physical pin variants: matching wire origins and no overlapping signal segments`);
+const picoPads=boardView.layout(setup.configuration('pico',boards.pico)).pads;
+assert.equal(picoPads.find(p=>p.gpio===2).physical,'4');
+assert.equal(picoPads.find(p=>p.gpio===28).physical,'34');
+const xiaoPads=boardView.layout(setup.configuration('xiao_rp2040',boards.xiao_rp2040)).pads;
+assert.equal(xiaoPads.find(p=>p.gpio===26).side,'left');
+assert.equal(xiaoPads.find(p=>p.gpio===3).physical,'右上から4番');
+assert.ok(boardView.shieldPoint(58,42.85).x>boardView.shieldPoint(63.08,42.85).x,'bottom view must mirror X');

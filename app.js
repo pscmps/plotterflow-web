@@ -410,7 +410,7 @@ function isMicroPythonProfile() {
 }
 const MICRO_PYTHON_SETUP_KEY = "plotterflow.micropythonSetupV2";
 const microPythonSetup = loadJSON(MICRO_PYTHON_SETUP_KEY, {
-  custom: false, shield: "plotterflow_motor_shield_pico2w", standalone: "pico", pins: {}
+  custom: false, shield: "plotterflow_motor_shield_pico2w", standalone: "pico", pins: {}, view: "schematic"
 });
 function selectedMicroPythonBoardId() {
   const saved = microPythonSetup.custom ? microPythonSetup.standalone : microPythonSetup.shield;
@@ -451,7 +451,10 @@ function renderMicroPythonBoard() {
   }));
   $("#microPythonPinError").textContent = config.errors.join(" ");
   $("#microPythonPinError").hidden = !config.errors.length;
-  $("#microPythonWiringDiagram").innerHTML = config.errors.length ? "ピンの重複・範囲を修正すると配線図を表示します。" : MicroPythonSetup.render(config);
+  const physical = microPythonSetup.view === "physical";
+  $$("[data-wiring-view]").forEach(button => button.setAttribute("aria-pressed", String((button.dataset.wiringView === "physical") === physical)));
+  $("#microPythonWiringDiagram").innerHTML = config.errors.length ? "ピンの重複・範囲を修正すると配線図を表示します。"
+    : physical ? MicroPythonBoardView.render(config) : MicroPythonSetup.render(config);
   $("#microPythonSetupControls").disabled = state.sending;
   const hint = $("#microPythonBoardHint");
   if (hint) hint.textContent = board.boot + (board.driveName ? " UF2ドライブ名の目安: " + board.driveName + "。" : "");
@@ -486,6 +489,11 @@ function renderDevelopmentPanel() {
   if (profile?.firmwareKind === "micropython") renderMicroPythonBoard();
 }
 function bindDevelopment() {
+  $$("[data-wiring-view]").forEach(button => button.addEventListener("click", () => {
+    microPythonSetup.view = button.dataset.wiringView;
+    saveJSON(MICRO_PYTHON_SETUP_KEY, microPythonSetup);
+    renderMicroPythonBoard();
+  }));
   const select = $("#developmentFirmwareProfile");
   if (select) select.addEventListener("change", event => {
     if (!state.developmentMode) {
