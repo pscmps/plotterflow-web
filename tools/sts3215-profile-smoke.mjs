@@ -44,7 +44,8 @@ assert.match(html, /id="keyboardJogLabel">矢印キー/);
 assert.match(html, /data-tab="development">開発中/);
 assert.match(html, /id="microPythonTransferCard"/);
 assert.match(html, /id="uploadMicroPythonFiles"/);
-assert.match(html, /app\.js\?v=20260927-2/);
+assert.match(html, /id="developmentConnectSerial"/);
+assert.match(html, /app\.js\?v=20260927-3/);
 assert.match(readme, /M950/);
 
 console.log("STS3215 PlotterFlow profile smoke test passed");

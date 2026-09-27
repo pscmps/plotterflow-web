@@ -347,6 +347,8 @@ function bindDevelopment() {
     renderDevelopmentPanel();
   });
   $("#uploadMicroPythonFiles")?.addEventListener("click", uploadMicroPythonFiles);
+  $("#developmentConnectSerial")?.addEventListener("click", connectSerial);
+  $("#developmentDisconnectSerial")?.addEventListener("click", disconnectSerial);
   renderDevelopmentPanel();
 }
 function bytesToBase64(bytes) {

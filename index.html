@@ -447,6 +447,7 @@
           <p>MicroPython UF2を初回だけ手動導入した後、ここから
 <code>main.py</code>などのPythonファイルをWeb Serialで更新します。</p>
           <p class="muted">現在のプロファイル: <strong id="developmentFirmwareCurrent">—</strong></p>
+          <div class="actions"><button id="developmentConnectSerial" class="primary">Serial接続</button><button id="developmentDisconnectSerial">切断</button></div>
           <label class="file-drop compact-file-drop"><input id="microPythonFiles" type="file" accept=".py,text/x-python" multiple><strong>Pythonファイルを選択</strong><span>.pyを複数選択できます</span></label>
           <button id="uploadMicroPythonFiles" class="primary wide">MicroPythonファイルを転送</button>
           <p id="microPythonTransferStatus" class="status">シリアル接続後に実行できます。転送中はジョブを停止します。</p>
@@ -492,7 +493,7 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260927-2"></script>
+  <script src="app.js?v=20260927-3"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js?v=20260812-2"></script>
   <script>
