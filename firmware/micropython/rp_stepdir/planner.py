@@ -1,5 +1,7 @@
 """Cartesian XY Bresenham planner."""
 
+from math import isfinite
+
 
 def line_events(x0, y0, x1, y1):
     """Return synchronized (step_mask, tick_hint) events for integer steps."""
@@ -34,14 +36,20 @@ class CartesianPlanner:
         self.x_steps = 0
         self.y_steps = 0
 
-    def plan(self, x_mm, y_mm):
-        target_x = round(float(x_mm) * self.sx_per_mm)
-        target_y = round(float(y_mm) * self.sy_per_mm)
+    def target_steps(self, x_mm, y_mm):
+        x = float(x_mm) * self.sx_per_mm
+        y = float(y_mm) * self.sy_per_mm
+        if not isfinite(x) or not isfinite(y):
+            raise ValueError("nonfinite steps")
+        return round(x), round(y)
+
+    def plan(self, x_mm, y_mm, commit=True):
+        target_x, target_y = self.target_steps(x_mm, y_mm)
         direction = (target_x >= self.x_steps, target_y >= self.y_steps)
         events = line_events(self.x_steps, self.y_steps, target_x, target_y)
-        self.x_steps, self.y_steps = target_x, target_y
+        if commit:
+            self.x_steps, self.y_steps = target_x, target_y
         return events, direction
 
     def zero(self, x_mm=0.0, y_mm=0.0):
-        self.x_steps = round(float(x_mm) * self.sx_per_mm)
-        self.y_steps = round(float(y_mm) * self.sy_per_mm)
+        self.x_steps, self.y_steps = self.target_steps(x_mm, y_mm)

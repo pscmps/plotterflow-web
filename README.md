@@ -152,6 +152,8 @@ GitHub Pagesは`main`ブランチのrepository rootを直接公開します。�
 
 実装は`micropython-setup.js`（ピン候補・検証・Python設定生成・SVG）、`app.js`（設定保存・画面・転送）に分離しています。ホスト側確認は`node tools/micropython-setup-test.cjs`、`python tools/micropython-pio-test.py`で実行できます。公開バンドルのPIOはXをOUT、Yをside-setへ割り当て、非連番のSTEP GPIOでも同じ命令で出力する構成です。PWM・PIO波形・電圧・実機配線は未検証です。現状の試作は速度指令の厳密な反映、加減速、移動中の即時STOP、FIFO完了待ちが未完成なので、機械を接続した通常運転にはまだ使用しないでください。TMC UART設定、シリアルサーボ、LCD/SD操作もこのSTEP/DIR版には含みません。
 
+G-codeの受理形式・拒否時の状態維持・G92のinch/mm換算は[配布版G-code入力仕様](docs/micropython-gcode.md)を参照してください。`python -B tools/micropython-gcode-test.py`で不正入力と座標処理を実機なしで検査できます。
+
 初回だけ、次の手順でMicroPython本体を導入します。
 
 1. 画面の「公式MicroPythonの取得ページを開く」から対象ボードの公式ページを開き、UF2ファイルを取得する。

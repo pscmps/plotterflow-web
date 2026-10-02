@@ -3,6 +3,14 @@
 from gcode import parse_words, ModalState
 
 
+PARAMETERS = {
+    "G0": "XYZF", "G1": "XYZF", "G92": "XYZ",
+    "G90": "", "G91": "", "G20": "", "G21": "",
+    "M17": "", "M18": "", "M3": "S", "M5": "S",
+    "M115": "", "M119": "",
+}
+
+
 class Controller:
     def __init__(self, planner, stepper, pen, inputs=None):
         self.modal = ModalState()
@@ -17,7 +25,22 @@ class Controller:
             self.stop_requested = True
             self.stepper.stop()
             return "ok"
-        command, words = parse_words(line)
+        try:
+            command, words = parse_words(line)
+            if command and command not in PARAMETERS:
+                return "error:unsupported"
+            if command and any(axis not in PARAMETERS[command] for axis in words):
+                return "error:invalid_gcode"
+            # Validate before checking LIMIT: malformed input must not disable
+            # outputs, and overflow must not leave partially updated positions.
+            if command in ("G0", "G1"):
+                target, feed = self.modal.prepare_motion(words)
+                steps = self.planner.target_steps(target[0], target[1])
+            elif command == "G92":
+                target = self.modal.coordinates(words, absolute=True)
+                steps = self.planner.target_steps(target[0], target[1])
+        except (ValueError, OverflowError):
+            return "error:invalid_gcode"
         if not command:
             return "ok"
         if command in ('M17', 'G0', 'G1') and self.inputs and self.inputs.blocked():
@@ -28,12 +51,17 @@ class Controller:
         if command == "G0" or command == "G1":
             if not self.modal.enabled:
                 return "error:motors_disabled"
-            target = self.modal.motion(words)
-            events, direction = self.planner.plan(target[0], target[1])
+            try:
+                events, direction = self.planner.plan(target[0], target[1], commit=False)
+            except MemoryError:
+                return "error:plan_too_large"
             self.stepper.set_directions(*direction)
             self.stepper.queue(events)
             if "Z" in words:
                 (self.pen.down if target[2] <= 0 else self.pen.up)()
+            self.modal.x, self.modal.y, self.modal.z = target
+            self.modal.feed = feed
+            self.planner.x_steps, self.planner.y_steps = steps
             return "ok"
         if command == "G90":
             self.modal.absolute = True
@@ -44,10 +72,8 @@ class Controller:
         elif command == "G21":
             self.modal.mm = True
         elif command == "G92":
-            self.modal.x = words.get("X", self.modal.x)
-            self.modal.y = words.get("Y", self.modal.y)
-            self.modal.z = words.get("Z", self.modal.z)
-            self.planner.zero(self.modal.x, self.modal.y)
+            self.modal.x, self.modal.y, self.modal.z = target
+            self.planner.x_steps, self.planner.y_steps = steps
         elif command == "M17":
             self.stepper.set_enabled(True)
             self.modal.enabled = True
