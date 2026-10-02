@@ -130,7 +130,7 @@ const CONTROLLER_PROFILES = {
   "micropython-rp-stepdir": {
     development: true,
     firmwareKind: "micropython",
-    boardRecipe: "pico2-stepdir",
+    boardRecipe: "pico-stepdir",
     backendKind: "stepdir",
     supportsFileUpload: true,
     verification: "動作未確認",
@@ -141,9 +141,10 @@ const CONTROLLER_PROFILES = {
       "初回のMicroPython UF2導入、Pythonファイル転送、PIO波形、モータ接続を含めて実機未確認です。現在はCPythonホストテストのみ確認済みです。",
       "初期対象はPico 2 / Pico 2 W recipeとTMC2209等のSTEP/DIRドライバです。TMC UART設定は後段オプションで、MVPではSTEP/DIRを使用します。",
       "M17、G21、G90、G92を初期化時に送り、M3/M5またはG0 Z0/Z1でPWMペンを操作します。",
+      "基板r2はLIMIT内部プルアップ対応。M119で入力を確認できます。LIMIT作動中はM17/G0/G1を拒否しますが、移動中の即時停止・ホーミングは未実装です。起動直後のPWMはLOWで、ペン命令までサーボを動かしません。",
       "Python側でXYの同期ステップ列を計画し、パルス生成はPIOへ分離する構成です。加減速とFIFO余裕は未検証です。",
       "STS3215、Dynamixel、DRV8835 planar、Rθはこのプロファイルへ混在させず、別backendとして追加します。",
-      "MicroPythonファイル更新はPlotterFlowのWeb Serial拡張で追加予定です。初期UF2のブラウザ自動書込みは別フェーズです。"
+      "開発中タブから対象ボードを選び、PlotterFlowのWeb SerialでG-code対応Python一式を永続保存できます。初期UF2のブラウザ自動書込みは別フェーズです。"
     ],
     capabilities: { statusPolling: false, microPython: true, fileUpload: true },
     settings: {
@@ -223,6 +224,93 @@ function defaultRthetaControlUrl() {
   return tailscale ? `http://${location.hostname}:8768/` : "http://127.0.0.1:8768/";
 }
 
+const MICRO_PYTHON_BOARD_PROFILES = {
+  pico: { label: "Raspberry Pi Pico", firmwareUrl: "https://micropython.org/download/RPI_PICO/", driveName: "RPI-RP2", boot: "USBを外し、BOOTSELを押したままUSB接続してから離します。", pins: [2, 4, 3, 5, 7, 12] },
+  picow: { label: "Raspberry Pi Pico W", firmwareUrl: "https://micropython.org/download/RPI_PICO_W/", driveName: "RPI-RP2", boot: "USBを外し、BOOTSELを押したままUSB接続してから離します。", pins: [2, 4, 3, 5, 7, 12] },
+  pico2: { label: "Raspberry Pi Pico 2", firmwareUrl: "https://micropython.org/download/RPI_PICO2/", driveName: "RP2350", boot: "USBを外し、BOOTSELを押したままUSB接続してから離します。Pico 2はArm版UF2を選びます。", pins: [2, 4, 3, 5, 7, 12] },
+  pico2w: { label: "Raspberry Pi Pico 2 W", firmwareUrl: "https://micropython.org/download/RPI_PICO2_W/", driveName: "RP2350", boot: "USBを外し、BOOTSELを押したままUSB接続してから離します。Pico 2 WはArm版UF2を選びます。", pins: [2, 4, 3, 5, 7, 12] },
+  plotterflow_motor_shield_pico2w: {
+    label: "PlotterFlow Motor Shield v0.7（Pico 2 W / 開発中）",
+    firmwareUrl: "https://micropython.org/download/RPI_PICO2_W/",
+    driveName: "RP2350",
+    boot: "シールドからPico 2 Wを外し、BOOTSELを押したままUSB接続してから離します。Pico 2 W用Arm版UF2を選びます。",
+    pins: [2, 4, 3, 5, 7, 12],
+    signals: {
+      X_STEP: { gpio: 2, physical: "J1-4" }, X_DIR: { gpio: 4, physical: "J1-6" },
+      Y_STEP: { gpio: 3, physical: "J1-5" }, Y_DIR: { gpio: 5, physical: "J1-7" },
+      ENABLE: { gpio: 7, physical: "J1-10" }, X_LIMIT: { gpio: 6, physical: "J1-9" },
+      Y_LIMIT: { gpio: 8, physical: "J1-11" }, Z_SERVO_PWM: { gpio: 12, physical: "J1-16" },
+      BUTTON_UP: { gpio: 9, physical: "J1-12" }, BUTTON_DOWN: { gpio: 10, physical: "J1-14" },
+      BUTTON_OK: { gpio: 11, physical: "J1-15" }, TMC_UART_TX: { gpio: 0, physical: "J1-1" },
+      TMC_UART_RX: { gpio: 1, physical: "J1-2" }, SERIAL_DATA_GPIO: { gpio: 13, physical: "J1-17" }
+    },
+    wiring: "設計検討版v0.7・発注前。STEP/DIR: X GP2/GP4 (J1-4/J1-6)、Y GP3/GP5 (J1-5/J1-7)、ENABLE GP7 (J1-10・active-low)、Z PWM GP12 (J1-16)。LIMIT: X GP6 (J1-9)、Y GP8 (J1-11)。ボタン: UP GP9 (J1-12)、DOWN GP10 (J1-14)、OK GP11 (J1-15)。TMC UART: TX GP0 (J1-1)、RX GP1 (J1-2)。シリアルサーボDATA: GP13 (J1-17)。"
+  },
+  plotterflow_motor_shield_lcd147a: {
+    label: "PlotterFlow Motor Shield v0.7（RP2350-LCD-1.47-A / 開発中）",
+    firmwareUrl: "https://www.waveshare.com/rp2350-lcd-1.47-a.htm",
+    driveName: "RP2350",
+    boot: "RP2350-LCD-1.47-AのUSB-Cを接続し、公式ページのBOOT/RESET手順でRP2350ドライブを表示します。",
+    firmwareNote: "このボードは公式製品ページから対応するRP2350 MicroPython UF2の有無を確認してください。",
+    pins: [2, 4, 3, 5, 7, 9],
+    signals: {
+      X_STEP: { gpio: 2, physical: "J2-15" }, X_DIR: { gpio: 4, physical: "J2-17" },
+      Y_STEP: { gpio: 3, physical: "J2-16" }, Y_DIR: { gpio: 5, physical: "J2-18" },
+      ENABLE: { gpio: 7, physical: "J2-2" }, X_LIMIT: { gpio: 6, physical: "J2-1" },
+      Y_LIMIT: { gpio: 8, physical: "J2-3" }, Z_SERVO_PWM: { gpio: 9, physical: "J2-4" },
+      BUTTON_UP: { gpio: 25, physical: "J2-5" }, BUTTON_DOWN: { gpio: 26, physical: "J2-6" },
+      BUTTON_OK: { gpio: 27, physical: "J2-7" }, TMC_UART_TX: { gpio: 0, physical: "J2-13" },
+      TMC_UART_RX: { gpio: 1, physical: "J2-14" }, SERIAL_DATA_GPIO: { gpio: 28, physical: "J2-9" }
+    },
+    wiring: "設計検討版v0.7・発注前。STEP/DIR: X GP2/GP4 (J2-15/J2-17)、Y GP3/GP5 (J2-16/J2-18)、ENABLE GP7 (J2-2・active-low)、Z PWM GP9 (J2-4)。LIMIT: X GP6 (J2-1)、Y GP8 (J2-3)。ボタン: UP GP25 (J2-5)、DOWN GP26 (J2-6)、OK GP27 (J2-7)。TMC UART: TX GP0 (J2-13)、RX GP1 (J2-14)。シリアルサーボDATA: GP28 (J2-9)。SD/LCDで予約されるGP10〜24は使いません。"
+  },
+  plotterflow_motor_shield_touch2: {
+    label: "PlotterFlow Motor Shield v0.7（RP2350-Touch-LCD-2/-C / 開発中）",
+    firmwareUrl: "https://www.waveshare.com/product/rp2350-touch-lcd-2.htm",
+    driveName: "RP2350",
+    boot: "RP2350-Touch-LCD-2/-CのUSB-Cを接続し、公式ページのBOOT/RESET手順でRP2350ドライブを表示します。カメラ/FPCは外す構成です。",
+    firmwareNote: "このボードはカメラ/FPCを外す前提です。公式製品ページから対応するRP2350 MicroPython UF2の有無を確認してください。",
+    pins: [2, 4, 3, 5, 7, 9],
+    signals: {
+      X_STEP: { gpio: 2, physical: "J3-7" }, X_DIR: { gpio: 4, physical: "J3-11" },
+      Y_STEP: { gpio: 3, physical: "J3-9" }, Y_DIR: { gpio: 5, physical: "J3-19" },
+      ENABLE: { gpio: 7, physical: "J3-28" }, X_LIMIT: { gpio: 6, physical: "J3-20" },
+      Y_LIMIT: { gpio: 8, physical: "J3-26" }, Z_SERVO_PWM: { gpio: 9, physical: "J3-27" },
+      BUTTON_UP: { gpio: 10, physical: "J3-12" }, BUTTON_DOWN: { gpio: 11, physical: "J3-21" },
+      BUTTON_OK: { gpio: 22, physical: "J3-25" }, TMC_UART_TX: { gpio: 0, physical: "J3-10" },
+      TMC_UART_RX: { gpio: 1, physical: "J3-8" }, SERIAL_DATA_GPIO: { gpio: 21, physical: "J3-24" }
+    },
+    wiring: "設計検討版v0.7・発注前。STEP/DIR: X GP2/GP4 (J3-7/J3-11)、Y GP3/GP5 (J3-9/J3-19)、ENABLE GP7 (J3-28・active-low)、Z PWM GP9 (J3-27)。LIMIT: X GP6 (J3-20)、Y GP8 (J3-26)。ボタン: UP GP10 (J3-12)、DOWN GP11 (J3-21)、OK GP22 (J3-25)。TMC UART: TX GP0 (J3-10)、RX GP1 (J3-8)。シリアルサーボDATA: GP21 (J3-24)。カメラ・LCD・SD予約ピンは使いません。"
+  },
+  plotterflow_motor_shield_pizero: {
+    label: "PlotterFlow Motor Shield v0.7（RP2350-PiZero / 開発中）",
+    firmwareUrl: "https://www.waveshare.com/rp2350-pizero.htm",
+    driveName: "RP2350",
+    boot: "RP2350-PiZeroをUSB接続し、公式ページのBOOT/RESET手順でRP2350ドライブを表示します。Pi Zero Linux版とは別のRP2350版を選びます。",
+    firmwareNote: "この選択肢はRP2350-PiZero用です。LinuxのRaspberry Pi Zero（BCM番号）ではこのMicroPython RPファームウェアは動きません。",
+    pins: [17, 18, 22, 23, 14, 12],
+    signals: {
+      X_STEP: { gpio: 17, physical: "J4-11" }, X_DIR: { gpio: 18, physical: "J4-12" },
+      Y_STEP: { gpio: 22, physical: "J4-15" }, Y_DIR: { gpio: 23, physical: "J4-16" },
+      ENABLE: { gpio: 14, physical: "J4-7" }, X_LIMIT: { gpio: 2, physical: "J4-3" },
+      Y_LIMIT: { gpio: 3, physical: "J4-5" }, Z_SERVO_PWM: { gpio: 12, physical: "J4-32" },
+      BUTTON_UP: { gpio: null, physical: "HAT側UI" }, BUTTON_DOWN: { gpio: null, physical: "HAT側UI" },
+      BUTTON_OK: { gpio: null, physical: "HAT側UI" }, TMC_UART_TX: { gpio: 4, physical: "J4-8" },
+      TMC_UART_RX: { gpio: 5, physical: "J4-10" }, SERIAL_DATA_GPIO: { gpio: 9, physical: "J4-26" }
+    },
+    wiring: "設計検討版v0.7・発注前。RP2350-PiZeroはX STEP/DIR GP17/GP18 (J4-11/J4-12)、Y STEP/DIR GP22/GP23 (J4-15/J4-16)、ENABLE GP14 (J4-7・active-low)、Z PWM GP12 (J4-32)。LIMIT: X GP2 (J4-3)、Y GP3 (J4-5)。ボタンは基板未接続でHAT側UIです。TMC UART: TX GP4 (J4-8)、RX GP5 (J4-10)。シリアルサーボDATA: GP9 (J4-26)。"
+  },
+  rp2040_geek: { label: "Waveshare RP2040-GEEK", firmwareUrl: "https://files.waveshare.com/wiki/RP2350-Plus/WAVESHARE-RP2040-Board.zip", driveName: "RPI-RP2", boot: "USB接続後、BOOTとRESETを同時に押し、RESET、BOOTの順に離します。", pins: [2, 4, 3, 5, 7, 12] },
+  rp2350_geek: { label: "Waveshare RP2350-GEEK", firmwareUrl: "https://files.waveshare.com/wiki/RP2350-Plus/WAVESHARE-RP2350A-Board.zip", driveName: "RP2350", boot: "USB接続後、BOOTとRESETを同時に押し、RESET、BOOTの順に離します。", pins: [2, 4, 3, 5, 7, 12] },
+  xiao_rp2040: { label: "Seeed Studio XIAO RP2040", firmwareUrl: "https://micropython.org/download/SEEED_XIAO_RP2040/", driveName: "RPI-RP2", boot: "BOOTを押したままUSB接続して離します。接続済みならBOOTを押しながらRESETを押して離し、最後にBOOTを離します。", pins: [2, 4, 3, 5, 7, 12] },
+  xiao_rp2350: { label: "Seeed Studio XIAO RP2350", firmwareUrl: "https://micropython.org/download/SEEED_XIAO_RP2350/", driveName: "RP2350", boot: "BOOTを押したままUSB接続して離します。接続済みならBOOTを押しながらRESETを押して離し、最後にBOOTを離します。", pins: [2, 4, 3, 5, 7, 12] },
+  atom_lite: { label: "M5Stack ATOM Lite（このRP版では対象外）", firmwareUrl: "https://micropython.org/download/ESP32_GENERIC/", driveName: "", supported: false, boot: "ATOM LiteはRP2040/RP2350版とは別のESP32実装が必要です。", pins: [] }
+};
+MicroPythonShieldRecipes.extend(MICRO_PYTHON_BOARD_PROFILES);
+const MICRO_PYTHON_BUNDLE_FILES = ["board_config.py", "gcode.py", "planner.py", "pio_stepper.py", "pen.py", "inputs.py", "protocol.py", "update_store.py", "main.py"];
+function microPythonBoardConfig(boardId) {
+  return MicroPythonSetup.boardConfig(selectedMicroPythonConfiguration(boardId));
+}
 const DEFAULTS = {
   controllerProfile: "grbl-fluidnc",
   penUpCommand: "M3 S1400", penDownCommand: "M3 S1000",
@@ -348,6 +436,229 @@ function migrateSts3215DirectAxesProfile() {
 function toast(message) { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2200); }
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
 function switchTab(name) { $$(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === name)); $$(".panel").forEach(x => x.classList.toggle("active", x.id === `tab-${name}`)); }
+function isMicroPythonProfile() {
+  return activeControllerProfile().firmwareKind === "micropython";
+}
+const MICRO_PYTHON_SETUP_KEY = "plotterflow.micropythonSetupV2";
+const microPythonSetup = loadJSON(MICRO_PYTHON_SETUP_KEY, {
+  custom: false, shield: "plotterflow_motor_shield_pico2w", standalone: "pico", pins: {}, view: "schematic"
+});
+function selectedMicroPythonBoardId() {
+  const saved = microPythonSetup.custom ? microPythonSetup.standalone : microPythonSetup.shield;
+  return MICRO_PYTHON_BOARD_PROFILES[saved]?.supported !== false && MICRO_PYTHON_BOARD_PROFILES[saved]
+    && MicroPythonSetup.isShield(saved) === !microPythonSetup.custom ? saved
+    : microPythonSetup.custom ? "pico" : "plotterflow_motor_shield_pico2w";
+}
+function selectedMicroPythonConfiguration(id = selectedMicroPythonBoardId()) {
+  return MicroPythonSetup.configuration(id, MICRO_PYTHON_BOARD_PROFILES[id], microPythonSetup.pins?.[id]);
+}
+function renderMicroPythonBoard() {
+  const select = $("#microPythonBoard");
+  if (!select) return;
+  const selected = selectedMicroPythonBoardId();
+  select.replaceChildren(...Object.entries(MICRO_PYTHON_BOARD_PROFILES)
+    .filter(([id]) => MicroPythonSetup.isShield(id) === !microPythonSetup.custom).map(([id, board]) => {
+    const option = new Option(board.label, id, false, id === selected);
+    option.disabled = board.supported === false;
+    return option;
+  }));
+  const board = MICRO_PYTHON_BOARD_PROFILES[selected] || MICRO_PYTHON_BOARD_PROFILES.pico;
+  const config = selectedMicroPythonConfiguration(selected);
+  $("#microPythonCustomPins").checked = !!microPythonSetup.custom;
+  $("#microPythonPinControls").hidden = !microPythonSetup.custom;
+  $("#microPythonPinControls").replaceChildren(...MicroPythonSetup.signals.map(name => {
+    const label = document.createElement("label");
+    label.textContent = name;
+    const input = document.createElement("select");
+    input.dataset.signal = name;
+    input.setAttribute("aria-label", name);
+    input.replaceChildren(...MicroPythonSetup.availablePins(selected).map(pin =>
+      new Option(MicroPythonSetup.pinLabel(selected, pin), String(pin), false, pin === config.pins[name])));
+    // Do not silently display another pin if persisted configuration is corrupt.
+    if (!MicroPythonSetup.availablePins(selected).includes(config.pins[name]))
+      input.add(new Option("使用できないGPIO：再選択してください", String(config.pins[name]), true, true));
+    label.append(input);
+    return label;
+  }));
+  $("#microPythonPinError").textContent = config.errors.join(" ");
+  $("#microPythonPinError").hidden = !config.errors.length;
+  const physical = microPythonSetup.view === "physical";
+  $$("[data-wiring-view]").forEach(button => button.setAttribute("aria-pressed", String((button.dataset.wiringView === "physical") === physical)));
+  $("#microPythonWiringDiagram").innerHTML = config.errors.length ? "ピンの重複・範囲を修正すると配線図を表示します。"
+    : physical ? MicroPythonBoardView.render(config) : MicroPythonSetup.render(config);
+  $("#microPythonSetupControls").disabled = state.sending;
+  const hint = $("#microPythonBoardHint");
+  if (hint) hint.textContent = board.boot + (board.driveName ? " UF2ドライブ名の目安: " + board.driveName + "。" : "");
+  const wiring = $("#microPythonBoardWiring");
+  if (wiring) wiring.textContent = microPythonSetup.custom
+    ? "単体ボードの外部端子から選択します。選択は配線図と転送するboard_config.pyへ同時に反映されます。" : board.wiring;
+  const link = $("#microPythonFirmwareLink");
+  if (link) {
+    link.href = board.firmwareUrl;
+    link.textContent = board.supported === false ? "このボードのRP版MicroPythonは対象外" : "公式MicroPythonの取得ページを開く";
+  }
+  const guide = $("#microPythonInitialGuide");
+  if (guide) guide.innerHTML = board.supported === false
+    ? "このMicroPython STEP/DIR版はRP2040/RP2350向けです。ATOM LiteはESP32用実装を別途追加します。"
+    : "<strong>初回だけ:</strong> " + escapeHtml(board.firmwareNote || "上の公式ページからUF2を取得してください。") + " " + escapeHtml(board.boot) + " UF2を" + escapeHtml(board.driveName || "表示されたUF2ドライブ") + "へコピーします。再起動後、下のSerial接続を押してください。ブラウザからUF2を自動書き込みする機能はまだありません。";
+  const upload = $("#uploadMicroPythonFiles");
+  if (upload) upload.disabled = board.supported === false || !!config.errors.length || state.sending;
+}
+function renderDevelopmentPanel() {
+  const select = $("#developmentFirmwareProfile");
+  if (!select) return;
+  const entries = Object.entries(CONTROLLER_PROFILES).filter(([, profile]) => profile.development);
+  const selected = entries.some(([id]) => id === state.settings.controllerProfile) ? state.settings.controllerProfile : entries[0]?.[0];
+  select.replaceChildren(...entries.map(([id, profile]) => new Option(profile.label, id, false, id === selected)));
+  const profile = CONTROLLER_PROFILES[selected] || CONTROLLER_PROFILES["micropython-rp-stepdir"];
+  const description = $("#developmentFirmwareDescription");
+  if (description && profile) description.innerHTML = `<div class="profile-description-heading"><strong>${escapeHtml(profile.label)}</strong><span>${escapeHtml(profile.phase)}</span></div>${profile.verification ? `<em class="profile-verification">${escapeHtml(profile.verification)}</em>` : ""}<p>${escapeHtml(profile.summary)}</p><ul>${profile.notes.map(note => `<li>${escapeHtml(note)}</li>`).join("")}</ul>`;
+  const card = $("#microPythonTransferCard");
+  if (card) card.hidden = profile?.firmwareKind !== "micropython";
+  const current = $("#developmentFirmwareCurrent");
+  if (current) current.textContent = profile?.label || "—";
+  if (profile?.firmwareKind === "micropython") renderMicroPythonBoard();
+}
+function bindDevelopment() {
+  $$("[data-wiring-view]").forEach(button => button.addEventListener("click", () => {
+    microPythonSetup.view = button.dataset.wiringView;
+    saveJSON(MICRO_PYTHON_SETUP_KEY, microPythonSetup);
+    renderMicroPythonBoard();
+  }));
+  const select = $("#developmentFirmwareProfile");
+  if (select) select.addEventListener("change", event => {
+    if (!state.developmentMode) {
+      state.developmentMode = true;
+      localStorage.setItem(DEVELOPMENT_MODE_KEY, "1");
+    }
+    applyControllerProfile(event.target.value);
+    renderDevelopmentPanel();
+  });
+  $("#microPythonBoard")?.addEventListener("change", event => {
+    microPythonSetup[microPythonSetup.custom ? "standalone" : "shield"] = event.target.value;
+    saveJSON(MICRO_PYTHON_SETUP_KEY, microPythonSetup);
+    renderMicroPythonBoard();
+  });
+  $("#microPythonCustomPins")?.addEventListener("change", event => {
+    microPythonSetup.custom = event.target.checked;
+    saveJSON(MICRO_PYTHON_SETUP_KEY, microPythonSetup);
+    renderMicroPythonBoard();
+  });
+  $("#microPythonPinControls")?.addEventListener("change", event => {
+    const name = event.target.dataset.signal;
+    if (!MicroPythonSetup.signals.includes(name)) return;
+    const id = selectedMicroPythonBoardId();
+    microPythonSetup.pins ||= {};
+    microPythonSetup.pins[id] = { ...selectedMicroPythonConfiguration(id).pins, [name]: Number(event.target.value) };
+    saveJSON(MICRO_PYTHON_SETUP_KEY, microPythonSetup);
+    renderMicroPythonBoard();
+  });
+  $("#uploadMicroPythonFiles")?.addEventListener("click", uploadMicroPythonFiles);
+  $("#developmentConnectSerial")?.addEventListener("click", connectSerial);
+  $("#developmentDisconnectSerial")?.addEventListener("click", disconnectSerial);
+  renderDevelopmentPanel();
+}
+function bytesToBase64(bytes) {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  return btoa(binary);
+}
+async function readRawUntil(reader, token, timeoutMs) {
+  const decoder = new TextDecoder();
+  let text = "";
+  while (!text.includes(token)) {
+    let timer;
+    const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`raw REPL応答待ちがタイムアウトしました: ${token}`)), timeoutMs); });
+    try {
+      const result = await Promise.race([reader.read(), timeout]);
+      if (result.done) throw new Error("Serialが切断されました");
+      text += decoder.decode(result.value, { stream: true });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return text;
+}
+async function rawReplExec(writer, reader, code) {
+  await writer.write(new TextEncoder().encode(code));
+  await writer.write(new Uint8Array([0x04]));
+  const output = await readRawUntil(reader, ">", 5000);
+  if (/Traceback|Error|OSError|ValueError/i.test(output)) throw new Error(output.replace(/[\x00-\x04]/g, " ").trim());
+  return output;
+}
+async function loadMicroPythonBundle(boardId) {
+  // Snapshot before the first await: diagram/config cannot diverge mid-transfer.
+  const boardConfig = microPythonBoardConfig(boardId);
+  const root = new URL("firmware/micropython/rp_stepdir/", document.baseURI);
+  const files = [];
+  for (const name of MICRO_PYTHON_BUNDLE_FILES) {
+    if (name === "board_config.py") continue;
+    const response = await fetch(new URL(name, root), { cache: "no-cache" });
+    if (!response.ok) throw new Error(name + "の取得に失敗しました (" + response.status + ")");
+    files.push({ name, bytes: new Uint8Array(await response.arrayBuffer()) });
+  }
+  files.unshift({ name: "board_config.py", bytes: new TextEncoder().encode(boardConfig) });
+  return files;
+}
+async function uploadMicroPythonFiles() {
+  if (!isMicroPythonProfile()) return toast("開発中タブでMicroPythonプロファイルを選択してください");
+  if (!state.writer || !state.port) return toast("先にSerial接続してください");
+  if (state.sending || state.jogging || state.sdUploading) return toast("送信・ジョグ中はファイル更新できません");
+  const boardId = $("#microPythonBoard")?.value || selectedMicroPythonBoardId();
+  const board = MICRO_PYTHON_BOARD_PROFILES[boardId];
+  if (!board || board.supported === false) return toast("このボードは現在のMicroPython版の対象外です");
+  const errors = selectedMicroPythonConfiguration(boardId).errors;
+  if (errors.length) return toast(errors.join(" "));
+  state.sending = true;
+  renderMicroPythonBoard();
+  const status = $("#microPythonTransferStatus");
+  if (status) status.textContent = board.label + "用ファームウェアを準備しています…";
+  let reader = null;
+  let raw = false;
+  try {
+    const files = await loadMicroPythonBundle(boardId);
+    if (status) status.textContent = files.length + "ファイルを停止してraw REPLへ永続保存します…";
+    try { await state.writer.write(new Uint8Array([0x85])); } catch {}
+    await sleep(100);
+    try { await rawWrite("M18\n", false); } catch {}
+    await sleep(100);
+    try { await state.reader?.cancel(); } catch {}
+    await sleep(100);
+    state.reader = null;
+    reader = state.port.readable.getReader();
+    await state.writer.write(new Uint8Array([0x03, 0x03, 0x01]));
+    await readRawUntil(reader, ">", 4000);
+    raw = true;
+    for (const file of files) {
+      const bytes = file.bytes;
+      const encoded = bytesToBase64(bytes);
+      const tempName = `${file.name}.tmp`;
+      await rawReplExec(state.writer, reader, `import ubinascii\nf=open(${JSON.stringify(tempName)},"wb")\nf.close()`);
+      for (let offset = 0; offset < encoded.length; offset += 512) {
+        const chunk = encoded.slice(offset, offset + 512);
+        await rawReplExec(state.writer, reader, `import ubinascii\nf=open(${JSON.stringify(tempName)},"ab")\nf.write(ubinascii.a2b_base64(${JSON.stringify(chunk)}))\nf.close()`);
+      }
+      await rawReplExec(state.writer, reader, `import os\nos.rename(${JSON.stringify(tempName)},${JSON.stringify(file.name)})`);
+      if (status) status.textContent = `${file.name}を転送しました (${bytes.length} bytes)`;
+    }
+    await state.writer.write(new Uint8Array([0x02]));
+    raw = false;
+    await sleep(100);
+    await state.writer.write(new Uint8Array([0x04]));
+    toast("MicroPythonファームウェアを永続保存しました");
+    if (status) status.textContent = "永続保存完了。ボードを再起動するとmain.pyが実行されます。";
+  } catch (error) {
+    log(`MicroPythonファイル転送エラー: ${error.message}`, "rx");
+    if (status) status.textContent = `転送失敗: ${error.message}`;
+    toast("MicroPythonファイル転送に失敗しました");
+  } finally {
+    if (raw) { try { await state.writer.write(new Uint8Array([0x02])); } catch {} }
+    try { reader?.releaseLock(); } catch {}
+    if (state.port && !state.reader) readSerial();
+    state.sending = false;
+    renderMicroPythonBoard();
+  }
+}
 function installLocalTestBridge() {
   if (!["127.0.0.1", "localhost"].includes(location.hostname)) return;
   Object.defineProperties(window, {
@@ -363,7 +674,7 @@ function init() {
   migrateSts3215DirectAxesProfile();
   if (!localStorage.getItem("plotterflow.svgOrientationV1")) { state.settings.yFlip = true; saveJSON("plotterflow.settings", state.settings); localStorage.setItem("plotterflow.svgOrientationV1", "1"); }
   $$(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
-  bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindJobs();
+  bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindDevelopment(); bindJobs();
   populateSettings(); refreshLibrary(); updateEditorStats(); renderJobs();
   if (!("serial" in navigator)) log("Web SerialはChrome/EdgeのHTTPSまたはlocalhostで利用できます。", "rx");
   installLocalTestBridge();
@@ -722,7 +1033,7 @@ function bindSettings() {
   $("#controllerProfile").addEventListener("change", event => applyControllerProfile(event.target.value));
   $("#resetSettings").addEventListener("click", () => { if (confirm("設定を初期値へ戻しますか？")) { state.settings = { ...DEFAULTS }; populateSettings(); saveJSON("plotterflow.settings", state.settings); } });
 }
-function populateSettings() { const f = $("#settingsForm"); renderDevelopmentMode(); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; populateJogSettings(); renderControllerProfile(); updateSerialProfileDisplay(); }
+function populateSettings() { const f = $("#settingsForm"); renderDevelopmentMode(); for (const [k,v] of Object.entries(state.settings)) if (f.elements[k]) f.elements[k].type === "checkbox" ? f.elements[k].checked = !!v : f.elements[k].value = v; $("#svgOrientationFlip").checked=state.settings.yFlip; $("#serialBaud").value = state.settings.baudrate; populateJogSettings(); renderControllerProfile(); updateSerialProfileDisplay();  renderDevelopmentPanel(); }
 function readSettings() { const f = $("#settingsForm"); for (const k of Object.keys(DEFAULTS)) if (f.elements[k]) state.settings[k] = f.elements[k].type === "checkbox" ? f.elements[k].checked : f.elements[k].type === "number" ? +f.elements[k].value : f.elements[k].value; }
 function developmentModeBusy() {
   return !!(state.port || state.sending || state.jogging || state.sdUploading || state.sdManagementActive);
@@ -811,6 +1122,7 @@ function updateSerialProfileDisplay() {
   }
   updateSerialDestinationUi();
   updateJogProfileUi();
+  renderDevelopmentPanel();
   updatePlanarArmVisibility();
   const sdDownload = $("#downloadSdGcode");
   if (sdDownload) sdDownload.hidden = !isSts3215DirectAxes();

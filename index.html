@@ -7,7 +7,7 @@
   <title>PlotterFlow - Pen Plotter Layout Editor</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css?v=20260715-1">
-  <link rel="stylesheet" href="profile.css?v=20260906-1">
+  <link rel="stylesheet" href="profile.css?v=20260927-4">
   <link rel="stylesheet" href="drawing.css?v=20260812-2">
   <link rel="stylesheet" href="serial.css?v=20260806-1">
   <link rel="stylesheet" href="conversion.css">
@@ -29,6 +29,7 @@
     <button class="tab" data-tab="jobs">ジョブ実行</button>
     <button class="tab" data-tab="serial">Serial</button>
     <button class="tab" data-tab="settings">設定</button>
+    <button class="tab" data-tab="development">開発中</button>
     <button class="tab" data-tab="help">ヘルプ</button>
   </nav>
 
@@ -434,6 +435,48 @@
         </ul>
       </article>
     </section>
+    <section id="tab-development" class="panel">
+      <div class="grid two">
+        <article class="card">
+          <h2>開発中ファームウェア</h2>
+          <p class="muted">ここに表示されるファームウェアは開発中です。実機書き込み・通信・モータ動作は未確認です。</p>
+          <label>ファームウェア構成<select id="developmentFirmwareProfile"></select></label>
+          <div id="developmentFirmwareDescription" class="controller-profile-description"></div>
+        </article>
+        <article id="microPythonTransferCard" class="card" hidden>
+          <h2>MicroPythonファームウェア転送</h2>
+          <p>初回だけ公式MicroPythonのUF2を導入し、その後はこの画面からG-code対応Python一式をWeb Serialで保存します。</p>
+          <p class="muted">現在のプロファイル: <strong id="developmentFirmwareCurrent">—</strong></p>
+          <fieldset id="microPythonSetupControls">
+          <legend>配線・ボード設定</legend>
+          <label class="check"><input id="microPythonCustomPins" type="checkbox">自分でPIN設定をする</label>
+          <p class="muted">通常はPlotter基板の固定配線を使用します。単体ボードへ自分で配線する場合だけチェックしてください。</p>
+          <label>対象ボード<select id="microPythonBoard"></select></label>
+          <p class="muted">抵抗改訂r2対応。新しい小型基板は「専用2層 … v0.1 r2」を選んでください。「汎用4層 v0.7 r2」とは端子位置が異なります。以前の選択は自動で変更しません。</p>
+          <div id="microPythonPinControls" class="micropython-pin-grid" hidden></div>
+          <p id="microPythonPinError" class="status" role="alert" hidden></p>
+          </fieldset>
+          <p id="microPythonBoardHint" class="muted"></p>
+          <p id="microPythonBoardWiring" class="muted"></p>
+          <details open class="micropython-wiring">
+            <summary>配線図（モータドライバ / PWMペンサーボ）</summary>
+            <div class="wiring-view-toggle" role="group" aria-label="配線図の表示切替">
+              <button type="button" data-wiring-view="schematic" aria-pressed="true">機能配線図</button>
+              <button type="button" data-wiring-view="physical" aria-pressed="false">基板の端子位置</button>
+            </div>
+            <p class="muted">「基板の端子位置」でボードの形・向き・差し込み位置を確認できます。表示切替はファームウェア設定を変更しません。</p>
+            <div id="microPythonWiringDiagram"></div>
+          </details>
+          <p><a id="microPythonFirmwareLink" target="_blank" rel="noreferrer">公式MicroPythonの取得ページを開く</a></p>
+          <p id="microPythonInitialGuide" class="muted"></p>
+          <div class="actions"><button id="developmentConnectSerial" class="primary">Serial接続</button><button id="developmentDisconnectSerial">切断</button></div>
+          <button id="uploadMicroPythonFiles" class="primary wide">PlotterFlow MicroPythonファームウェアを永続保存</button>
+          <p id="microPythonTransferStatus" class="status">Serial接続後に、main.pyと依存ファイルをまとめて転送できます。</p>
+          <p class="muted">Pico Blocksの「保存して実行」と同じく、ファイルシステムへmain.pyを永続保存します。転送処理・実機動作は未確認です。</p>
+          <p class="muted">このSTEP/DIR版は試作です。速度・加減速・移動中の即時STOPは未完成のため、機械を接続した通常運転にはまだ使用しないでください。</p>
+        </article>
+      </div>
+    </section>
     <section id="tab-settings" class="panel">
       <form id="settingsForm" class="settings-grid">
         <article class="card controller-profile-card">
@@ -473,7 +516,12 @@
     </section>
   </main>
   <div id="toast" role="status"></div>
-  <script src="app.js?v=20260927-1"></script>
+  <script src="micropython-shield-data.js?v=20260928-1"></script>
+  <script src="micropython-shield-recipes.js?v=20260928-1"></script>
+  <script src="micropython-setup.js?v=20260928-1"></script>
+  <script src="micropython-tmc-view.js?v=20260927-1"></script>
+  <script src="micropython-board-view.js?v=20260928-1"></script>
+  <script src="app.js?v=20261002-1"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js?v=20260812-2"></script>
   <script>

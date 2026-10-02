@@ -18,7 +18,7 @@ assert.match(app, /renderSerialTrajectory\(payload\.code, payload\.name\)/);
 assert.match(html, /id="developmentModeToggle"/);
 assert.match(html, /id="stsDirectAxesSettings" class="card" hidden/);
 assert.match(app, /const DEVELOPMENT_MODE_KEY = "plotterflow\.developmentModeV1"/);
-assert.equal((app.match(/development: true/g) || []).length, 5);
+assert.equal((app.match(/development: true/g) || []).length, 6);
 assert.match(app, /function handleDevelopmentModeChange\(event\)/);
 assert.match(app, /state\.port \|\| state\.sending \|\| state\.jogging \|\| state\.sdUploading \|\| state\.sdManagementActive/);
 

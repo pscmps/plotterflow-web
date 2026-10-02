@@ -142,6 +142,37 @@ Serial接続中、G-code送信中、Jog中、SD転送・管理中は、表示と
 
 GitHub Pagesは`main`ブランチのrepository rootを直接公開します。開発中の変更はbranchとPull Requestでsmoke testを通し、内容を確認してから`main`へmergeします。公開後はブラウザを再読込し、通常表示で試作機能が隠れることと、開発中モードで再表示できることを確認します。
 
+### MicroPython RP STEP/DIR（開発中・動作未確認）
+
+「開発中」タブでMicroPython RP STEP/DIR XY（開発中・動作未確認）を選びます。汎用4層 v0.7 r2の4構成（Pico 2 W、RP2350-LCD-1.47-A、RP2350-Touch-LCD-2/-C、RP2350-PiZero）と、専用2層 v0.1 r2の3構成（Pico 2 W、LCD1.47-A、LCD2/-C）を選べます。新基板は「専用2層」を選んでください。既存の選択・初期値（汎用Pico 2 W）は勝手に変更しません。[r2更新・制限事項](docs/micropython-shield-r2.md)を確認してください。
+
+単体ボードへ配線する場合だけ「自分でPIN設定をする」にチェックを入れます。Pico Blocksと同じPico / Pico W / Pico 2 / Pico 2 W / RP2040-GEEK / RP2350-GEEK / XIAO RP2040 / XIAO RP2350から選び、X_STEP・X_DIR・Y_STEP・Y_DIR・ENABLE・PEN_PWMを指定します。XIAOはD番号とGPIO番号を併記し、GEEKを含め外部に出ている端子だけを候補にしています。ATOM LiteはRP版対象外のため選択できません。固定基板と単体ボードの選択、およびボード別の自由配線をブラウザへ保存します。以前のボード選択だけから自由配線を自動で有効にはしません。
+
+ピン変更に追従するSVG配線図と、永続保存する`board_config.py`は同じ設定から生成します。GPIO重複・範囲外の設定では転送できません。標準の「機能配線図」はPico Blocksの`wiring.js`を元にした機能接続図で、実物の端子順を示す図ではありません。電源は図の名前付き接続先で確認し、MCU・ドライバ・外部電源のGNDだけを共通にします。外部電源の＋同士をつないだり、サーボをGPIO/3V3から給電したりしないでください。シールドモードの信号配線は基板内部で固定です。
+
+配線図の上にある「機能配線図 / 基板の端子位置」トグルで、必要なときだけ実端子位置を表示できます。Pico系・XIAOはPico Blocksの外形・端子配列を流用したUSBが上の表面図で、ピン変更に合わせて実端子から配線が出ます。Motor Shield v0.7はKiCadから照合したコネクタ側の裏面図で、J5/J6（モータ）、J7/J8（電源）、J9（PWMサーボ）の位置とピン番号を示します。表示選択は保存しますが、ファームウェア設定は変更しません。GEEKはコネクタ実物の向きが未照合のため実端子位置図を保留し、公式回路図への案内を表示します。外形は模式図・縮尺不同です。[表示の対象・出典・注意点](docs/micropython-wiring-views.md)も参照してください。
+
+接続先もBIGTREETECH TMC2209 V1.2の長方形StepStickとして表示します。金色の放熱面（TOP）・右上のトリマ・左右16端子を描き、X/YのSTEP/DIR/共通ENだけでなく、VDD・VM・GND、モータ巻線、PWMサーボ・外部電源まで線をつなぎます。単体ボード例はUARTなし・MS1=MS2=GNDの1/8マイクロステップなので、`steps/mm`は機構に合わせて設定してください。シールド側のMS/UARTは基板内配線に従います。全電源OFFで実物の印字と照合し、電流調整・放熱を行ってください。図は横スクロールできます。
+
+実装は`micropython-setup.js`（ピン候補・検証・Python設定生成・SVG）、`app.js`（設定保存・画面・転送）に分離しています。ホスト側確認は`node tools/micropython-setup-test.cjs`、`python tools/micropython-pio-test.py`で実行できます。公開バンドルのPIOはXをOUT、Yをside-setへ割り当て、非連番のSTEP GPIOでも同じ命令で出力する構成です。PWM・PIO波形・電圧・実機配線は未検証です。現状の試作は速度指令の厳密な反映、加減速、移動中の即時STOP、FIFO完了待ちが未完成なので、機械を接続した通常運転にはまだ使用しないでください。TMC UART設定、シリアルサーボ、LCD/SD操作もこのSTEP/DIR版には含みません。
+
+初回だけ、次の手順でMicroPython本体を導入します。
+
+1. 画面の「公式MicroPythonの取得ページを開く」から対象ボードの公式ページを開き、UF2ファイルを取得する。
+2. ボードごとの案内に従い、BOOTSELまたはBOOTを押したままUSB接続してUF2ドライブを表示する。RP2350系は公式ページで指定されたArm版UF2を使う。
+3. UF2を表示されたドライブへコピーし、ボードが再起動するまで待つ。
+4. 通常のUSBシリアルとして再接続し、同じ画面の「Serial接続」を押す。
+
+初回UF2のブラウザ自動書き込みはまだ行わず、公式UF2の取得とコピーは手動です。MicroPython本体が入った後は、「PlotterFlow MicroPythonファームウェアを永続保存」を押すだけで、PlotterFlowに同梱したmain.py、G-code parser、planner、PIO stepper、pen、protocol、update storeをWeb Serialのraw REPL経由で転送します。ボード選択に応じたboard_config.pyを先頭に保存し、各ファイルを一時名からリネームしてからmain.pyを最後に保存するため、Pico Blocksの「保存して実行」と同じく再起動後もファイルシステムに残る永続保存です。任意の.pyファイルを選ぶ方式ではありません。
+
+PlotterFlow Motor ShieldのPico 2 W版は、X STEP/DIR=GP2/GP4（J1-4/J1-6）、Y STEP/DIR=GP3/GP5（J1-5/J1-7）、共通ENABLE=GP7（J1-10、active-low）、Z PWM=GP12（J1-16）です。LIMITはX=GP6（J1-9）、Y=GP8（J1-11）。r2では内部プルアップを有効化し、コマンド開始前にLOWを検査します。3ボタンはUP=GP9、DOWN=GP10、OK=GP11をプルアップ入力に初期化しますが、ボタン操作の割り当ては未実装です。TMC UARTのTX=GP0/RX=GP1、シリアルサーボDATA=GP13は後続backend用の予約値です。LCD2小型版は3ボタンを`None`にしてGPIOを触りません。
+
+同じMotor ShieldのLCD-1.47-A（J2）、Touch-LCD-2/-C（J3）、RP2350-PiZero（J4）も、選択したボードのGPIO・物理端子へ切り替わります。LCD-1.47-AはX/Y=GP2/4・GP3/5、ENABLE=GP7、Z=GP9、DATA=GP28、Touch-LCD-2/-CはX/Y=GP2/4・GP3/5、ENABLE=GP7、Z=GP9、DATA=GP21、RP2350-PiZeroはX/Y=GP17/18・GP22/23、ENABLE=GP14、Z=GP12、DATA=GP9です。各画面の配線案内にはJ2/J3/J4の物理端子も表示します。LinuxのPi Zero（BCM版）はRP2350用MicroPythonとは別物なので候補に含めていません。LCD/Touch/PiZeroの初回UF2は公式製品ページで対応版を確認してから導入してください。
+
+この機能はファームウェア・転送処理・PIO波形・モータ接続を含めて実機未確認です。まずはUSBシリアル接続、G-codeのG0/G1、G90/G91、M3/M5、M17/M18、G92を対象に確認します。公開ページから取得するため、転送バンドルのPythonソースはこのリポジトリにも含まれます。開発元の専用リポジトリは https://github.com/pscmps/plotterflow-micropython-rp です。
+
+r2対応では入力処理の`inputs.py`を含む9ファイルを一括転送します。初期化はENABLE無効→STEP/DIR LOW→PIO初期化、PWMはPin出力LOW→duty=0です。最初のペン命令までPWMパルスを出しません。`M119`は`limits X:OPEN Y:OPEN`等と`ok`を返します。LIMIT作動中の`M17/G0/G1`は`error:limit_triggered`で拒否し、座標を進めずENABLEを無効化します。移動中の常時監視・即時停止・ホーミングはまだありません。電源投入からPython起動までの端子状態や実波形は、ソフトウェアテストでは保証できません。
+
 ### GRBL / FluidNC（標準）
 
 従来互換の既定プロファイルです。
