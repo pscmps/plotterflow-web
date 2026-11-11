@@ -134,6 +134,34 @@ const CONTROLLER_PROFILES = {
       sampleInterval: 0.5, optimization: "safe", yFlip: true
     }
   },
+  "rp2350-geek-xl330-helical": {
+    development: true,
+    firmwareKind: "micropython",
+    microPythonFirmware: "rp_dxl_helical",
+    verification: "動作未確認",
+    label: "RP2350-GEEK XL330 ヘリカル差動ペンプロッタ（開発中・動作未確認）",
+    phase: "開発中",
+    summary: "RP2350-GEEKのPIOでXL330-M077-T 2台（A/B軸）を直結し、ヘリカルギヤ差動機構（X = B、Y = A − B）をMicroPythonで動かす試作です。PWMペン、本体SD実行、PlotterFlowからのSD転送に対応します。",
+    notes: [
+      "XL330・PIO・LCD・SDを含めて実機未確認です。CPythonホストテストとmpy-crossの構文検査のみ確認済みです。",
+      "DATAはGP2（57,600 bps固定、ボーレートは変更しません）、A軸=ID1、B軸=ID2、ペンPWMはGP28、ボタンは上GP3・下GP4・決定GP5です。",
+      "接続後のM17時点（電源投入後の最初の1回）が原点です。メカを合わせてから起動してください。M18でトルクを切っても原点は保持されます。",
+      "XだけでもA・B両方が回ります（キャリッジ位置を保つため）。向きが逆の場合はboard_config.pyのA_DIRECTION・B_DIRECTION・COUPLING_SIGNを反転します。",
+      "速度はG-codeのF、M220 S<%>（速度倍率）、M203 S<mm/min>（最高速度）、M204 S<mm/s²>（加速度）で変更できます。モーター回転上限を超える区間は自動で遅くします。",
+      "ペン上はG0 Z1、ペン下はG1 Z0です。M281 U<us> D<us> T<ms>でサーボの上下パルスと待ち時間を変更できます。",
+      "SD転送・SDカード管理はM28/M29、M20、M30、M993です。転送したファイルは本体のボタンで選んで実行します（決定1秒長押しで中止）。",
+      "Stopは0x85で先読み中の移動を破棄してペンを上げます。切断時はM18でトルクを切ります。"
+    ],
+    capabilities: { statusPolling: false, microPython: true, fileUpload: true, sdUpload: true, sdManagement: true },
+    settings: {
+      baudrate: 115200, header: "G21\nG90", footer: "G0 Z1\nM400",
+      penUpCommand: "G0 Z1", penDownCommand: "G1 Z0",
+      okTimeoutMs: 60000, stopStrategy: "cancel-pen-up",
+      initializeCommand: "M17\nG21\nG90", disconnectCommand: "M18", jogAutoDisable: false,
+      travelFeed: 3000, drawFeed: 1500, jogStep: 1, jogFeed: 1500,
+      sampleInterval: 0.5, optimization: "safe", yFlip: true
+    }
+  },
   "pico2-drv8835-planar": {
     development: true,
     label: "Pico 2 DRV8835 XY Planar（開発中）",
@@ -280,6 +308,22 @@ const MICRO_PYTHON_BOARD_PROFILES = {
 };
 MicroPythonShieldRecipes.extend(MICRO_PYTHON_BOARD_PROFILES);
 const MICRO_PYTHON_BUNDLE_FILES = ["board_config.py", "gcode.py", "planner.py", "pio_stepper.py", "pen.py", "inputs.py", "protocol.py", "update_store.py", "main.py"];
+// Firmware bundles selectable per controller profile (microPythonFirmware).
+// Bundles with a fixed board ship their own board_config.py; main.py stays last.
+const MICRO_PYTHON_FIRMWARES = {
+  rp_stepdir: { dir: "firmware/micropython/rp_stepdir/", files: MICRO_PYTHON_BUNDLE_FILES },
+  rp_dxl_helical: {
+    dir: "firmware/micropython/rp_dxl_helical/",
+    board: "rp2350_geek",
+    files: ["board_config.py", "clock.py", "colors.py", "dynamixel_protocol.py", "pio_halfduplex.py", "xl330.py",
+      "kinematics.py", "motion.py", "servo_backend.py", "pen.py", "gcode.py", "sdstore.py", "sdcard.py",
+      "controller.py", "app.py", "lcd.py", "ui.py", "main.py"],
+    wiring: "RP2350-GEEK固定配線：DYNAMIXEL DATA GP2（XL330の5 V電源は外部、GND共通、直列220 Ω推奨）、ペンPWM GP28、ボタン GP3/GP4/GP5（GNDへ接続、内部プルアップ）、本体LCDとTFカードはそのまま使用。ピンを変える場合は転送後にboard_config.pyを編集します。"
+  }
+};
+function activeMicroPythonFirmware() {
+  return MICRO_PYTHON_FIRMWARES[activeControllerProfile().microPythonFirmware] || MICRO_PYTHON_FIRMWARES.rp_stepdir;
+}
 function microPythonBoardConfig(boardId) {
   return MicroPythonSetup.boardConfig(selectedMicroPythonConfiguration(boardId));
 }
@@ -423,9 +467,35 @@ function selectedMicroPythonBoardId() {
 function selectedMicroPythonConfiguration(id = selectedMicroPythonBoardId()) {
   return MicroPythonSetup.configuration(id, MICRO_PYTHON_BOARD_PROFILES[id], microPythonSetup.pins?.[id]);
 }
+function renderFixedMicroPythonBoard(firmware) {
+  const board = MICRO_PYTHON_BOARD_PROFILES[firmware.board];
+  for (const selector of ["#microPythonSetupControls", "#microPythonWiringDetails", "#microPythonStepDirWarning"]) {
+    const element = $(selector);
+    if (element) element.hidden = true;
+  }
+  const hint = $("#microPythonBoardHint");
+  if (hint) hint.textContent = board.label + "専用です。" + board.boot + (board.driveName ? " UF2ドライブ名の目安: " + board.driveName + "。" : "");
+  const wiring = $("#microPythonBoardWiring");
+  if (wiring) wiring.textContent = firmware.wiring;
+  const link = $("#microPythonFirmwareLink");
+  if (link) {
+    link.href = board.firmwareUrl;
+    link.textContent = "公式MicroPythonの取得ページを開く";
+  }
+  const guide = $("#microPythonInitialGuide");
+  if (guide) guide.innerHTML = "<strong>初回だけ:</strong> " + escapeHtml(board.boot) + " RP2350用MicroPython UF2を" + escapeHtml(board.driveName || "表示されたUF2ドライブ") + "へコピーします。再起動後、下のSerial接続を押してください。";
+  const upload = $("#uploadMicroPythonFiles");
+  if (upload) upload.disabled = state.sending;
+}
 function renderMicroPythonBoard() {
   const select = $("#microPythonBoard");
   if (!select) return;
+  const firmware = activeMicroPythonFirmware();
+  if (firmware.board) return renderFixedMicroPythonBoard(firmware);
+  for (const selector of ["#microPythonSetupControls", "#microPythonWiringDetails", "#microPythonStepDirWarning"]) {
+    const element = $(selector);
+    if (element) element.hidden = false;
+  }
   const selected = selectedMicroPythonBoardId();
   select.replaceChildren(...Object.entries(MICRO_PYTHON_BOARD_PROFILES)
     .filter(([id]) => MicroPythonSetup.isShield(id) === !microPythonSetup.custom).map(([id, board]) => {
@@ -559,26 +629,28 @@ async function rawReplExec(writer, reader, code) {
 }
 async function loadMicroPythonBundle(boardId) {
   // Snapshot before the first await: diagram/config cannot diverge mid-transfer.
-  const boardConfig = microPythonBoardConfig(boardId);
-  const root = new URL("firmware/micropython/rp_stepdir/", document.baseURI);
+  const firmware = activeMicroPythonFirmware();
+  const boardConfig = firmware.board ? null : microPythonBoardConfig(boardId);
+  const root = new URL(firmware.dir, document.baseURI);
   const files = [];
-  for (const name of MICRO_PYTHON_BUNDLE_FILES) {
-    if (name === "board_config.py") continue;
+  for (const name of firmware.files) {
+    if (name === "board_config.py" && boardConfig !== null) continue;
     const response = await fetch(new URL(name, root), { cache: "no-cache" });
     if (!response.ok) throw new Error(name + "の取得に失敗しました (" + response.status + ")");
     files.push({ name, bytes: new Uint8Array(await response.arrayBuffer()) });
   }
-  files.unshift({ name: "board_config.py", bytes: new TextEncoder().encode(boardConfig) });
+  if (boardConfig !== null) files.unshift({ name: "board_config.py", bytes: new TextEncoder().encode(boardConfig) });
   return files;
 }
 async function uploadMicroPythonFiles() {
   if (!isMicroPythonProfile()) return toast("開発中タブでMicroPythonプロファイルを選択してください");
   if (!state.writer || !state.port) return toast("先にSerial接続してください");
   if (state.sending || state.jogging || state.sdUploading) return toast("送信・ジョグ中はファイル更新できません");
-  const boardId = $("#microPythonBoard")?.value || selectedMicroPythonBoardId();
+  const fixedBoard = activeMicroPythonFirmware().board;
+  const boardId = fixedBoard || $("#microPythonBoard")?.value || selectedMicroPythonBoardId();
   const board = MICRO_PYTHON_BOARD_PROFILES[boardId];
   if (!board || board.supported === false) return toast("このボードは現在のMicroPython版の対象外です");
-  const errors = selectedMicroPythonConfiguration(boardId).errors;
+  const errors = fixedBoard ? [] : selectedMicroPythonConfiguration(boardId).errors;
   if (errors.length) return toast(errors.join(" "));
   state.sending = true;
   renderMicroPythonBoard();

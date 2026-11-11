@@ -457,7 +457,7 @@
           </fieldset>
           <p id="microPythonBoardHint" class="muted"></p>
           <p id="microPythonBoardWiring" class="muted"></p>
-          <details open class="micropython-wiring">
+          <details id="microPythonWiringDetails" open class="micropython-wiring">
             <summary>配線図（モータドライバ / PWMペンサーボ）</summary>
             <div class="wiring-view-toggle" role="group" aria-label="配線図の表示切替">
               <button type="button" data-wiring-view="schematic" aria-pressed="true">機能配線図</button>
@@ -472,7 +472,7 @@
           <button id="uploadMicroPythonFiles" class="primary wide">PlotterFlow MicroPythonファームウェアを永続保存</button>
           <p id="microPythonTransferStatus" class="status">Serial接続後に、main.pyと依存ファイルをまとめて転送できます。</p>
           <p class="muted">Pico Blocksの「保存して実行」と同じく、ファイルシステムへmain.pyを永続保存します。転送処理・実機動作は未確認です。</p>
-          <p class="muted">このSTEP/DIR版は試作です。速度・加減速・移動中の即時STOPは未完成のため、機械を接続した通常運転にはまだ使用しないでください。</p>
+          <p id="microPythonStepDirWarning" class="muted">このSTEP/DIR版は試作です。速度・加減速・移動中の即時STOPは未完成のため、機械を接続した通常運転にはまだ使用しないでください。</p>
         </article>
       </div>
     </section>
