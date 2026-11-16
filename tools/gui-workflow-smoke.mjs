@@ -22,7 +22,7 @@ assert.ok((app.match(/development: true/g) || []).length >= 5);
 assert.match(app, /function handleDevelopmentModeChange\(event\)/);
 assert.match(app, /state\.port \|\| state\.sending \|\| state\.jogging \|\| state\.sdUploading \|\| state\.sdManagementActive/);
 
-for (const id of ["drawingSelectionProperties", "drawingSelectionX", "drawingSelectionY", "drawingSelectionWidth", "drawingSelectionHeight", "drawingSelectionRotation", "drawingSelectionLineStyle", "drawingSelectionLineLength", "drawingSelectionLineGap", "drawingSelectionApply"]) {
+for (const id of ["drawingSelectionProperties", "drawingSelectionX", "drawingSelectionY", "drawingSelectionWidth", "drawingSelectionHeight", "drawingSelectionRotation", "drawingSelectionLineStyle", "drawingSelectionLineLength", "drawingSelectionLineGap", "drawingSelectionForceCornerDots", "drawingSelectionApply"]) {
   assert.match(html, new RegExp(`id="${id}"`));
 }
 assert.match(drawing, /function syncSelectionProperties\(object,hasDetailed=false\)/);
@@ -31,6 +31,7 @@ assert.match(drawing, /function objectPropertyGeometry\(object\)/);
 assert.match(drawing, /transform="rotate\(\$\{fmt\(object\.rotation\|\|0\)\}/);
 assert.match(drawing, /rotation:normalizeAngle\(finite\(object\.rotation\|\|0\)\)/);
 assert.match(drawing, /function linePatternPaths\(path,object\)/);
+assert.match(drawing, /function cornerPathIndexes\(path\)/);
 assert.match(drawing, /stroke-dasharray/);
 
 console.log("PlotterFlow GUI workflow smoke test passed");

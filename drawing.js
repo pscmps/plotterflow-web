@@ -302,13 +302,13 @@
   }
 
   function objectMarkup(object, selected) {
-    const cls = `drawing-object${selected ? " selected" : ""}`,lineAttributes=lineStyleAttributes(object);
-    if (object.type === "freehand") { const center=rawObjectCenter(object);return `<polyline class="${cls}" ${lineAttributes} points="${object.points.map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}" transform="rotate(${fmt(object.rotation||0)} ${fmt(center.x)} ${fmt(center.y)})"/>`; }
-    if (object.type === "rect") { const center=rawObjectCenter(object);return `<rect class="${cls}" ${lineAttributes} x="${fmt(object.x)}" y="${fmt(object.y)}" width="${fmt(object.width)}" height="${fmt(object.height)}" transform="rotate(${fmt(object.rotation||0)} ${fmt(center.x)} ${fmt(center.y)})"/>`; }
-    if (object.type === "circle") return `<circle class="${cls}" ${lineAttributes} cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>`;
-    if (object.type === "star") return `<polygon class="${cls}" ${lineAttributes} points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
-    if (object.type === "text") return `<path class="${cls}" ${lineAttributes} d="${contoursToPathData(textObjectContours(object))}"/>`;
     if (isVectorObject(object)) return vectorObjectMarkup(object,selected);
+    const cls = `drawing-object${selected ? " selected" : ""}`,lineAttributes=lineStyleAttributes(object),cornerDots=cornerDotsMarkup(object,selected);
+    if (object.type === "freehand") { const center=rawObjectCenter(object);return `<polyline class="${cls}" ${lineAttributes} points="${object.points.map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}" transform="rotate(${fmt(object.rotation||0)} ${fmt(center.x)} ${fmt(center.y)})"/>${cornerDots}`; }
+    if (object.type === "rect") { const center=rawObjectCenter(object);return `<rect class="${cls}" ${lineAttributes} x="${fmt(object.x)}" y="${fmt(object.y)}" width="${fmt(object.width)}" height="${fmt(object.height)}" transform="rotate(${fmt(object.rotation||0)} ${fmt(center.x)} ${fmt(center.y)})"/>${cornerDots}`; }
+    if (object.type === "circle") return `<circle class="${cls}" ${lineAttributes} cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>${cornerDots}`;
+    if (object.type === "star") return `<polygon class="${cls}" ${lineAttributes} points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>${cornerDots}`;
+    if (object.type === "text") return `<path class="${cls}" ${lineAttributes} d="${contoursToPathData(textObjectContours(object))}"/>${cornerDots}`;
     return "";
   }
   function isVectorObject(object){return !!object&&["stamp","svgObject"].includes(object.type);}
@@ -316,7 +316,7 @@
   function vectorObjectMarkup(object,selected=false){
     const asset=vectorAsset(object);if(!asset)return"";
     const sx=asset.defaultWidthMm/asset.viewBox.width,sy=asset.defaultHeightMm/asset.viewBox.height,lineUnitScale=Math.max(.0001,object.scale*Math.sqrt(Math.abs(sx*sy)));
-    return `<g class="stamp-visual${selected?" selected":""}" ${presentationAttributes({...asset.presentation,...lineStylePresentation(object,lineUnitScale)})} transform="${stampTransform(object,asset)}">${asset.markup}</g>`;
+    return `<g class="stamp-visual${selected?" selected":""}" ${presentationAttributes({...asset.presentation,...lineStylePresentation(object,lineUnitScale)})} transform="${stampTransform(object,asset)}">${asset.markup}</g>${cornerDotsMarkup(object,selected)}`;
   }
   function stampTransform(object,asset){
     const sx=asset.defaultWidthMm/asset.viewBox.width,sy=asset.defaultHeightMm/asset.viewBox.height,flipX=object.flipX?-1:1,flipY=object.flipY?-1:1;
@@ -355,6 +355,7 @@
     const lineStyle=normalizedLineStyle(object),lineStyleSelect=$d("#drawingSelectionLineStyle");
     lineStyleSelect.value=lineStyle.lineStyle;lineStyleSelect.dataset.current=lineStyle.lineStyle;
     $d("#drawingSelectionLineLength").value=fmt(lineStyle.lineLengthMm);$d("#drawingSelectionLineGap").value=fmt(lineStyle.lineGapMm);
+    $d("#drawingSelectionForceCornerDots").checked=lineStyle.forceCornerDots;
     syncSelectionLineControls();
   }
   function syncSelectionAspect(source){
@@ -371,7 +372,7 @@
     const style=$d("#drawingSelectionLineStyle").value,pattern=$d("#drawingSelectionLinePattern");
     pattern.hidden=style==="solid";
     $d("#drawingSelectionLineLengthLabel").textContent=style==="dotted"?"点の長さ (mm)":"線の長さ (mm)";
-    $d("#drawingSelectionLineHint").textContent=style==="solid"?"実線は途切れずに描画します。":`${lineStyleNames[style]}は線部分と空白部分をG-codeでも分け、空白ではペンアップ移動します。`;
+    $d("#drawingSelectionLineHint").textContent=style==="solid"?"実線は途切れずに描画します。":`${lineStyleNames[style]}は線部分と空白部分をG-codeでも分けます。折れ目の点は30°以上の方向変化へ適用します。`;
   }
   function applySelectionProperties(){
     const object=editor.document.objects[editor.selected];if(!object)return;
@@ -379,7 +380,7 @@
     const targetX=finiteOr(+$d("#drawingSelectionX").value,before.center.x),targetY=finiteOr(+$d("#drawingSelectionY").value,before.center.y),ratio=clamp(targetWidth/beforeWidth,.001,1000);
     scaleObjectUniform(object,ratio);object.rotation=normalizeAngle(+$d("#drawingSelectionRotation").value||0);
     const currentLineStyle=normalizedLineStyle(object),lineStyle=$d("#drawingSelectionLineStyle").value;
-    Object.assign(object,normalizedLineStyle({lineStyle,lineLengthMm:finiteOr(+$d("#drawingSelectionLineLength").value,currentLineStyle.lineLengthMm),lineGapMm:finiteOr(+$d("#drawingSelectionLineGap").value,currentLineStyle.lineGapMm)}));
+    Object.assign(object,normalizedLineStyle({lineStyle,lineLengthMm:finiteOr(+$d("#drawingSelectionLineLength").value,currentLineStyle.lineLengthMm),lineGapMm:finiteOr(+$d("#drawingSelectionLineGap").value,currentLineStyle.lineGapMm),forceCornerDots:$d("#drawingSelectionForceCornerDots").checked}));
     const after=objectPropertyGeometry(object),moved=translateObject(object,targetX-after.center.x,targetY-after.center.y);editor.document.objects[editor.selected]=moved;
     commit("オブジェクトプロパティ変更");renderDrawing();setStatus(`選択オブジェクトの位置・サイズ・角度・線種（${lineStyleNames[lineStyle]}）を更新しました。`);
   }
@@ -498,13 +499,13 @@
     return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="${svgNS}" width="${c.widthMm}mm" height="${c.heightMm}mm" viewBox="0 0 ${c.widthMm} ${c.heightMm}">\n  <g fill="none" stroke="#000" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round">\n    ${editor.document.objects.map(object => objectSvgMarkup(object)).join("\n    ")}\n  </g>\n</svg>\n`;
   }
   function objectSvgMarkup(object) {
-    const lineAttributes=lineStyleAttributes(object);
-    if (object.type === "freehand") return `<polyline ${lineAttributes} points="${rotatedObjectPoints(object,object.points).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
-    if (object.type === "rect") return `<polygon ${lineAttributes} points="${rectPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
-    if (object.type === "circle") return `<circle ${lineAttributes} cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>`;
-    if (object.type === "text") return `<path ${lineAttributes} d="${contoursToPathData(textObjectContours(object))}"/>`;
     if (isVectorObject(object)) return vectorObjectMarkup(object,false);
-    return `<polygon ${lineAttributes} points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
+    const lineAttributes=lineStyleAttributes(object),cornerDots=cornerDotsMarkup(object,false);
+    if (object.type === "freehand") return `<polyline ${lineAttributes} points="${rotatedObjectPoints(object,object.points).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>${cornerDots}`;
+    if (object.type === "rect") return `<polygon ${lineAttributes} points="${rectPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>${cornerDots}`;
+    if (object.type === "circle") return `<circle ${lineAttributes} cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>${cornerDots}`;
+    if (object.type === "text") return `<path ${lineAttributes} d="${contoursToPathData(textObjectContours(object))}"/>${cornerDots}`;
+    return `<polygon ${lineAttributes} points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>${cornerDots}`;
   }
   function generateDrawingGcode() {
     if (!editor.document.objects.length) return setStatus("先に図形を描いてください。", true);
@@ -528,26 +529,56 @@
   }
   function linePatternPaths(path,object){
     const style=normalizedLineStyle(object);if(style.lineStyle==="solid"||path.length<2)return[path];
-    const result=[];let drawing=true,phaseRemaining=style.lineLengthMm,current=[{...path[0]}],cursor={...path[0]};
-    const finishCurrent=()=>{if(current.length>=2&&Math.hypot(current.at(-1).x-current[0].x,current.at(-1).y-current[0].y)>.00001)result.push(current);current=[];};
-    for(let index=1;index<path.length;index++){
-      const target=path[index],segmentLength=Math.hypot(target.x-cursor.x,target.y-cursor.y);if(segmentLength<=.000001){cursor={...target};continue;}
-      const start={...cursor};let consumed=0;
-      while(consumed<segmentLength-.000001){
-        const distance=Math.min(phaseRemaining,segmentLength-consumed),ratio=(consumed+distance)/segmentLength;
-        const next={x:start.x+(target.x-start.x)*ratio,y:start.y+(target.y-start.y)*ratio};
-        if(drawing){if(!current.length)current=[{...cursor}];current.push(next);}
-        cursor=next;consumed+=distance;phaseRemaining-=distance;
-        if(phaseRemaining<=.000001){
-          if(drawing)finishCurrent();
-          drawing=!drawing;phaseRemaining=drawing?style.lineLengthMm:style.lineGapMm;
-          if(drawing)current=[{...cursor}];
-        }
-      }
-      cursor={...target};
+    const distances=pathDistanceTable(path),total=distances.at(-1);if(total<=.00001)return[];
+    const intervals=[],period=style.lineLengthMm+style.lineGapMm;
+    for(let start=0;start<total-.00001;start+=period)intervals.push([start,Math.min(total,start+style.lineLengthMm)]);
+    if(style.forceCornerDots){
+      const half=cornerDotLength(style)/2;
+      cornerPathIndexes(path).forEach(index=>intervals.push([Math.max(0,distances[index]-half),Math.min(total,distances[index]+half)]));
     }
-    if(drawing)finishCurrent();
-    return result;
+    intervals.sort((a,b)=>a[0]-b[0]);
+    const merged=[];
+    intervals.forEach(interval=>{const last=merged.at(-1);if(last&&interval[0]<=last[1]+.00001)last[1]=Math.max(last[1],interval[1]);else merged.push([...interval]);});
+    return merged.map(([start,end])=>slicePathByDistance(path,distances,start,end)).filter(segment=>segment.length>=2);
+  }
+  function pathDistanceTable(path){
+    const distances=[0];
+    for(let index=1;index<path.length;index++)distances.push(distances.at(-1)+Math.hypot(path[index].x-path[index-1].x,path[index].y-path[index-1].y));
+    return distances;
+  }
+  function pathPointAtDistance(path,distances,distance){
+    if(distance<=0)return{...path[0]};const total=distances.at(-1);if(distance>=total)return{...path.at(-1)};
+    let index=1;while(index<distances.length-1&&distances[index]<distance-.00001)index++;
+    const span=distances[index]-distances[index-1];if(span<=.00001)return{...path[index]};
+    const ratio=clamp((distance-distances[index-1])/span,0,1),a=path[index-1],b=path[index];
+    return{x:a.x+(b.x-a.x)*ratio,y:a.y+(b.y-a.y)*ratio};
+  }
+  function slicePathByDistance(path,distances,start,end){
+    const points=[pathPointAtDistance(path,distances,start)];
+    for(let index=1;index<path.length-1;index++)if(distances[index]>start+.00001&&distances[index]<end-.00001)points.push({...path[index]});
+    points.push(pathPointAtDistance(path,distances,end));
+    return points.filter((point,index)=>!index||Math.hypot(point.x-points[index-1].x,point.y-points[index-1].y)>.00001);
+  }
+  function cornerPathIndexes(path){
+    const indexes=[];
+    for(let index=1;index<path.length-1;index++){
+      let previous=index-1,next=index+1;
+      while(previous>=0&&Math.hypot(path[index].x-path[previous].x,path[index].y-path[previous].y)<=.00001)previous--;
+      while(next<path.length&&Math.hypot(path[next].x-path[index].x,path[next].y-path[index].y)<=.00001)next++;
+      if(previous<0||next>=path.length)continue;
+      const incoming={x:path[index].x-path[previous].x,y:path[index].y-path[previous].y},outgoing={x:path[next].x-path[index].x,y:path[next].y-path[index].y};
+      const dot=(incoming.x*outgoing.x+incoming.y*outgoing.y)/(Math.hypot(incoming.x,incoming.y)*Math.hypot(outgoing.x,outgoing.y));
+      if(Math.acos(clamp(dot,-1,1))*180/Math.PI>=30)indexes.push(index);
+    }
+    return indexes;
+  }
+  function cornerDotLength(style){return Math.min(.3,style.lineLengthMm);}
+  function cornerDotsMarkup(object,selected=false){
+    const style=normalizedLineStyle(object);if(style.lineStyle==="solid"||!style.forceCornerDots)return"";
+    const seen=new Set(),points=[];
+    objectBasePaths(object,.25).forEach(path=>cornerPathIndexes(path).forEach(index=>{const point=path[index],key=`${fmt(point.x)}:${fmt(point.y)}`;if(!seen.has(key)){seen.add(key);points.push(point);}}));
+    const cls=`drawing-corner-dot${selected?" selected":""}`,radius=cornerDotLength(style)/2;
+    return points.map(point=>`<circle class="${cls}" fill="#000" stroke="none" cx="${fmt(point.x)}" cy="${fmt(point.y)}" r="${fmt(radius)}"/>`).join("");
   }
 
   function eraserRadius() { return clamp(+$d("#drawingEraserSize").value || 2, .2, 100) / 2; }
@@ -721,7 +752,7 @@
   function normalizedLineStyle(object={}){
     const lineStyle=["dashed","dotted"].includes(object.lineStyle)?object.lineStyle:"solid",defaultLength=lineStyle==="dotted"?.3:2;
     const rawLength=+object.lineLengthMm,rawGap=+object.lineGapMm;
-    return{lineStyle,lineLengthMm:clamp(Number.isFinite(rawLength)&&rawLength>0?rawLength:defaultLength,.1,100),lineGapMm:clamp(Number.isFinite(rawGap)&&rawGap>0?rawGap:1,.1,100)};
+    return{lineStyle,lineLengthMm:clamp(Number.isFinite(rawLength)&&rawLength>0?rawLength:defaultLength,.1,100),lineGapMm:clamp(Number.isFinite(rawGap)&&rawGap>0?rawGap:1,.1,100),forceCornerDots:!!object.forceCornerDots};
   }
   function lineStylePresentation(object,unitScale=1){
     const style=normalizedLineStyle(object);

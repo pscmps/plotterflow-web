@@ -18,6 +18,7 @@ const { normalizeObject, linePatternPaths, lineStylePresentation } = context.__d
 
 const legacy = normalizeObject({ type: "rect", x: 0, y: 0, width: 10, height: 5 });
 assert.equal(legacy.lineStyle, "solid");
+assert.equal(legacy.forceCornerDots, false);
 assert.deepEqual({ ...lineStylePresentation(legacy) }, { "stroke-dasharray": "none" });
 
 const dashed = normalizeObject({
@@ -39,5 +40,14 @@ const dotted = normalizeObject({
   lineGapMm: 0.7
 });
 assert.equal(linePatternPaths([{ x: 0, y: 0 }, { x: 3, y: 0 }], dotted).length, 3);
+
+const cornerPath = [{ x: 0, y: 0 }, { x: 2.5, y: 0 }, { x: 2.5, y: 2.5 }];
+const cornerStyle = { ...dashed, lineLengthMm: 1, lineGapMm: 3 };
+assert.equal(linePatternPaths(cornerPath, cornerStyle).length, 2);
+const forcedCornerPaths = linePatternPaths(cornerPath, { ...cornerStyle, forceCornerDots: true });
+assert.equal(forcedCornerPaths.length, 3);
+assert.ok(forcedCornerPaths.some(path => path.some(point => Math.abs(point.x - 2.5) < 1e-6 && Math.abs(point.y) < 1e-6)));
+const circlePath = Array.from({ length: 17 }, (_, index) => ({ x: Math.cos(index / 16 * Math.PI * 2), y: Math.sin(index / 16 * Math.PI * 2) }));
+assert.equal(linePatternPaths(circlePath, cornerStyle).length, linePatternPaths(circlePath, { ...cornerStyle, forceCornerDots: true }).length);
 
 console.log("PlotterFlow line style smoke test passed");

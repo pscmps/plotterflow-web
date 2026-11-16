@@ -45,6 +45,10 @@
 .selection-line-properties h3{margin:0 0 8px;font-size:.9rem}
 .selection-line-hint{margin:2px 0 0;font-size:.78rem;line-height:1.45}
 .selection-property-grid[hidden]{display:none}
+.selection-corner-dot-toggle{grid-column:1/-1;display:flex;flex-direction:row;align-items:center;gap:8px;margin:2px 0 0}
+.selection-corner-dot-toggle input{width:auto;margin:0}
+.drawing-corner-dot{fill:#111;stroke:none;pointer-events:none}
+.drawing-corner-dot.selected{fill:#087985}
 .serial-send-panel{margin:16px 0 18px;padding:16px;border:1px solid color-mix(in srgb,var(--primary) 25%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--primary) 5%,var(--surface));scroll-margin-top:16px}
 .serial-send-panel>h3{margin:0 0 12px}
 .serial-trajectory-card{margin-top:20px;scroll-margin-top:16px}

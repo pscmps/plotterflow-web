@@ -67,7 +67,7 @@ PCではXYジョグの「矢印キー」トグルをONにすると、Serialタ�
 
 選択ツールでオブジェクトを選ぶと、種類を問わず編集ツール欄へ中心X/Y、幅、高さ、回転角度を表示します。幅と高さは縦横比を保って変更され、自由線・四角・円・星にも回転を適用できます。テキストとSVG素材は「詳細」から従来の専用プロパティも開けます。
 
-同じ欄の「線の属性」では実線・破線・点線を選べます。破線と点線は線部分の長さと間隔をmm単位で指定でき、編集画面とSVGダウンロードへ反映されます。G-code生成時は線部分ごとにパスを分割し、空白部分をペンアップで移動するため、実機でも途切れた線として描画します。従来の保存データに線属性がない場合は実線として読み込みます。
+同じ欄の「線の属性」では実線・破線・点線を選べます。破線と点線は線部分の長さと間隔をmm単位で指定でき、編集画面とSVGダウンロードへ反映されます。G-code生成時は線部分ごとにパスを分割し、空白部分をペンアップで移動するため、実機でも途切れた線として描画します。「折れ目のところで必ず点を打つ」を有効にすると、進行方向が30°以上変わる角へ0.3 mm以下の短い描画区間を追加します。円弧の細かなサンプリング点は折れ目として扱いません。従来の保存データに線属性がない場合は実線、折れ目の点はOFFとして読み込みます。
 
 ### スタンプ
 
@@ -85,7 +85,7 @@ JSONは次の形式です。
   "canvas": { "widthMm": 100, "heightMm": 100 },
   "objects": [
     { "type": "freehand", "points": [[10, 10], [15, 12], [20, 20]] },
-    { "type": "rect", "x": 30, "y": 30, "width": 20, "height": 10, "lineStyle": "dashed", "lineLengthMm": 2, "lineGapMm": 1 },
+    { "type": "rect", "x": 30, "y": 30, "width": 20, "height": 10, "lineStyle": "dashed", "lineLengthMm": 2, "lineGapMm": 1, "forceCornerDots": true },
     { "type": "text", "text": "展示会", "x": 50, "y": 50, "fontSize": 8, "letterSpacing": 0, "lineHeight": 1.2, "writingMode": "horizontal", "rotation": 0, "renderMode": "outline" },
     { "type": "stamp", "stampId": "mekatororo_face", "x": 70, "y": 65, "scale": 1.2, "rotation": 15, "flipX": false, "flipY": false },
     { "type": "svgObject", "name": "logo.svg", "x": 50, "y": 40, "scale": 1, "rotation": 0, "flipX": false, "flipY": false, "widthMm": 30, "heightMm": 20, "viewBox": { "x": 0, "y": 0, "width": 300, "height": 200 }, "markup": "...", "presentation": { "fill": "none", "stroke": "#000" } }
