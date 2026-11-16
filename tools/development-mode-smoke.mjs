@@ -87,11 +87,12 @@ const enabled = await evaluate(`(() => {
     enabled: window.state.developmentMode,
     profile: window.state.settings.controllerProfile,
     options: [...document.querySelector('#controllerProfile').options].map(option => option.value),
+    profileCount: Object.keys(window.CONTROLLER_PROFILES).length,
     armHidden: document.querySelector('#planarArmPanel').hidden,
     stored: localStorage.getItem('plotterflow.developmentModeV1')
   };
 })()`);
-if (!enabled.enabled || enabled.profile !== "pico2-drv8835-planar" || enabled.options.length !== 8 || enabled.armHidden || enabled.stored !== "1") throw new Error(`enabled mode mismatch: ${JSON.stringify(enabled)}`);
+if (!enabled.enabled || enabled.profile !== "pico2-drv8835-planar" || enabled.options.length !== enabled.profileCount || enabled.armHidden || enabled.stored !== "1") throw new Error(`enabled mode mismatch: ${JSON.stringify(enabled)}`);
 
 await reload();
 const persisted = await evaluate(`({enabled:window.state.developmentMode,profile:window.state.settings.controllerProfile,toggle:document.querySelector('#developmentModeToggle').checked,armHidden:document.querySelector('#planarArmPanel').hidden})`);

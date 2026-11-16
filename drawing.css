@@ -41,6 +41,10 @@
 .selection-properties-heading p{margin:3px 0 0;color:var(--muted);font-size:.82rem}
 .selection-property-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .selection-size-hint{margin:2px 0 10px;font-size:.78rem;line-height:1.45}
+.selection-line-properties{margin:12px 0;padding-top:12px;border-top:1px solid color-mix(in srgb,var(--primary) 18%,var(--line))}
+.selection-line-properties h3{margin:0 0 8px;font-size:.9rem}
+.selection-line-hint{margin:2px 0 0;font-size:.78rem;line-height:1.45}
+.selection-property-grid[hidden]{display:none}
 .serial-send-panel{margin:16px 0 18px;padding:16px;border:1px solid color-mix(in srgb,var(--primary) 25%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--primary) 5%,var(--surface));scroll-margin-top:16px}
 .serial-send-panel>h3{margin:0 0 12px}
 .serial-trajectory-card{margin-top:20px;scroll-margin-top:16px}

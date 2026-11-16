@@ -10,6 +10,7 @@
   const textContourCache = new Map();
   const stampAssets = new Map();
   const stampCategoryNames = { character: "キャラクター", bubble: "吹き出し", effect: "効果", preset_line: "定型線画" };
+  const lineStyleNames = { solid: "実線", dashed: "破線", dotted: "点線" };
 
   const editor = {
     document: { version: 1, canvas: { widthMm: 30, heightMm: 30 }, objects: [] },
@@ -63,6 +64,7 @@
     $d("#drawingSelectionApply").addEventListener("click", applySelectionProperties);
     $d("#drawingSelectionWidth").addEventListener("input", () => syncSelectionAspect("width"));
     $d("#drawingSelectionHeight").addEventListener("input", () => syncSelectionAspect("height"));
+    $d("#drawingSelectionLineStyle").addEventListener("change", changeSelectionLineStyle);
     $d("#drawingDuplicate").addEventListener("click", duplicateSelected);
     $d("#drawingToFront").addEventListener("click", bringSelectedToFront);
     $d("#drawingToBack").addEventListener("click", sendSelectedToBack);
@@ -100,7 +102,7 @@
     const doc=new DOMParser().parseFromString(text,"image/svg+xml"),root=doc.documentElement;
     if(root.localName!=="svg"||doc.querySelector("parsererror"))throw new Error("SVG形式が不正です");
     root.querySelectorAll("script,foreignObject,image,text,style,defs,clipPath,mask,pattern,symbol,metadata").forEach(node=>node.remove());
-    root.querySelectorAll("*").forEach(node=>{[...node.attributes].forEach(attribute=>{if(attribute.name.toLowerCase().startsWith("on")||/^(href|xlink:href|clip-path|mask|filter)$/i.test(attribute.name)||/url\s*\(/i.test(attribute.value))node.removeAttribute(attribute.name);});if(["g","path","line","polyline","polygon","rect","circle","ellipse"].includes(node.localName)){["fill","stroke","stroke-width","stroke-linecap","stroke-linejoin"].forEach(name=>node.removeAttribute(name));if(node.localName!=="g")node.setAttribute("fill","none");}});
+    root.querySelectorAll("*").forEach(node=>{[...node.attributes].forEach(attribute=>{if(attribute.name.toLowerCase().startsWith("on")||/^(href|xlink:href|clip-path|mask|filter)$/i.test(attribute.name)||/url\s*\(/i.test(attribute.value))node.removeAttribute(attribute.name);});if(["g","path","line","polyline","polygon","rect","circle","ellipse"].includes(node.localName)){["fill","stroke","stroke-width","stroke-linecap","stroke-linejoin","stroke-dasharray"].forEach(name=>node.removeAttribute(name));if(node.localName!=="g")node.setAttribute("fill","none");}});
     const vb=(root.getAttribute("viewBox")||"0 0 100 100").trim().split(/[ ,]+/).map(Number);
     if(vb.length!==4||vb.some(value=>!Number.isFinite(value))||vb[2]<=0||vb[3]<=0)throw new Error("viewBoxが不正です");
     const presentation={fill:"none",stroke:"#111"};["stroke-linecap","stroke-linejoin","stroke-dasharray"].forEach(name=>{if(root.hasAttribute(name))presentation[name]=sanitizePresentationValue(root.getAttribute(name));});
@@ -300,12 +302,12 @@
   }
 
   function objectMarkup(object, selected) {
-    const cls = `drawing-object${selected ? " selected" : ""}`;
-    if (object.type === "freehand") { const center=rawObjectCenter(object);return `<polyline class="${cls}" points="${object.points.map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}" transform="rotate(${fmt(object.rotation||0)} ${fmt(center.x)} ${fmt(center.y)})"/>`; }
-    if (object.type === "rect") { const center=rawObjectCenter(object);return `<rect class="${cls}" x="${fmt(object.x)}" y="${fmt(object.y)}" width="${fmt(object.width)}" height="${fmt(object.height)}" transform="rotate(${fmt(object.rotation||0)} ${fmt(center.x)} ${fmt(center.y)})"/>`; }
-    if (object.type === "circle") return `<circle class="${cls}" cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>`;
-    if (object.type === "star") return `<polygon class="${cls}" points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
-    if (object.type === "text") return `<path class="${cls}" d="${contoursToPathData(textObjectContours(object))}"/>`;
+    const cls = `drawing-object${selected ? " selected" : ""}`,lineAttributes=lineStyleAttributes(object);
+    if (object.type === "freehand") { const center=rawObjectCenter(object);return `<polyline class="${cls}" ${lineAttributes} points="${object.points.map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}" transform="rotate(${fmt(object.rotation||0)} ${fmt(center.x)} ${fmt(center.y)})"/>`; }
+    if (object.type === "rect") { const center=rawObjectCenter(object);return `<rect class="${cls}" ${lineAttributes} x="${fmt(object.x)}" y="${fmt(object.y)}" width="${fmt(object.width)}" height="${fmt(object.height)}" transform="rotate(${fmt(object.rotation||0)} ${fmt(center.x)} ${fmt(center.y)})"/>`; }
+    if (object.type === "circle") return `<circle class="${cls}" ${lineAttributes} cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>`;
+    if (object.type === "star") return `<polygon class="${cls}" ${lineAttributes} points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
+    if (object.type === "text") return `<path class="${cls}" ${lineAttributes} d="${contoursToPathData(textObjectContours(object))}"/>`;
     if (isVectorObject(object)) return vectorObjectMarkup(object,selected);
     return "";
   }
@@ -313,7 +315,8 @@
   function vectorAsset(object){if(object?.type==="stamp")return stampAssets.get(object.stampId);if(object?.type==="svgObject")return{markup:object.markup,presentation:object.presentation||{},viewBox:object.viewBox,defaultWidthMm:object.widthMm,defaultHeightMm:object.heightMm,name:object.name};return null;}
   function vectorObjectMarkup(object,selected=false){
     const asset=vectorAsset(object);if(!asset)return"";
-    return `<g class="stamp-visual${selected?" selected":""}" ${presentationAttributes(asset.presentation)} transform="${stampTransform(object,asset)}">${asset.markup}</g>`;
+    const sx=asset.defaultWidthMm/asset.viewBox.width,sy=asset.defaultHeightMm/asset.viewBox.height,lineUnitScale=Math.max(.0001,object.scale*Math.sqrt(Math.abs(sx*sy)));
+    return `<g class="stamp-visual${selected?" selected":""}" ${presentationAttributes({...asset.presentation,...lineStylePresentation(object,lineUnitScale)})} transform="${stampTransform(object,asset)}">${asset.markup}</g>`;
   }
   function stampTransform(object,asset){
     const sx=asset.defaultWidthMm/asset.viewBox.width,sy=asset.defaultHeightMm/asset.viewBox.height,flipX=object.flipX?-1:1,flipY=object.flipY?-1:1;
@@ -349,19 +352,36 @@
     $d("#drawingSelectionType").textContent=selectionTypeNames[object.type]||"図形";
     $d("#drawingSelectionX").value=fmt(geometry.center.x);$d("#drawingSelectionY").value=fmt(geometry.center.y);
     $d("#drawingSelectionWidth").value=fmt(width);$d("#drawingSelectionHeight").value=fmt(height);$d("#drawingSelectionRotation").value=fmt(object.rotation||0);
+    const lineStyle=normalizedLineStyle(object),lineStyleSelect=$d("#drawingSelectionLineStyle");
+    lineStyleSelect.value=lineStyle.lineStyle;lineStyleSelect.dataset.current=lineStyle.lineStyle;
+    $d("#drawingSelectionLineLength").value=fmt(lineStyle.lineLengthMm);$d("#drawingSelectionLineGap").value=fmt(lineStyle.lineGapMm);
+    syncSelectionLineControls();
   }
   function syncSelectionAspect(source){
     const aspect=+$d("#drawingSelectionProperties").dataset.aspect||1;
     if(source==="width")$d("#drawingSelectionHeight").value=fmt(Math.max(.01,+$d("#drawingSelectionWidth").value||.01)/aspect);
     else $d("#drawingSelectionWidth").value=fmt(Math.max(.01,+$d("#drawingSelectionHeight").value||.01)*aspect);
   }
+  function changeSelectionLineStyle(){
+    const select=$d("#drawingSelectionLineStyle"),style=select.value;
+    if(style!==select.dataset.current)$d("#drawingSelectionLineLength").value=style==="dotted"?"0.3":style==="dashed"?"2":$d("#drawingSelectionLineLength").value;
+    select.dataset.current=style;syncSelectionLineControls();
+  }
+  function syncSelectionLineControls(){
+    const style=$d("#drawingSelectionLineStyle").value,pattern=$d("#drawingSelectionLinePattern");
+    pattern.hidden=style==="solid";
+    $d("#drawingSelectionLineLengthLabel").textContent=style==="dotted"?"点の長さ (mm)":"線の長さ (mm)";
+    $d("#drawingSelectionLineHint").textContent=style==="solid"?"実線は途切れずに描画します。":`${lineStyleNames[style]}は線部分と空白部分をG-codeでも分け、空白ではペンアップ移動します。`;
+  }
   function applySelectionProperties(){
     const object=editor.document.objects[editor.selected];if(!object)return;
     const before=objectPropertyGeometry(object),beforeWidth=Math.max(.01,before.width),targetWidth=clamp(+$d("#drawingSelectionWidth").value||beforeWidth,.01,2000);
     const targetX=finiteOr(+$d("#drawingSelectionX").value,before.center.x),targetY=finiteOr(+$d("#drawingSelectionY").value,before.center.y),ratio=clamp(targetWidth/beforeWidth,.001,1000);
     scaleObjectUniform(object,ratio);object.rotation=normalizeAngle(+$d("#drawingSelectionRotation").value||0);
+    const currentLineStyle=normalizedLineStyle(object),lineStyle=$d("#drawingSelectionLineStyle").value;
+    Object.assign(object,normalizedLineStyle({lineStyle,lineLengthMm:finiteOr(+$d("#drawingSelectionLineLength").value,currentLineStyle.lineLengthMm),lineGapMm:finiteOr(+$d("#drawingSelectionLineGap").value,currentLineStyle.lineGapMm)}));
     const after=objectPropertyGeometry(object),moved=translateObject(object,targetX-after.center.x,targetY-after.center.y);editor.document.objects[editor.selected]=moved;
-    commit("オブジェクトプロパティ変更");renderDrawing();setStatus("選択オブジェクトの位置・サイズ・角度を更新しました。");
+    commit("オブジェクトプロパティ変更");renderDrawing();setStatus(`選択オブジェクトの位置・サイズ・角度・線種（${lineStyleNames[lineStyle]}）を更新しました。`);
   }
   function scaleObjectUniform(object,ratio){
     if(object.type==="freehand"){const c=rawObjectCenter(object);object.points=object.points.map(p=>[c.x+(p[0]-c.x)*ratio,c.y+(p[1]-c.y)*ratio]);}
@@ -478,12 +498,13 @@
     return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="${svgNS}" width="${c.widthMm}mm" height="${c.heightMm}mm" viewBox="0 0 ${c.widthMm} ${c.heightMm}">\n  <g fill="none" stroke="#000" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round">\n    ${editor.document.objects.map(object => objectSvgMarkup(object)).join("\n    ")}\n  </g>\n</svg>\n`;
   }
   function objectSvgMarkup(object) {
-    if (object.type === "freehand") return `<polyline points="${rotatedObjectPoints(object,object.points).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
-    if (object.type === "rect") return `<polygon points="${rectPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
-    if (object.type === "circle") return `<circle cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>`;
-    if (object.type === "text") return `<path d="${contoursToPathData(textObjectContours(object))}"/>`;
+    const lineAttributes=lineStyleAttributes(object);
+    if (object.type === "freehand") return `<polyline ${lineAttributes} points="${rotatedObjectPoints(object,object.points).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
+    if (object.type === "rect") return `<polygon ${lineAttributes} points="${rectPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
+    if (object.type === "circle") return `<circle ${lineAttributes} cx="${fmt(object.cx)}" cy="${fmt(object.cy)}" r="${fmt(object.r)}"/>`;
+    if (object.type === "text") return `<path ${lineAttributes} d="${contoursToPathData(textObjectContours(object))}"/>`;
     if (isVectorObject(object)) return vectorObjectMarkup(object,false);
-    return `<polygon points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
+    return `<polygon ${lineAttributes} points="${starPoints(object).map(p => `${fmt(p[0])},${fmt(p[1])}`).join(" ")}"/>`;
   }
   function generateDrawingGcode() {
     if (!editor.document.objects.length) return setStatus("先に図形を描いてください。", true);
@@ -494,7 +515,9 @@
   }
   function objectsToPaths(objects) {
     const interval = Math.max(.05, +(window.PlotterFlow.getSettings().sampleInterval || .5));
-    return objects.flatMap(object => {
+    return objects.flatMap(object => objectBasePaths(object,interval).flatMap(path=>linePatternPaths(path,object))).filter(path => path.length >= 2);
+  }
+  function objectBasePaths(object,interval) {
       if (object.type === "freehand") return [rotatedObjectPoints(object,object.points).map(p => ({ x: p[0], y: p[1] }))];
       if (object.type === "rect") return [rectPoints(object,true).map(p => ({x:p[0],y:p[1]}))];
       if (object.type === "star") return [[...starPoints(object), starPoints(object)[0]].map(p => ({x:p[0],y:p[1]}))];
@@ -502,7 +525,29 @@
       if (isVectorObject(object)) return stampObjectPaths(object,interval).map(path=>path.map(p=>({x:p[0],y:p[1]})));
       const count = Math.max(16, Math.ceil(2 * Math.PI * object.r / interval));
       return [Array.from({ length: count + 1 }, (_, i) => ({ x: object.cx + Math.cos(i/count*2*Math.PI) * object.r, y: object.cy + Math.sin(i/count*2*Math.PI) * object.r }))];
-    }).filter(path => path.length >= 2);
+  }
+  function linePatternPaths(path,object){
+    const style=normalizedLineStyle(object);if(style.lineStyle==="solid"||path.length<2)return[path];
+    const result=[];let drawing=true,phaseRemaining=style.lineLengthMm,current=[{...path[0]}],cursor={...path[0]};
+    const finishCurrent=()=>{if(current.length>=2&&Math.hypot(current.at(-1).x-current[0].x,current.at(-1).y-current[0].y)>.00001)result.push(current);current=[];};
+    for(let index=1;index<path.length;index++){
+      const target=path[index],segmentLength=Math.hypot(target.x-cursor.x,target.y-cursor.y);if(segmentLength<=.000001){cursor={...target};continue;}
+      const start={...cursor};let consumed=0;
+      while(consumed<segmentLength-.000001){
+        const distance=Math.min(phaseRemaining,segmentLength-consumed),ratio=(consumed+distance)/segmentLength;
+        const next={x:start.x+(target.x-start.x)*ratio,y:start.y+(target.y-start.y)*ratio};
+        if(drawing){if(!current.length)current=[{...cursor}];current.push(next);}
+        cursor=next;consumed+=distance;phaseRemaining-=distance;
+        if(phaseRemaining<=.000001){
+          if(drawing)finishCurrent();
+          drawing=!drawing;phaseRemaining=drawing?style.lineLengthMm:style.lineGapMm;
+          if(drawing)current=[{...cursor}];
+        }
+      }
+      cursor={...target};
+    }
+    if(drawing)finishCurrent();
+    return result;
   }
 
   function eraserRadius() { return clamp(+$d("#drawingEraserSize").value || 2, .2, 100) / 2; }
@@ -514,7 +559,8 @@
       const touched = sources.some(source=>source.points.some(point => distanceToSegment({ x: point[0], y: point[1] }, from, to) <= radius));
       if (!touched) { next.push(object); continue; }
       changed = true;
-      sources.forEach(source=>splitPolylineOutsideStroke(source.points,from,to,radius,source.closed).forEach(points=>next.push({type:"freehand",points})));
+      const lineStyle=normalizedLineStyle(object);
+      sources.forEach(source=>splitPolylineOutsideStroke(source.points,from,to,radius,source.closed).forEach(points=>next.push({type:"freehand",points,...lineStyle})));
     }
     if (changed) editor.document.objects = next;
     return changed;
@@ -657,20 +703,31 @@
   }
   function normalizeObject(object) {
     if (!object || !["freehand","rect","circle","star","text","stamp","svgObject"].includes(object.type)) throw new Error("未対応のオブジェクトがあります");
-    if(object.type==="freehand"){if(!Array.isArray(object.points)||object.points.length<2)throw new Error("自由線の点列が不正です");return{type:"freehand",points:object.points.map(p=>[finite(p[0]),finite(p[1])]),rotation:normalizeAngle(finite(object.rotation||0))};}
-    if(object.type==="rect")return{type:"rect",x:finite(object.x),y:finite(object.y),width:Math.abs(finite(object.width)),height:Math.abs(finite(object.height)),rotation:normalizeAngle(finite(object.rotation||0))};
-    if(object.type==="circle")return{type:"circle",cx:finite(object.cx),cy:finite(object.cy),r:Math.abs(finite(object.r)),rotation:normalizeAngle(finite(object.rotation||0))};
-    if(object.type==="text")return{type:"text",text:String(object.text||""),x:finite(object.x),y:finite(object.y),fontSize:clamp(Math.abs(finite(object.fontSize||6)),1,500),letterSpacing:clamp(finite(object.letterSpacing||0),-20,100),lineHeight:clamp(finite(object.lineHeight||1.2),.5,5),writingMode:object.writingMode==="vertical"?"vertical":"horizontal",rotation:clamp(finite(object.rotation||0),-360,360),renderMode:object.renderMode==="singleline"?"singleline":"outline"};
-    if(object.type==="stamp")return{type:"stamp",stampId:String(object.stampId||""),x:finite(object.x),y:finite(object.y),scale:clamp(Math.abs(finite(object.scale??1)),.05,50),rotation:normalizeAngle(finite(object.rotation||0)),flipX:!!object.flipX,flipY:!!object.flipY};
+    const lineStyle=normalizedLineStyle(object);
+    if(object.type==="freehand"){if(!Array.isArray(object.points)||object.points.length<2)throw new Error("自由線の点列が不正です");return{type:"freehand",points:object.points.map(p=>[finite(p[0]),finite(p[1])]),rotation:normalizeAngle(finite(object.rotation||0)),...lineStyle};}
+    if(object.type==="rect")return{type:"rect",x:finite(object.x),y:finite(object.y),width:Math.abs(finite(object.width)),height:Math.abs(finite(object.height)),rotation:normalizeAngle(finite(object.rotation||0)),...lineStyle};
+    if(object.type==="circle")return{type:"circle",cx:finite(object.cx),cy:finite(object.cy),r:Math.abs(finite(object.r)),rotation:normalizeAngle(finite(object.rotation||0)),...lineStyle};
+    if(object.type==="text")return{type:"text",text:String(object.text||""),x:finite(object.x),y:finite(object.y),fontSize:clamp(Math.abs(finite(object.fontSize||6)),1,500),letterSpacing:clamp(finite(object.letterSpacing||0),-20,100),lineHeight:clamp(finite(object.lineHeight||1.2),.5,5),writingMode:object.writingMode==="vertical"?"vertical":"horizontal",rotation:clamp(finite(object.rotation||0),-360,360),renderMode:object.renderMode==="singleline"?"singleline":"outline",...lineStyle};
+    if(object.type==="stamp")return{type:"stamp",stampId:String(object.stampId||""),x:finite(object.x),y:finite(object.y),scale:clamp(Math.abs(finite(object.scale??1)),.05,50),rotation:normalizeAngle(finite(object.rotation||0)),flipX:!!object.flipX,flipY:!!object.flipY,...lineStyle};
     if(object.type==="svgObject")return normalizeSvgObject(object);
-    return{type:"star",cx:finite(object.cx),cy:finite(object.cy),r:Math.abs(finite(object.r)),vertices:clamp(Math.round(finite(object.vertices||5)),3,24),rotation:normalizeAngle(finite(object.rotation||0))};
+    return{type:"star",cx:finite(object.cx),cy:finite(object.cy),r:Math.abs(finite(object.r)),vertices:clamp(Math.round(finite(object.vertices||5)),3,24),rotation:normalizeAngle(finite(object.rotation||0)),...lineStyle};
   }
   function normalizeSvgObject(object){
     const sourceViewBox=object.viewBox||{},viewBox={x:finite(sourceViewBox.x??0),y:finite(sourceViewBox.y??0),width:Math.max(.001,Math.abs(finite(sourceViewBox.width||100))),height:Math.max(.001,Math.abs(finite(sourceViewBox.height||100)))};
     const parsed=parseStampSvg(`<svg xmlns="${svgNS}" viewBox="${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}">${String(object.markup||"")}</svg>`),presentation={};
     Object.entries(object.presentation||{}).forEach(([name,value])=>{if(["fill","stroke","stroke-linecap","stroke-linejoin","stroke-dasharray"].includes(name))presentation[name]=sanitizePresentationValue(value);});
-    return{type:"svgObject",name:String(object.name||"imported.svg"),x:finite(object.x),y:finite(object.y),scale:clamp(Math.abs(finite(object.scale??1)),.01,50),rotation:normalizeAngle(finite(object.rotation||0)),flipX:!!object.flipX,flipY:!!object.flipY,widthMm:Math.max(.01,Math.abs(finite(object.widthMm||30))),heightMm:Math.max(.01,Math.abs(finite(object.heightMm||30))),viewBox:parsed.viewBox,markup:parsed.markup,presentation};
+    return{type:"svgObject",name:String(object.name||"imported.svg"),x:finite(object.x),y:finite(object.y),scale:clamp(Math.abs(finite(object.scale??1)),.01,50),rotation:normalizeAngle(finite(object.rotation||0)),flipX:!!object.flipX,flipY:!!object.flipY,widthMm:Math.max(.01,Math.abs(finite(object.widthMm||30))),heightMm:Math.max(.01,Math.abs(finite(object.heightMm||30))),viewBox:parsed.viewBox,markup:parsed.markup,presentation,...normalizedLineStyle(object)};
   }
+  function normalizedLineStyle(object={}){
+    const lineStyle=["dashed","dotted"].includes(object.lineStyle)?object.lineStyle:"solid",defaultLength=lineStyle==="dotted"?.3:2;
+    const rawLength=+object.lineLengthMm,rawGap=+object.lineGapMm;
+    return{lineStyle,lineLengthMm:clamp(Number.isFinite(rawLength)&&rawLength>0?rawLength:defaultLength,.1,100),lineGapMm:clamp(Number.isFinite(rawGap)&&rawGap>0?rawGap:1,.1,100)};
+  }
+  function lineStylePresentation(object,unitScale=1){
+    const style=normalizedLineStyle(object);
+    return{"stroke-dasharray":style.lineStyle==="solid"?"none":`${fmt(style.lineLengthMm/unitScale)} ${fmt(style.lineGapMm/unitScale)}`};
+  }
+  function lineStyleAttributes(object){return presentationAttributes(lineStylePresentation(object));}
   function finite(value){const number=+value;if(!Number.isFinite(number))throw new Error("数値データが不正です");return number;}
   function persistLast(){saveStorage(STORAGE_LAST,{document:editor.document,name:editor.name,currentId:editor.currentId});}
   function setStatus(message,error=false){const el=$d("#drawingStatus");el.textContent=message;el.classList.toggle("error",error);}
