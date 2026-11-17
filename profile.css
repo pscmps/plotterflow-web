@@ -1,4 +1,5 @@
 .controller-profile-card{grid-column:1/-1}
+html:not([data-development-mode="true"]) .development-only{display:none!important}
 html[data-development-mode="true"] .controller-profile-card{border:2px solid #d59b35;background:linear-gradient(135deg,#fffdf7,#fff8e8)}
 .development-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:14px}
 .development-heading h2{margin:0}.development-heading p{margin:2px 0 0;color:var(--muted);font-size:12px}

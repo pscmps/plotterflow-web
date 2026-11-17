@@ -215,6 +215,30 @@ const CONTROLLER_PROFILES = {
       sampleInterval: 0.5, optimization: "safe", yFlip: true
     }
   },
+  "rp2040-geek-sts3215-rtheta-arm": {
+    development: true,
+    label: "RP2040-GEEK STS3215 RθZアーム XY変換・ツール交換（開発中・実機未確認）",
+    phase: "開発中",
+    verification: "変換はホストテストのみ。実機では未確認です。",
+    summary: "通常のXY G-codeを、送信直前にRθZアームの直接入力（X=R mm / Y=θ deg / Z=Z mm）へ変換します。ファームウェアは変更せず、XY→Rθ変換・直線の分割・T<n> M6のラック動作への展開・範囲検査をPlotterFlow側で行います。",
+    notes: [
+      "エディタとプレビューは通常のXYのままです。変換は送信時に行い、1行でも変換できなければ何も送りません。",
+      "座標はθ旋回中心が原点、θ=0°が+X、θ=90°が-Yです。紙面の位置に合わせてoffset X / Yを設定してください。",
+      "「色ごとにツール交換」をオンにすると、色ごとにラックからペンを取り、最後に返却します。ラック座標とペン先オフセットは下の「RθZアーム」欄で設定します（初期値は仮値です）。",
+      "装着センサーはありません。開始時のツール（なし、または装着済みの番号）は送信前に確認します。停止・エラー・切断の後は再確認します。",
+      "ペン上下はZ移動（G0 Z5 / G1 Z0）です。ファームウェアは速度Fを受け取りますが、現状は固定の補間速度で動きます。",
+      "ジョグと手入力のコマンドは変換せず、R/θ/Zの直接指令として送られます。"
+    ],
+    capabilities: { rthetaArm: true, statusPolling: false },
+    settings: {
+      baudrate: 115200, header: "G90", footer: "",
+      penUpCommand: "G0 Z5", penDownCommand: "G1 Z0",
+      okTimeoutMs: 60000, stopStrategy: "cancel-pen-up",
+      initializeCommand: "M17\nG90", disconnectCommand: "M18", jogAutoDisable: false,
+      penUpDelay: 0, penDownDelay: 0, penUpClearanceDelay: 0, upDelayMode: "fixed",
+      optimization: "off", yFlip: false
+    }
+  },
   custom: {
     label: "カスタム（値を維持）",
     phase: "手動設定",
@@ -335,7 +359,7 @@ const DEFAULTS = {
   baseDelay: 0.1, delayPer100: 0.1, maxDelay: 1,
   travelFeed: 500, drawFeed: 500, sampleInterval: 0.5,
   scale: 1, offsetX: 0, offsetY: 0, yFlip: true,
-  optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1,
+  optimization: "overlap_up", downLeadDistance: 5, requiredPenDownTime: 0.1, toolChangeByColor: false, rthetaArmConfig: "", rthetaArmStartTool: 0,
   baudrate: 115200, jogStep: 1, jogFeed: 1000, jogAutoDisable: false, header: "G21\nG90", footer: "",
   okTimeoutMs: 15000, stopStrategy: "hold-pen-up", initializeCommand: "", disconnectCommand: "",
   stsAxisXId: 2, stsAxisYId: 3, stsAxisZId: 1,
@@ -717,7 +741,7 @@ function init() {
   migrateSts3215DirectAxesProfile();
   if (!localStorage.getItem("plotterflow.svgOrientationV1")) { state.settings.yFlip = true; saveJSON("plotterflow.settings", state.settings); localStorage.setItem("plotterflow.svgOrientationV1", "1"); }
   $$(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
-  bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindDevelopment(); bindJobs();
+  bindSvg(); bindEditor(); bindSettings(); bindSerial(); bindDevelopment(); bindRthetaArmSettings(); bindJobs();
   populateSettings(); refreshLibrary(); updateEditorStats(); renderJobs();
   if (!("serial" in navigator)) log("Web SerialはChrome/EdgeのHTTPSまたはlocalhostで利用できます。", "rx");
   installLocalTestBridge();
@@ -786,8 +810,26 @@ function extractPaths(svg) {
       const q = new DOMPoint(p.x, p.y).matrixTransform(ctm);
       points.push({ x: q.x * mmScale, y: q.y * mmScale });
     }
+    points.color = svgElementColor(el);
     return points;
   }).filter(Boolean);
+}
+const DEFAULT_TOOL_COLOR = "#000000";
+function cssColorToHex(value) {
+  const match = String(value || "").match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s/]+([\d.]+%?))?\s*\)$/i);
+  if (!match) return /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : null;
+  if (match[4] !== undefined && parseFloat(match[4]) === 0) return null;
+  return "#" + match.slice(1, 4).map(part => Math.min(255, +part).toString(16).padStart(2, "0")).join("");
+}
+function svgElementColor(el) {
+  const style = getComputedStyle(el);
+  return cssColorToHex(style.stroke) || cssColorToHex(style.fill) || DEFAULT_TOOL_COLOR;
+}
+function toolChangeByColorEnabled() { return !!(state.developmentMode && state.settings.toolChangeByColor); }
+function groupPathsByToolColor(paths) {
+  const colors = [];
+  for (const path of paths) { const color = path.color || DEFAULT_TOOL_COLOR; if (!colors.includes(color)) colors.push(color); }
+  return { colors, paths: colors.flatMap(color => paths.filter(path => (path.color || DEFAULT_TOOL_COLOR) === color)) };
 }
 function getSvgMmScale(svg, vb) {
   const raw = svg.getAttribute("width") || ""; const value = parseFloat(raw);
@@ -805,6 +847,7 @@ function transformOutputPaths(sourcePaths) {
     const ys = paths.flat().map(p => p.y), axis = Math.min(...ys) + Math.max(...ys);
     paths = paths.map(path => path.map(p => ({ x: p.x, y: axis - p.y })));
   }
+  paths.forEach((path, index) => { if (sourcePaths[index].color) path.color = sourcePaths[index].color; });
   return paths;
 }
 
@@ -853,8 +896,18 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
   lines.push(...String(s.header).split(/\r?\n/).filter(Boolean));
   let previous = { x: 0, y: 0 };
   let isFirstDrawablePath = true;
+  // 開発中: 色ごとにまとめ、色が変わる所へ T<n> M6 を出力する。通常のGRBL/FluidNCは未対応。
+  const toolChange = toolChangeByColorEnabled();
+  let toolColors = [], currentToolColor = null;
+  if (toolChange) ({ colors: toolColors, paths } = groupPathsByToolColor(paths.filter(path => path.length >= 2)));
   for (const path of paths) {
     if (path.length < 2) continue;
+    const pathColor = path.color || DEFAULT_TOOL_COLOR;
+    if (toolChange && pathColor !== currentToolColor) {
+      lines.push(s.penUpCommand); dwell(lines, +s.penUpDelay);
+      lines.push(`T${toolColors.indexOf(pathColor) + 1} M6 ; tool-color ${pathColor}`);
+      currentToolColor = pathColor;
+    }
     const start = path[0], distance = Math.hypot(start.x - previous.x, start.y - previous.y);
     const splitInitialTravel = isFirstDrawablePath && isPicoDrv8835Profile();
     lines.push(s.penUpCommand);
@@ -878,12 +931,14 @@ function buildGcodeFromPaths(paths, outputName = "", previewOptions = {}) {
       lines.push(s.penDownCommand); dwell(lines, +s.penDownDelay);
     }
     for (let i = 1; i < path.length; i++) {
-      const p = path[i], from = path[i - 1]; lines.push(`G1 X${fmt(p.x)} Y${fmt(p.y)} F${fmt(+s.drawFeed)}`); moves.push({ type: "draw", from, to: p });
+      const p = path[i], from = path[i - 1]; lines.push(`G1 X${fmt(p.x)} Y${fmt(p.y)} F${fmt(+s.drawFeed)}`); moves.push(toolChange ? { type: "draw", from, to: p, color: pathColor } : { type: "draw", from, to: p });
     }
     previous = path[path.length - 1];
     isFirstDrawablePath = false;
   }
-  lines.push(s.penUpCommand); dwell(lines, +s.penUpDelay); lines.push(...String(s.footer).split(/\r?\n/).filter(Boolean));
+  lines.push(s.penUpCommand); dwell(lines, +s.penUpDelay);
+  if (toolChange && currentToolColor) lines.push("T0 M6");
+  lines.push(...String(s.footer).split(/\r?\n/).filter(Boolean));
   $("#gcodeEditor").value = lines.join("\n"); state.gcodeMoves = moves; state.previewNormalizeY = !!previewOptions.normalizeYPreview; state.currentId = null;
   $("#gcodeName").value = outputName ? ensureExt(outputName.replace(/\.plotter\.json$/i, "")) : `plot-${new Date().toISOString().slice(0, 19).replaceAll(":", "-")}.gcode`;
   updateEditorStats(); setPreviewMode("gcode"); renderGcodePreview(); if (!previewOptions.stayOnCurrentTab) switchTab("gcode"); toast("G-codeを生成しました");
@@ -916,7 +971,7 @@ function renderTrajectorySvg(svg, moves, previewPosition = null) {
   const pts = moves.flatMap(m => [m.from, m.to]); if (!pts.length) { svg.innerHTML = ""; svg.removeAttribute("viewBox"); return; }
   const xs = pts.map(p => p.x), ys = pts.map(p => p.y), pad = Math.max(5, (Math.max(...xs)-Math.min(...xs))*.05);
   svg.setAttribute("viewBox", `${Math.min(...xs)-pad} ${Math.min(...ys)-pad} ${Math.max(...xs)-Math.min(...xs)+2*pad || 10} ${Math.max(...ys)-Math.min(...ys)+2*pad || 10}`);
-  svg.innerHTML = moves.map(m => `<line x1="${m.from.x}" y1="${m.from.y}" x2="${m.to.x}" y2="${m.to.y}" stroke="${m.type === "draw" ? "#087985" : "#df8a32"}" stroke-width="0.5" ${m.type === "travel" ? 'stroke-dasharray="2 2"' : ""} vector-effect="non-scaling-stroke"/>`).join("") + (previewPosition ? `<circle cx="${previewPosition.x}" cy="${previewPosition.y}" r="2" fill="#d02f52" vector-effect="non-scaling-stroke"/>` : "");
+  svg.innerHTML = moves.map(m => `<line x1="${m.from.x}" y1="${m.from.y}" x2="${m.to.x}" y2="${m.to.y}" stroke="${m.type === "draw" ? (m.color || "#087985") : "#df8a32"}" stroke-width="0.5" ${m.type === "travel" ? 'stroke-dasharray="2 2"' : ""} vector-effect="non-scaling-stroke"/>`).join("") + (previewPosition ? `<circle cx="${previewPosition.x}" cy="${previewPosition.y}" r="2" fill="#d02f52" vector-effect="non-scaling-stroke"/>` : "");
 }
 function renderSerialTrajectory(code, name = "送信データ") {
   renderTrajectorySvg($("#serialTrajectorySvg"), parseGcodeMoves(String(code || "")), state.position);
@@ -935,14 +990,17 @@ function openSerialTrajectory(code, name) {
   scrollToSerialTrajectory();
 }
 function parseGcodeMoves(code) {
-  let pos = { x: 0, y: 0 }, absolute = true; const moves = [];
+  let pos = { x: 0, y: 0 }, absolute = true, toolColor = null; const moves = [];
   for (const raw of code.split(/\r?\n/)) {
+    if (/^\s*(?:T\d+\s*M0*6|M0*6\s*T\d+)\b/i.test(raw)) { toolColor = raw.match(/;\s*tool-color\s+(#[0-9a-f]{6})\b/i)?.[1].toLowerCase() || null; continue; }
     const line = raw.replace(/;.*|\([^)]*\)/g, "").trim().toUpperCase();
     if (/\bG90\b/.test(line)) absolute = true; if (/\bG91\b/.test(line)) absolute = false;
     const motion = line.match(/\bG([01])\b/); if (!motion) continue;
     const xm = line.match(/\bX(-?\d*\.?\d+)/), ym = line.match(/\bY(-?\d*\.?\d+)/); if (!xm && !ym) continue;
     const to = { x: xm ? (absolute ? +xm[1] : pos.x + +xm[1]) : pos.x, y: ym ? (absolute ? +ym[1] : pos.y + +ym[1]) : pos.y };
-    moves.push({ type: motion[1] === "0" ? "travel" : "draw", from: { ...pos }, to }); pos = to;
+    const move = { type: motion[1] === "0" ? "travel" : "draw", from: { ...pos }, to };
+    if (toolColor && move.type === "draw") move.color = toolColor;
+    moves.push(move); pos = to;
   }
   return moves;
 }
@@ -1026,6 +1084,7 @@ function renderDevelopmentMode() {
   }
   const stsSettings = $("#stsDirectAxesSettings");
   if (stsSettings) stsSettings.hidden = !isSts3215DirectAxes();
+  renderRthetaArmSettings();
 }
 function handleDevelopmentModeChange(event) {
   const requested = event.target.checked;
@@ -1076,6 +1135,59 @@ function sts3215AxisConfigCommand() {
     `PX${fmt(ppm("stsAxisXPulsesPerMm"))} PY${fmt(ppm("stsAxisYPulsesPerMm"))} PZ${fmt(ppm("stsAxisZPulsesPerMm"))} ` +
     `IX${s.stsAxisXInvert ? 1 : 0} IY${s.stsAxisYInvert ? 1 : 0} IZ${s.stsAxisZInvert ? 1 : 0} EZ${s.stsAxisZEnabled ? 1 : 0}`;
 }
+function isRthetaArmProfile() { return activeControllerProfile().capabilities?.rthetaArm === true; }
+// RθZアーム: 送信前にXY G-codeをRθZ直接入力へ変換する。装着中ツールはPlotterFlow側で追跡する（センサーなし）。
+function rthetaArmStartTool() { return state.rthetaArmTool ?? Math.max(0, Math.trunc(+state.settings.rthetaArmStartTool || 0)); }
+function convertForRthetaArm(code) {
+  return window.PlotterFlowRthetaArm.convertProgram(code, state.settings.rthetaArmConfig, { startTool: rthetaArmStartTool() });
+}
+function confirmRthetaArmStart() {
+  if (state.rthetaArmTool !== undefined) return true;
+  const tool = rthetaArmStartTool();
+  return confirm(`RθZアームへ送信します。\n開始時のツール: ${tool === 0 ? "なし（ペンはすべてラックにある）" : `T${tool} を装着済み`}\n実機がこの状態で、アームの周囲に手や物がなければOKを押してください。`);
+}
+async function sendRthetaArmProgram(result, options) {
+  try { await sendLines(result.sendLines, options); }
+  catch (error) { state.rthetaArmTool = undefined; throw error; }
+  state.rthetaArmTool = state.stopped || state.jobStopped ? undefined : result.finalTool;
+}
+async function sendJobProgram(code, options) {
+  if (!isRthetaArmProfile()) return sendLines(cleanLines(code), options);
+  const result = convertForRthetaArm(code);
+  if (!confirmRthetaArmStart()) throw new Error("開始時のツール確認が取り消されました");
+  return sendRthetaArmProgram(result, options);
+}
+function renderRthetaArmSettings() {
+  const card = $("#rthetaArmSettings");
+  if (card) card.hidden = !isRthetaArmProfile();
+}
+function checkRthetaArmConversion(download = false) {
+  const status = $("#rthetaArmStatus");
+  readSettings();
+  try {
+    const result = convertForRthetaArm($("#gcodeEditor").value);
+    const { stats } = result;
+    status.classList.remove("error");
+    status.textContent = `変換OK: 送信 ${result.sendLines.length}行（元 ${stats.sourceLines}行）・ツール取得 ${stats.toolChanges}回・描画 ${stats.drawSegments}区間・空走 ${stats.travelMoves}回・終了時 ${result.finalTool === 0 ? "ツールなし" : `T${result.finalTool}`}`;
+    if (download) {
+      const blob = new Blob([result.lines.join("\n") + "\n"], { type: "text/plain" }), a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = ensureExt($("#gcodeName").value.trim() || "untitled.gcode").replace(/\.(gcode|nc|tap)$/i, "-rtheta.gcode"); a.click(); URL.revokeObjectURL(a.href);
+    }
+    return result;
+  } catch (error) {
+    status.classList.add("error");
+    status.textContent = `変換できません: ${error.message}`;
+    return null;
+  }
+}
+function bindRthetaArmSettings() {
+  $("#rthetaArmCheck")?.addEventListener("click", () => checkRthetaArmConversion(false));
+  $("#rthetaArmDownload")?.addEventListener("click", () => checkRthetaArmConversion(true));
+  $("#rthetaArmDefaults")?.addEventListener("click", () => {
+    $("#settingsForm").elements.rthetaArmConfig.value = JSON.stringify(window.PlotterFlowRthetaArm.DEFAULT_CONFIG, null, 2);
+    $("#rthetaArmStatus").textContent = "初期値（仮値）を入れました。「設定を保存」で確定します。";
+  });
+}
 function sts3215SetupLines() { return isSts3215DirectAxes() ? [sts3215AxisConfigCommand(), "M17"] : []; }
 function renderControllerProfile() {
   const profile = activeControllerProfile(), host = $("#controllerProfileDescription");
@@ -1099,6 +1211,7 @@ function updateSerialProfileDisplay() {
   if (sdDownload) sdDownload.hidden = !isSts3215DirectAxes();
   const stsSettings = $("#stsDirectAxesSettings");
   if (stsSettings) stsSettings.hidden = !isSts3215DirectAxes();
+  renderRthetaArmSettings();
 }
 
 function isPicoDrv8835Profile() { return state.settings.controllerProfile === "pico2-drv8835-planar"; }
@@ -1283,6 +1396,7 @@ function shouldLogPicoPlanarDebug(text) {
     /^\[MSG:(?:DRV8835|M980|SDUPLOAD|SDMODE|SDFILE)(?:\s|\])/i.test(text);
 }
 async function disconnectSerial() {
+  state.rthetaArmTool = undefined; // 再接続後は装着中ツールを信用せず、送信前に再確認する。
   stopStatusPolling();
   if (state.writer && state.positionTelemetryEnabled) {
     try { await rawWrite("M983 S0\n", false); await sleep(50); }
@@ -1344,7 +1458,7 @@ async function sendLineAndWait(line, trackPosition = true, meta = {}) {
   state.lastSentLine = line; state.lastSendAt = Date.now();
   await rawWrite(line + "\n", false);
   await pending;
-  if (trackPosition) updatePosition(line);
+  if (trackPosition && !isRthetaArmProfile()) updatePosition(line); // RθZ変換後のX/YはR/θなので、XYの現在位置表示には使わない。
 }
 function formatSdFileSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -1815,10 +1929,17 @@ async function setCurrentXyZero() {
 function cleanLines(code) { return code.split(/\r?\n/).map(x => x.trim()).filter(x => x && !x.startsWith(";") && !x.startsWith("(")); }
 async function startSending(code, options = {}) {
   if (!state.writer) return toast("先にSerial接続してください"); if (state.sdManagementActive) return toast("SDカード管理を終了してから送信してください"); if (state.sending) return toast("すでに送信中です");
+  let rthetaArm = null;
+  if (isRthetaArmProfile()) {
+    try { rthetaArm = convertForRthetaArm(code); }
+    catch (error) { log(`RθZ変換エラー: ${error.message}`, "rx"); return toast(`RθZ変換エラー: ${error.message}`); }
+  }
+  if (rthetaArm) code = rthetaArm.sendLines.join("\n");
   const lines = [...sts3215SetupLines(), ...cleanLines(code)]; if (!lines.length) return toast("送信するG-codeがありません");
+  if (rthetaArm && !confirmRthetaArmStart()) return toast("送信を取り消しました");
   clearOkWaiters("新しい送信を開始");
   state.sending = true; state.stopped = false; state.jobStopped = false; state.paused = false;
-  try { await sendLines(lines, options); if (!state.stopped && !options.silent) toast("送信が完了しました"); }
+  try { await (rthetaArm ? sendRthetaArmProgram(rthetaArm, options) : sendLines(lines, options)); if (!state.stopped && !options.silent) toast("送信が完了しました"); }
   catch (e) { if (!state.stopped) log(`送信停止: ${e.message}`, "rx"); }
   finally { state.sending = false; state.paused = false; state.stopped = false; state.jobStopped = false; clearOkWaiters("送信終了"); flushSerialUi(); }
 }
@@ -2114,7 +2235,7 @@ async function runJobs() {
           if(j.beforeDelay)await interruptibleDelay(j.beforeDelay*1000);
           await sendJobCommandBlock(j.beforeCommand,{label:"beforeCommand"});
           if(j.gcodeId==="__reload__")notifyReloadSimulation(jobGcode);
-          await sendLines(cleanLines(jobGcode),{silent:true,stopPolling:false,onProgress:r=>scheduleJobProgress(done+r,total)});
+          await sendJobProgram(jobGcode,{silent:true,stopPolling:false,onProgress:r=>scheduleJobProgress(done+r,total)});
           await sendJobCommandBlock(j.afterCommand,{label:"afterCommand"});
           if(j.afterDelay)await interruptibleDelay(j.afterDelay*1000);
           if(useAutoReload)await sendAutoReloadStep({loop,loops,jobIndex:ji+1,jobTotal:jobs.length,run,runTotal:j.count});

@@ -493,6 +493,12 @@
           <label>プロファイル<select id="controllerProfile" name="controllerProfile"><option value="grbl-fluidnc">GRBL / FluidNC（標準）</option><option value="rp2040-geek-sts3215-id2-id3">RP2040/RP2350-GEEK STS3215 XYZ直結G-code（XY実機テスト）</option><option value="custom">カスタム（値を維持）</option></select></label>
           <div id="controllerProfileDescription" class="controller-profile-description" aria-live="polite"></div>
         </article>
+        <article id="rthetaArmSettings" class="card development-only" hidden><h2>RθZアーム（XY変換・ツール交換）</h2>
+          <p class="muted">送信直前に、XY G-codeをRθZアームの直接入力へ変換します。ラック座標 <code>[R mm, θ deg, Z mm]</code> とペン先オフセット（radial / lateral mm）は実機に合わせて設定してください。空欄なら仮の初期値を使います。</p>
+          <label>開始時のツール番号（0＝なし）<input name="rthetaArmStartTool" type="number" min="0" max="16" step="1"></label>
+          <label>アーム設定 (JSON)<textarea name="rthetaArmConfig" class="code" rows="14" spellcheck="false"></textarea></label>
+          <button type="button" id="rthetaArmDefaults">初期値（仮値）を入れる</button><button type="button" id="rthetaArmCheck">エディタのG-codeで変換を確認</button><button type="button" id="rthetaArmDownload">変換後G-codeをダウンロード</button><p id="rthetaArmStatus" class="status"></p>
+        </article>
         <article id="stsDirectAxesSettings" class="card" hidden><h2>STS3215 直結軸</h2>
           <p class="muted">XYZごとにサーボIDと1 mmあたりのpulse数を指定します。初期値128 pulse/mmでは32 mmが1回転です。</p>
           <label>X ID<input name="stsAxisXId" type="number" min="0" max="253" step="1"></label><label>X pulse/mm<input name="stsAxisXPulsesPerMm" type="number" min="0.001" max="28672" step="0.001"></label><label class="check"><input name="stsAxisXInvert" type="checkbox">X反転</label>
@@ -511,6 +517,7 @@
           <label>scale<input name="scale" type="number" step="0.01"></label><label>offset X (mm)<input name="offsetX" type="number" step="0.1"></label><label>offset Y (mm)<input name="offsetY" type="number" step="0.1"></label><label class="check"><input name="yFlip" type="checkbox">Y軸反転</label>
           <label>最適化<select name="optimization"><option value="safe">safe</option><option value="overlap_up">overlap_up（推奨）</option><option value="overlap_down" hidden disabled>overlap_down（実験）</option><option value="off">off</option></select></label>
           <label>down lead距離 (mm)<input name="downLeadDistance" type="number" min="0" step="0.1"></label><label>必要down時間 (秒)<input name="requiredPenDownTime" type="number" min="0" step="0.01"></label>
+          <label class="check development-only" id="toolChangeByColorField"><input name="toolChangeByColor" type="checkbox">色ごとにツール交換（T&lt;n&gt; M6・開発中）</label><p class="muted development-only">SVGの線色ごとにまとめ、色が変わる所へ <code>T&lt;n&gt; M6</code>、最後に <code>T0 M6</code> を出力します。ツールチェンジャー対応の送り先専用で、通常のGRBL/FluidNCではエラーになります。</p>
         </article>
         <article class="card"><h2>出力・接続</h2>
           <label>Baudrate<input name="baudrate" type="number"></label><label>ok応答 timeout (ms)<input name="okTimeoutMs" type="number" min="1000" step="1000"></label>
@@ -529,6 +536,7 @@
   <script src="micropython-setup.js?v=20260928-1"></script>
   <script src="micropython-tmc-view.js?v=20260927-1"></script>
   <script src="micropython-board-view.js?v=20260928-1"></script>
+  <script src="rtheta-arm.js?v=20261117-1"></script>
   <script src="app.js?v=20260928-1"></script>
   <script src="vendor/opentypejs/opentype.min.js"></script>
   <script src="drawing.js?v=20261116-2"></script>
